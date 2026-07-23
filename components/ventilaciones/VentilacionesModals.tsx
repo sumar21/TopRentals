@@ -110,30 +110,34 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio<span className="text-destructive ml-0.5">*</span></label>
-            <Select value={edificioId} onChange={(v) => { setEdificioId(v); setUnidadId(''); }} options={edificioOptions} placeholder="Elegí un edificio" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio<span className="text-destructive ml-0.5">*</span></label>
+              <Select value={edificioId} onChange={(v) => { setEdificioId(v); setUnidadId(''); }} options={edificioOptions} placeholder="Elegí un edificio" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Habitación<span className="text-destructive ml-0.5">*</span></label>
+              <Select value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Elegí una habitación' : 'Elegí un edificio primero'} disabled={!edificioId} />
+              {edificioId && unidadOptions.length === 0 && (
+                <p className="text-[10px] text-muted-foreground mt-1">Todas las unidades de este edificio ya tienen ventilación asignada.</p>
+              )}
+            </div>
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Habitación<span className="text-destructive ml-0.5">*</span></label>
-            <Select value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Elegí una habitación' : 'Elegí un edificio primero'} disabled={!edificioId} />
-            {edificioId && unidadOptions.length === 0 && (
-              <p className="text-[10px] text-muted-foreground mt-1">Todas las unidades de este edificio ya tienen ventilación asignada.</p>
-            )}
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Frecuencia<span className="text-destructive ml-0.5">*</span></label>
-            <Select value={frecuenciaId} onChange={setFrecuenciaId} options={frecuenciaOptions} placeholder="Elegí una frecuencia" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de inicio<span className="text-destructive ml-0.5">*</span></label>
-            <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Frecuencia<span className="text-destructive ml-0.5">*</span></label>
+              <Select value={frecuenciaId} onChange={setFrecuenciaId} options={frecuenciaOptions} placeholder="Elegí una frecuencia" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de inicio<span className="text-destructive ml-0.5">*</span></label>
+              <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+            </div>
           </div>
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={handleSave} disabled={!canSave || saving} className="min-w-[140px] w-full sm:w-auto">
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Guardar
           </Button>
@@ -225,14 +229,16 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima limpieza<span className="text-destructive ml-0.5">*</span></label>
-            <input type="date" value={fecha} min={todayISO()} onChange={(e) => setFecha(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico<span className="text-destructive ml-0.5">*</span></label>
-            <Select value={tecnicoId} onChange={setTecnicoId} options={tecnicoOptions} placeholder="Elegí un técnico" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima limpieza<span className="text-destructive ml-0.5">*</span></label>
+              <input type="date" value={fecha} min={todayISO()} onChange={(e) => setFecha(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico<span className="text-destructive ml-0.5">*</span></label>
+              <Select value={tecnicoId} onChange={setTecnicoId} options={tecnicoOptions} placeholder="Elegí un técnico" />
+            </div>
           </div>
           {ventilacion.es_incidente && (
             <div>
@@ -242,8 +248,8 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
           )}
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={handleSave} disabled={!canSave || saving} className="min-w-[140px] w-full sm:w-auto">
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Guardar
           </Button>
@@ -316,8 +322,8 @@ export const DetalleVentilacionModal: React.FC<DetalleVentilacionModalProps> = (
           ) : null}
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex justify-end">
-          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cerrar</Button>
         </div>
       </div>
     </div>,

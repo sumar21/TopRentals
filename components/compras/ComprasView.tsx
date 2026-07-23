@@ -49,12 +49,12 @@ const DocumentoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
   if (!visible) return null;
   return createPortal(
     <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
-      <div className={`${modalClass} bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col`}>
+      <div className={`${modalClass} bg-background w-full max-w-md max-h-[90vh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col`}>
         <div className="px-6 py-4 border-b bg-secondary/20"><h2 className="text-lg font-bold tracking-tight">Documento adjunto</h2></div>
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto">
           <EmptyState icon={FileText} title="Documentos disponibles con el backend definitivo" />
         </div>
-        <div className="p-4 border-t bg-muted/20 flex justify-end"><Button variant="outline" onClick={onClose}>Cerrar</Button></div>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end"><Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cerrar</Button></div>
       </div>
     </div>,
     document.body,
@@ -223,7 +223,7 @@ const ComprasView: React.FC = () => {
           </div>
           <button onClick={() => setShowFilters((v) => !v)}
             className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 h-9 text-sm font-medium transition-colors ${showFilters ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-            <SlidersHorizontal className="h-4 w-4" /> Filtros
+            <SlidersHorizontal className="h-4 w-4" /> <span className="hidden sm:inline">Filtros</span>
             {activeFilterCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeFilterCount}</span>}
             {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>

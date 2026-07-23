@@ -31,12 +31,13 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
   const guardedClose = () => { if (!locked) onClose(); };
   return createPortal(
     <div
-      className={cn('fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm', closing ? 'overlay-exit' : 'overlay-enter')}
+      className={cn('fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4', closing ? 'overlay-exit' : 'overlay-enter')}
       {...backdropClose(guardedClose)}
     >
+      {/* Mobile: bottom-sheet (rounded top, slides up). Desktop (sm+): centered card (§5.5). */}
       <div
         className={cn(
-          'w-full max-w-md bg-background rounded-t-2xl shadow-2xl border-t overflow-hidden flex flex-col max-h-[85dvh]',
+          'w-full max-w-md bg-background rounded-t-2xl shadow-2xl border-t overflow-hidden flex flex-col max-h-[85dvh] sm:rounded-2xl sm:border sm:max-h-[90vh]',
           closing ? 'animate-out slide-out-to-bottom fade-out duration-200' : 'animate-in slide-in-from-bottom-full fade-in duration-300',
         )}
       >

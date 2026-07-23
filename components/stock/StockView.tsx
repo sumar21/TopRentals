@@ -125,16 +125,18 @@ const StockView: React.FC = () => {
             onClick={() => navigate('/salidas-stock')}
             disabled={readOnly}
             title={readOnly ? 'No tenés permiso para esta acción.' : undefined}
+            aria-label="Salidas"
           >
-            <ArrowRightLeft className="h-3.5 w-3.5" /> Salidas
+            <ArrowRightLeft className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Salidas</span>
           </Button>
           <Button
             className="h-9 px-3 text-sm gap-1.5 shrink-0"
             onClick={() => setShowAgregar(true)}
             disabled={readOnly}
             title={readOnly ? 'No tenés permiso para esta acción.' : undefined}
+            aria-label="Ingresar Stock"
           >
-            <Plus className="h-3.5 w-3.5" /> Ingresar Stock
+            <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Ingresar Stock</span>
           </Button>
         </div>
       </div>

@@ -181,8 +181,8 @@ const UsuarioFormModal: React.FC<{
           <p className="text-xs text-muted-foreground/80 italic">La gestión de contraseñas llega con el backend definitivo.</p>
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={handleSave} disabled={saving} className="min-w-[140px] w-full sm:w-auto">
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Guardar
           </Button>
@@ -261,8 +261,10 @@ const UsuariosPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* En desktop el toolbar sube a la fila de los tabs (ConfiguracionView); en mobile queda debajo. */}
-      <div className="flex items-center gap-2 flex-wrap justify-end md:self-end md:-mt-[46px]">
+      {/* En pantallas grandes (≥1024, lg) el toolbar sube a la fila de los tabs (ConfiguracionView);
+          en mobile y tablet queda debajo (a 768px el sidebar + los tabs no dejan lugar para search +
+          botón en la misma fila). */}
+      <div className="flex items-center gap-2 flex-wrap justify-end lg:self-end lg:-mt-[46px]">
         <div className="relative flex-1 sm:w-56 sm:flex-none min-w-[7rem]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
@@ -291,7 +293,7 @@ const UsuariosPanel: React.FC = () => {
                   <EstadoBadge status={u.status} />
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{u.edificio_default || 'Sin edificio'}</span>
+                  <span className="min-w-0 flex-1 truncate">{u.edificio_default || 'Sin edificio'} · {formatDate(u.fecha_nac) || '—'}</span>
                   {renderAcciones(u)}
                 </div>
               </div>

@@ -151,9 +151,9 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
                   </label>
                 )}
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowForm(false)} disabled={saving}>Cancelar</Button>
-                <Button size="sm" onClick={handleAgregar} disabled={!descripcion.trim() || saving} className="gap-2">
+              <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowForm(false)} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
+                <Button size="sm" onClick={handleAgregar} disabled={!descripcion.trim() || saving} className="w-full sm:w-auto gap-2">
                   {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Guardar
                 </Button>
               </div>
@@ -162,8 +162,8 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
         </div>
 
         {!showForm && (
-          <div className="p-4 border-t bg-muted/20 flex justify-end">
-            <Button onClick={() => setShowForm(true)} className="gap-2"><Plus className="h-4 w-4" /> Agregar</Button>
+          <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row justify-end">
+            <Button onClick={() => setShowForm(true)} className="w-full sm:w-auto gap-2"><Plus className="h-4 w-4" /> Agregar</Button>
           </div>
         )}
       </div>

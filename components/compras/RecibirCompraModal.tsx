@@ -121,36 +121,64 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                 </div>
               )}
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Edificio | Artículo</TableHead>
-                    <TableHead className="text-right">Pedido</TableHead>
-                    <TableHead className="text-right w-32">Recibido</TableHead>
-                    <TableHead className="w-32 text-center">No recibido</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((l) => (
-                    <TableRow key={l.detalle_id}>
-                      <TableCell className="text-sm">
-                        <span className="text-muted-foreground">{l.edificio}</span> | {l.articulo}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{l.cantidad}</TableCell>
-                      <TableCell className="text-right">
+              {/* Mobile: receive list as cards (table doesn't fit at 375px). */}
+              <div className="sm:hidden space-y-2">
+                {lines.map((l) => (
+                  <div key={l.detalle_id} className="rounded-lg border bg-card p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm"><span className="text-muted-foreground">{l.edificio}</span> | {l.articulo}</p>
+                      <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
+                        className={`p-1.5 -m-1.5 rounded-md shrink-0 transition-colors ${l.noRecibido ? 'text-destructive bg-destructive/10' : 'text-muted-foreground hover:bg-muted'}`}>
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 items-end">
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1">Pedido</p>
+                        <p className="text-sm font-medium tabular-nums">{l.cantidad}</p>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-muted-foreground mb-1 block">Recibido</label>
                         <Input type="number" min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
-                          onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 w-20 text-right ml-auto" />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
-                          className={`p-1.5 rounded-md transition-colors ${l.noRecibido ? 'text-destructive bg-destructive/10' : 'text-muted-foreground hover:bg-muted'}`}>
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      </TableCell>
+                          onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 text-right" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Tablet/desktop: full table. */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Edificio | Artículo</TableHead>
+                      <TableHead className="text-right">Pedido</TableHead>
+                      <TableHead className="text-right w-32">Recibido</TableHead>
+                      <TableHead className="w-32 text-center">No recibido</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {lines.map((l) => (
+                      <TableRow key={l.detalle_id}>
+                        <TableCell className="text-sm">
+                          <span className="text-muted-foreground">{l.edificio}</span> | {l.articulo}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{l.cantidad}</TableCell>
+                        <TableCell className="text-right">
+                          <Input type="number" min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
+                            onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 w-20 text-right ml-auto" />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
+                            className={`p-1.5 rounded-md transition-colors ${l.noRecibido ? 'text-destructive bg-destructive/10' : 'text-muted-foreground hover:bg-muted'}`}>
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas de recepción</label>

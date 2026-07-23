@@ -80,7 +80,7 @@ export const FilterToggle: React.FC<{ open: boolean; onToggle: () => void }> = (
   return (
     <button onClick={onToggle}
       className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${open ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-      <SlidersHorizontal className="h-4 w-4 text-brand" /> Filtros
+      <SlidersHorizontal className="h-4 w-4 text-brand" /> <span className="hidden sm:inline">Filtros</span>
       {activeCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeCount}</span>}
       {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
     </button>

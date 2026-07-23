@@ -209,7 +209,7 @@ const HomeView: React.FC = () => {
           </div>
 
           {/* DESKTOP: 4 side-by-side triage columns */}
-          <div className="hidden md:grid md:grid-cols-4 gap-4">
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             {COLUMN_DEFS.map(({ key, title }) => {
               const items = board[key];
               return (

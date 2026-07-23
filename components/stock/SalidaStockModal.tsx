@@ -112,7 +112,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-muted-foreground">
             <div>
               <label className="block font-medium text-muted-foreground/80 mb-0.5">Fecha</label>
               <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-8 text-xs" />
@@ -162,8 +162,8 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
           </div>
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={close} disabled={saving}>Cancelar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row flex-wrap justify-end gap-2">
+          <Button variant="outline" onClick={close} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={handleSave} disabled={!valid || saving} className="min-w-[140px] w-full sm:w-auto gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageMinus className="h-4 w-4" />}
             Confirmar salida

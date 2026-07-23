@@ -85,8 +85,8 @@ const CerrarOTModal: React.FC<CerrarOTModalProps> = ({ isOpen, onClose, ot, onSa
           </div>
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={handleSave} disabled={saving} className="min-w-[140px] w-full sm:w-auto gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar
           </Button>

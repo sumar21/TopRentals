@@ -264,36 +264,65 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                 {cart.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">Todavía no agregaste artículos.</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Artículo</TableHead>
-                        <TableHead className="w-24 text-right">Cant.</TableHead>
-                        <TableHead className="w-36 text-right">Costo unit.</TableHead>
-                        <TableHead className="w-36 text-right">Total</TableHead>
-                        <TableHead className="w-10" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <>
+                    {/* Mobile: cart rows as cards (line-items table doesn't fit at 375px). */}
+                    <div className="sm:hidden space-y-2">
                       {cart.map((l) => (
-                        <TableRow key={l.key}>
-                          <TableCell className="text-sm">{l.articulo_nombre}</TableCell>
-                          <TableCell className="text-right">
-                            <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 w-28 text-right ml-auto" />
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-medium tabular-nums">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
-                          <TableCell>
-                            <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                        <div key={l.key} className="rounded-lg border bg-card p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium">{l.articulo_nombre}</p>
+                            <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 -m-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0">
                               <Trash2 className="h-4 w-4" />
                             </button>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[11px] text-muted-foreground mb-1 block">Cantidad</label>
+                              <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 text-right" />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-muted-foreground mb-1 block">Costo unit.</label>
+                              <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 text-right" />
+                            </div>
+                          </div>
+                          <div className="flex justify-end text-sm font-semibold tabular-nums">Total: $ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</div>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                    {/* Tablet/desktop: full table. */}
+                    <div className="hidden sm:block">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Artículo</TableHead>
+                            <TableHead className="w-24 text-right">Cant.</TableHead>
+                            <TableHead className="w-36 text-right">Costo unit.</TableHead>
+                            <TableHead className="w-36 text-right">Total</TableHead>
+                            <TableHead className="w-10" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {cart.map((l) => (
+                            <TableRow key={l.key}>
+                              <TableCell className="text-sm">{l.articulo_nombre}</TableCell>
+                              <TableCell className="text-right">
+                                <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 w-28 text-right ml-auto" />
+                              </TableCell>
+                              <TableCell className="text-right text-sm font-medium tabular-nums">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
+                              <TableCell>
+                                <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
                 )}
                 {cart.length > 0 && (
                   <div className="flex justify-end text-sm font-bold font-mono text-brand">Total: $ {maskFromNumber(total)}</div>

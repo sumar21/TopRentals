@@ -49,7 +49,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {toasts.length > 0 && createPortal(
-        <div className="fixed top-4 right-4 z-[99999] flex flex-col gap-2">
+        <div className="fixed top-4 left-4 right-4 sm:left-auto z-[99999] flex flex-col gap-2">
           {toasts.map(t => <ToastItem key={t.id} toast={t} onRemove={removeToast} />)}
         </div>, document.body)}
     </ToastContext.Provider>

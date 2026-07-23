@@ -73,36 +73,55 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                 </div>
               )}
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">Cantidad</TableHead>
-                    {showRecibido && <TableHead className="text-right">Recibido</TableHead>}
-                    <TableHead>Edificio</TableHead>
-                    <TableHead>Artículo</TableHead>
-                    <TableHead className="text-right">Costo unit.</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lineas.map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell className="text-right tabular-nums">{d.cantidad}</TableCell>
-                      {showRecibido && <TableCell className="text-right tabular-nums">{d.recibido ?? '—'}</TableCell>}
-                      <TableCell className="text-sm">{d.edificio ?? '—'}</TableCell>
-                      <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums">$ {maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">$ {maskFromNumber(d.costo_total ?? 0)}</TableCell>
+              {/* Mobile: line items as cards (table doesn't fit at 375px). */}
+              <div className="sm:hidden space-y-2">
+                {lineas.map((d) => (
+                  <div key={d.id} className="rounded-lg border bg-card p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium">{d.articulo ?? '—'}</p>
+                      <p className="text-sm font-semibold tabular-nums shrink-0">$ {maskFromNumber(d.costo_total ?? 0)}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{d.edificio ?? '—'}</p>
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Cant. {d.cantidad}{showRecibido ? ` · Recib. ${d.recibido ?? '—'}` : ''}</span>
+                      <span>$ {maskFromNumber(d.costo_unitario ?? 0)} c/u</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Tablet/desktop: full table. */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-right">Cantidad</TableHead>
+                      {showRecibido && <TableHead className="text-right">Recibido</TableHead>}
+                      <TableHead>Edificio</TableHead>
+                      <TableHead>Artículo</TableHead>
+                      <TableHead className="text-right">Costo unit.</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {lineas.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="text-right tabular-nums">{d.cantidad}</TableCell>
+                        {showRecibido && <TableCell className="text-right tabular-nums">{d.recibido ?? '—'}</TableCell>}
+                        <TableCell className="text-sm">{d.edificio ?? '—'}</TableCell>
+                        <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
+                        <TableCell className="text-right tabular-nums">$ {maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">$ {maskFromNumber(d.costo_total ?? 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </>
           )}
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex justify-end">
-          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cerrar</Button>
         </div>
       </div>
     </div>,

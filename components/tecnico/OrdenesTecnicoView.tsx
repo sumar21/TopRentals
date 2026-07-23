@@ -298,7 +298,7 @@ const OrdenesTecnicoView: React.FC = () => {
           <h1 className="text-lg font-bold tracking-tight truncate">Órdenes de Trabajo</h1>
         </div>
         {zona && (
-          <div className="relative" ref={menuRef}>
+          <div className="relative shrink-0" ref={menuRef}>
             <button onClick={() => setMenuOpen((o) => !o)} aria-label="Más opciones" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
               <MoreVertical className="h-5 w-5" />
             </button>

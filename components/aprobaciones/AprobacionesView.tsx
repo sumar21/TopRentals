@@ -174,7 +174,7 @@ const AprobacionesView: React.FC = () => {
           </div>
           <button onClick={() => setShowFilters((v) => !v)}
             className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 h-9 text-sm font-medium transition-colors ${showFilters ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-            <SlidersHorizontal className="h-4 w-4" /> Filtros
+            <SlidersHorizontal className="h-4 w-4" /> <span className="hidden sm:inline">Filtros</span>
             {activeFilterCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeFilterCount}</span>}
             {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>

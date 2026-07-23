@@ -109,7 +109,7 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
               emptyText="Sin artículos disponibles"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
               <Input type="number" min={1} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" />
@@ -124,8 +124,8 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={close} disabled={saving}>Cancelar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row flex-wrap justify-end gap-2">
+          <Button variant="outline" onClick={close} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={handleSave} disabled={!valid || saving} className="min-w-[140px] w-full sm:w-auto gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
             Ingresar

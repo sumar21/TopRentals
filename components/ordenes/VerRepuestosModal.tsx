@@ -60,8 +60,8 @@ const VerRepuestosModal: React.FC<VerRepuestosModalProps> = ({ isOpen, onClose, 
           )}
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex justify-end">
-          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row justify-end">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cerrar</Button>
         </div>
       </div>
     </div>,

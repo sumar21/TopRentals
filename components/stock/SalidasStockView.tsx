@@ -135,7 +135,7 @@ const SalidasStockView: React.FC = () => {
               showFilters ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground',
             )}
           >
-            <SlidersHorizontal className="h-4 w-4 text-brand" /> Filtros
+            <SlidersHorizontal className="h-4 w-4 text-brand" /> <span className="hidden sm:inline">Filtros</span>
             {activeCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeCount}</span>}
             {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -351,8 +351,8 @@ const EditarSalidaModal: React.FC<{
             <p className="mt-1 text-xs text-red-600" role="alert">Cantidad insuficiente — disponible: {maxCantidad}.</p>
           )}
         </div>
-        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row flex-wrap justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={save} disabled={!valid || saving} className="min-w-[140px] w-full sm:w-auto">
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Guardar
           </Button>

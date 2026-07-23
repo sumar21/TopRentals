@@ -31,9 +31,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ isOpen, onClose, onConfirm,
           </div>
           <h3 className="text-lg font-bold text-foreground mb-2">{title}</h3>
           <p className="text-sm text-muted-foreground mb-6 leading-relaxed">{description}</p>
-          <div className="flex gap-3 w-full">
-            <Button variant="outline" className="flex-1" onClick={onClose} disabled={isProcessing}>{cancelText}</Button>
-            <Button variant={variant === 'danger' ? 'destructive' : 'default'} className="flex-1 gap-2" disabled={isProcessing} onClick={handleConfirm}>
+          <div className="flex flex-col sm:flex-row gap-3 w-full">
+            <Button variant="outline" className="w-full sm:flex-1" onClick={onClose} disabled={isProcessing}>{cancelText}</Button>
+            <Button variant={variant === 'danger' ? 'destructive' : 'default'} className="w-full sm:flex-1 gap-2" disabled={isProcessing} onClick={handleConfirm}>
               {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}{confirmText}
             </Button>
           </div>

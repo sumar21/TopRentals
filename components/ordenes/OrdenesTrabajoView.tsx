@@ -302,7 +302,13 @@ const OrdenesTrabajoView: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-sm">{truncate(ot.detalle, 90)}</p>
-                <p className="text-[11px] text-muted-foreground">Inicio: {formatDate(ot.fecha_inicio)}</p>
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                  <span>{ot.tipo_trabajo ?? '—'} · {ot.tipo_tarea ?? '—'}</span>
+                  <span>· Días: {ot.dias_estimado ?? '—'} est. / {diasReales(ot) ?? '—'} real</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Inicio: {formatDate(ot.fecha_inicio) || '—'}{ot.fecha_cierre && ` · Cierre: ${formatDate(ot.fecha_cierre)}`}
+                </p>
                 <div className="pt-1 border-t"><RowActions ot={ot} /></div>
               </div>
             ))}
