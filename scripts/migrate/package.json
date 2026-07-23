@@ -1,0 +1,17 @@
+{
+  "name": "toprentals-migrate",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "One-shot SharePoint -> Supabase data migration for TopRentals (wipe-and-load, production cutover).",
+  "scripts": {
+    "migrate": "node --experimental-strip-types src/index.ts",
+    "dry-run": "node --experimental-strip-types src/index.ts --dry-run",
+    "check": "node --experimental-strip-types src/checks.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.0"
+  }
+}
