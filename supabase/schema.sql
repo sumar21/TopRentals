@@ -41,7 +41,7 @@ CREATE TYPE estado_aprobacion AS ENUM (
 );
 
 CREATE TYPE estado_ventilacion AS ENUM (
-  'Pendiente', 'Programada', 'Asignada', 'Realizada'
+  'Pendiente', 'Programada', 'Asignada', 'Realizada', 'Eliminada'
 );
 
 CREATE TYPE tipo_salida_stock AS ENUM (

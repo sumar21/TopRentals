@@ -188,14 +188,13 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
     setSaving(true);
     setError(null);
     try {
-      // ponytail: no existe un endpoint api.ventilaciones.asignar() que persista técnico/
-      // frecuencia (services/api.ts solo expone programar/finalizar/adelantar/eliminar) —
-      // se usa programar() para la fecha, que es lo único persistible hoy. Técnico y
-      // frecuencia quedan en estado local sin escribir. Sin impacto real: este modal es
-      // inalcanzable en producción mientras FEATURES.asignarVentilacionDesktop sea false.
-      // Upgrade: agregar un método `asignar(id, { tecnico_id, fecha, frecuencia_dias? })`
-      // al contrato cuando el feature se reactive.
-      await api.ventilaciones.programar(ventilacion.id, fecha);
+      const frecuencia = frecuencias.find((f) => String(f.id) === frecuenciaId);
+      await api.ventilaciones.asignar({
+        id: ventilacion.id,
+        tecnico_id: Number(tecnicoId),
+        proxima_limpieza: fecha,
+        ...(ventilacion.es_incidente && frecuencia ? { frecuencia_dias: frecuencia.dias } : {}),
+      });
       onSaved();
       onClose();
     } catch {

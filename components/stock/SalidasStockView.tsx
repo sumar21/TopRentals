@@ -1,13 +1,18 @@
 // Screen_SalidasStock port — outbound-stock ledger. See docs/analysis/desktop_Screen_SalidasStock.md.
 // Filters follow DESIGN.md §4.7 golden rule: a collapsible inline bar, never a modal.
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Pencil, PackageSearch, Search, SlidersHorizontal, X } from 'lucide-react';
-import { Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn } from '../ui/UIComponents';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Loader2, Pencil, PackageSearch, Save, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn, useModalAnimation } from '../ui/UIComponents';
+import { backdropClose } from '../ui/backdropClose';
 import { Loader } from '../ui/Loader';
 import { StatusBadge } from '../ui/StatusBadge';
+import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
+import ConfirmModal from '../ConfirmModal';
 import { api } from '../../services/index.ts';
+import { useAuth } from '../../contexts/AuthContext';
 import type { SalidaStock, Usuario } from '../../services/types.ts';
 import { formatDate } from '../../utils/dates';
 
@@ -37,6 +42,8 @@ const mesKeyOf = (iso: string | null) => (iso ? iso.slice(0, 7) : '');
 
 const SalidasStockView: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +52,10 @@ const SalidasStockView: React.FC = () => {
   const [meses, setMeses] = useState<string[]>([]);
   const [tipos, setTipos] = useState<string[]>([]);
   const [tecnicoIds, setTecnicoIds] = useState<string[]>([]);
+  const [editTarget, setEditTarget] = useState<SalidaStock | null>(null);
+  const [devolucionTarget, setDevolucionTarget] = useState<SalidaStock | null>(null);
+
+  const reload = () => api.stock.salidas().then(setSalidas);
 
   useEffect(() => {
     setLoading(true);
@@ -52,6 +63,17 @@ const SalidasStockView: React.FC = () => {
       .then(([s, u]) => { setSalidas(s); setUsuarios(u); })
       .finally(() => setLoading(false));
   }, []);
+
+  const confirmarDevolucion = async () => {
+    if (!devolucionTarget || !user) return;
+    try {
+      await api.stock.confirmarDevolucion({ salida_id: devolucionTarget.id, usuario_id: user.id });
+      await reload();
+      showToast('Devolución confirmada: el stock fue reingresado.', 'success');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'No se pudo confirmar la devolución.', 'error');
+    }
+  };
 
   const tecnicosById = useMemo(() => new Map(usuarios.map((u) => [u.id, u])), [usuarios]);
   const tecnicoOptions = useMemo(
@@ -161,7 +183,7 @@ const SalidasStockView: React.FC = () => {
                     <div><div className="text-muted-foreground">Centro de costo</div><div className="font-medium">{s.centro_de_costo ?? '—'}</div></div>
                   </div>
                   <div className="flex justify-end gap-1 pt-2 border-t">
-                    <RowActions puedeEditar={puedeEditar} puedeDevolver={puedeDevolver} />
+                    <RowActions puedeEditar={puedeEditar} puedeDevolver={puedeDevolver} onEditar={() => setEditTarget(s)} onDevolver={() => setDevolucionTarget(s)} />
                   </div>
                 </div>
               );
@@ -197,7 +219,7 @@ const SalidasStockView: React.FC = () => {
                       <TableCell>{s.centro_de_costo ?? '—'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <RowActions puedeEditar={puedeEditar} puedeDevolver={puedeDevolver} />
+                          <RowActions puedeEditar={puedeEditar} puedeDevolver={puedeDevolver} onEditar={() => setEditTarget(s)} onDevolver={() => setDevolucionTarget(s)} />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -208,33 +230,116 @@ const SalidasStockView: React.FC = () => {
           </Card>
         </>
       )}
+
+      <EditarSalidaModal
+        salida={editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={async () => {
+          await reload();
+          setEditTarget(null);
+        }}
+        usuarioId={user?.id ?? 0}
+      />
+
+      <ConfirmModal
+        isOpen={devolucionTarget != null}
+        onClose={() => setDevolucionTarget(null)}
+        onConfirm={confirmarDevolucion}
+        title="Confirmar devolución"
+        description={`Se reingresan ${devolucionTarget?.cantidad ?? ''} unidades de ${devolucionTarget?.concat_articulo ?? 'el artículo'} al stock.`}
+        confirmText="Confirmar"
+        cancelText="Cancelar"
+        icon={<CheckCircle2 className="h-6 w-6" />}
+      />
     </div>
   );
 };
 
-/**
- * ponytail: editing a salida's quantity and confirming a devolución both need a DataApi method
- * that phase-1 doesn't expose yet (no `stock.salidas` update/patch, no `stock.confirmarDevolucion`
- * that credits stock back + sets fecha_reingreso + writes the movimientos_stock audit row the PA
- * screen forgot). Faking either one client-side (e.g. reusing stock.agregar to "return" a qty)
- * would leave the ledger row stuck as pending forever and risks a double-credit on a second click
- * — worse than not shipping it. Left as disabled affordances until services/api.ts grows those
- * methods (upgrade path: add `stock.editarSalida` and `stock.confirmarDevolucion`, then wire these
- * two buttons for real).
- */
-const RowActions: React.FC<{ puedeEditar: boolean; puedeDevolver: boolean }> = ({ puedeEditar, puedeDevolver }) => (
+const RowActions: React.FC<{ puedeEditar: boolean; puedeDevolver: boolean; onEditar: () => void; onDevolver: () => void }> = ({
+  puedeEditar,
+  puedeDevolver,
+  onEditar,
+  onDevolver,
+}) => (
   <>
     {puedeEditar && (
-      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/50 cursor-not-allowed" disabled title="Próximamente" aria-label="Editar cantidad (próximamente)">
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEditar} title="Editar cantidad" aria-label="Editar cantidad">
         <Pencil className="h-4 w-4" />
       </Button>
     )}
     {puedeDevolver && (
-      <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600/50 cursor-not-allowed" disabled title="Próximamente" aria-label="Confirmar devolución (próximamente)">
+      <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600" onClick={onDevolver} title="Confirmar devolución" aria-label="Confirmar devolución">
         <CheckCircle2 className="h-4 w-4" />
       </Button>
     )}
   </>
 );
+
+/** Edit the quantity of an existing salida — re-adjusts stock by the delta (DESIGN.md §4.1 modal). */
+const EditarSalidaModal: React.FC<{ salida: SalidaStock | null; onClose: () => void; onSaved: () => Promise<void>; usuarioId: number }> = ({
+  salida,
+  onClose,
+  onSaved,
+  usuarioId,
+}) => {
+  const { showToast } = useToast();
+  const { visible, overlayClass, modalClass } = useModalAnimation(salida != null);
+  const [cantidad, setCantidad] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (salida) setCantidad(String(salida.cantidad));
+  }, [salida]);
+
+  if (!visible) return null;
+  const parsed = Number(cantidad);
+  const valid = Number.isFinite(parsed) && parsed > 0;
+
+  const save = async () => {
+    if (!salida || !valid) return;
+    setSaving(true);
+    try {
+      await api.stock.editarSalida({ salida_id: salida.id, cantidad: parsed, usuario_id: usuarioId });
+      await onSaved();
+      showToast('Cantidad actualizada. El stock fue reajustado.', 'success');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'No se pudo actualizar la salida.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
+      <div className={`${modalClass} bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+        <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight">Editar salida</h2>
+            <p className="text-xs text-muted-foreground">
+              {salida?.concat_articulo} · <span className="font-medium text-foreground">{salida?.tipo}</span>
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+            <X className="h-5 w-5 text-muted-foreground" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
+          <Input autoFocus inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value.replace(/[^\d]/g, ''))} />
+          {!valid && cantidad !== '' && (
+            <p className="mt-1 text-xs text-red-600" role="alert">Ingresá una cantidad mayor a cero.</p>
+          )}
+        </div>
+        <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button onClick={save} disabled={!valid || saving} className="min-w-[140px] w-full sm:w-auto">
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Guardar
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
 
 export default SalidasStockView;

@@ -28,7 +28,7 @@ export type EstadoAprobacion =
   | 'Rechazada'
   | 'Recibida'
   | 'En Aprobacion';
-export type EstadoVentilacion = 'Pendiente' | 'Programada' | 'Asignada' | 'Realizada';
+export type EstadoVentilacion = 'Pendiente' | 'Programada' | 'Asignada' | 'Realizada' | 'Eliminada';
 export type TipoSalidaStock = 'ASIGNACION' | 'CONSUMIBLE' | 'DEVOLUCION' | 'TRASLADO' | 'DEVUELTO';
 export type EstadoActivo = 'Activo' | 'Inactivo';
 // detalle_compras.status has a wider open set than the generic estado_activo flag

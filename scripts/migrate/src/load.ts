@@ -55,15 +55,25 @@ interface Row {
   [column: string]: unknown;
 }
 
-// Storage buckets — must match supabase/storage-buckets.sql exactly.
+// Storage buckets this migration actually populates — must match
+// supabase/storage-buckets.sql exactly. ('articulos' and 'ventilaciones'
+// buckets also exist in storage-buckets.sql but have no SharePoint-list
+// source column to migrate from — they're populated by the live app going
+// forward, e.g. finalizar_ventilacion()'s closing photo — so this script
+// never writes to them.)
 const BUCKETS = {
   ordenes: 'ordenes',
   compras: 'compras',
   bitacoras: 'bitacoras',
-  ventilaciones: 'ventilaciones',
-  articulos: 'articulos',
   branding: 'branding',
 } as const;
+
+/** Documentos library top-level folder name -> Storage bucket (1:1, by design). */
+const CARPETA_TO_BUCKET: Record<string, string> = {
+  Ordenes: BUCKETS.ordenes,
+  Compras: BUCKETS.compras,
+  Bitacoras: BUCKETS.bitacoras,
+};
 
 // TRUNCATE order from data_model.md's "## Migration" section (child -> parent;
 // RESTART IDENTITY CASCADE makes exact ordering unnecessary but this is the
@@ -109,7 +119,7 @@ function resolveFk(
   r: ResolutionMapping,
 ): number | null {
   const raw = fields[r.sp];
-  let resolved: number | null;
+  let resolved: number | null = null;
   switch (r.via) {
     case 'concatName':
       resolved = ctx.resolveByMap(ctx.userByConcatName, raw);
@@ -298,6 +308,100 @@ export async function migrate(
     return { items, rows };
   }
 
+  // --------------------------------------------------------------------------
+  // ordenes_trabajo pass 2: resolve the self-FK now that every OT row has an
+  // id, then apply it with one batched UPDATE (unnest arrays) instead of one
+  // UPDATE per row.
+  // --------------------------------------------------------------------------
+  async function resolveOrdenRevisionPass(otRes: { items: SpItem[]; rows: Row[] }): Promise<void> {
+    const resolution = M.ordenesTrabajoResolutions.find((r) => r.pg === 'orden_revision_id');
+    if (!resolution) return;
+    const ids: number[] = [];
+    const revisionIds: number[] = [];
+    for (let i = 0; i < otRes.items.length; i++) {
+      const resolved = resolveFk(ctx, SP_LISTS.ordenesTrabajo, otRes.items[i].id, otRes.items[i].fields, resolution);
+      if (resolved != null) {
+        ids.push(otRes.rows[i].id as number);
+        revisionIds.push(resolved);
+      }
+    }
+    if (ids.length === 0 || !commit || !pg) return;
+    await pg.query(
+      `UPDATE ordenes_trabajo AS o SET orden_revision_id = v.revision_id
+       FROM (SELECT unnest($1::bigint[]) AS id, unnest($2::bigint[]) AS revision_id) AS v
+       WHERE o.id = v.id`,
+      [ids, revisionIds],
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // Documentos library: walk every drive on the site, classify each file by
+  // its top-level folder (Ordenes|Compras|Bitacoras), resolve the parent
+  // orden_trabajo/compra by the folder-name join, upload to the matching
+  // bucket, and insert one documentos row per file.
+  //
+  // ASSUMPTION (data_model.md open question #7 leaves this ambiguous): the
+  // 'Bitacoras' Documentos subfolder is OT-scoped (like 'Ordenes'), so both
+  // resolve orden_trabajo_id the same way; only 'Compras' resolves compra_id.
+  // Bucket name mirrors the folder name 1:1 (ordenes/compras/bitacoras).
+  // --------------------------------------------------------------------------
+  async function loadDocumentos(): Promise<void> {
+    const drives = await graph.listDrives(siteId);
+    const rows: Row[] = [];
+    const unresolvedBefore = ctx.unresolved.length;
+
+    for (const drive of drives) {
+      const files = await graph.listDriveItemsRecursive(drive.id);
+      for (const file of files) {
+        const segments = file.parentPath.split('/').filter(Boolean);
+        const carpetaRaw = segments[0] ?? '';
+        const folderKey = segments[1] ?? '';
+        const carpeta = carpetaRaw in CARPETA_TO_BUCKET ? carpetaRaw : null;
+        const bucket = carpeta ? CARPETA_TO_BUCKET[carpeta] : null;
+
+        let ordenTrabajoId: number | null = null;
+        let compraId: number | null = null;
+        if (carpeta === 'Ordenes' || carpeta === 'Bitacoras') {
+          const idOrdenes = (file.listItemFields?.['IDOrdenes'] as string | undefined) ?? folderKey;
+          ordenTrabajoId = ctx.resolveByMap(ctx.otByUnivoco, idOrdenes);
+          if (ordenTrabajoId === null && idOrdenes) ctx.report('Documentos', file.id, 'orden_trabajo_id', idOrdenes);
+        } else if (carpeta === 'Compras') {
+          compraId = ctx.resolveDirectId(ctx.compraIds, folderKey);
+          if (compraId === null && folderKey) ctx.report('Documentos', file.id, 'compra_id', folderKey);
+        }
+
+        const targetId = ordenTrabajoId ?? compraId;
+        const objectPath = bucket
+          ? `${bucket}/${targetId ?? `_unresolved/${folderKey || 'root'}`}/${file.name}`
+          : `_unclassified/${file.parentPath}/${file.name}`;
+
+        if (!options.skipFiles && bucket) {
+          const buffer = await graph.downloadDriveItemContent(drive.id, file.id);
+          await uploadFile(bucket, objectPath, buffer, file.mimeType);
+        }
+
+        rows.push({
+          nombre: file.name,
+          storage_path: objectPath,
+          carpeta,
+          orden_trabajo_id: ordenTrabajoId,
+          compra_id: compraId,
+          content_type: file.mimeType,
+          created_at: file.createdDateTime ?? new Date().toISOString(),
+        });
+      }
+    }
+
+    await insertBatched('documentos', rows);
+    await fixSequence('documentos');
+    onProgress({
+      table: 'documentos',
+      rowsRead: rows.length,
+      rowsInserted: commit ? rows.length : 0,
+      unresolved: ctx.unresolved.length - unresolvedBefore,
+    });
+  }
+
   try {
     if (commit && pg) await pg.query(`TRUNCATE ${TRUNCATE_TABLES.map(quoteIdent).join(', ')} RESTART IDENTITY CASCADE`);
 
@@ -426,100 +530,6 @@ export async function migrate(
   }
 
   return { ctx };
-
-  // --------------------------------------------------------------------------
-  // ordenes_trabajo pass 2: resolve the self-FK now that every OT row has an
-  // id, then apply it with one batched UPDATE (unnest arrays) instead of one
-  // UPDATE per row.
-  // --------------------------------------------------------------------------
-  async function resolveOrdenRevisionPass(otRes: { items: SpItem[]; rows: Row[] }): Promise<void> {
-    const resolution = M.ordenesTrabajoResolutions.find((r) => r.pg === 'orden_revision_id');
-    if (!resolution) return;
-    const ids: number[] = [];
-    const revisionIds: number[] = [];
-    for (let i = 0; i < otRes.items.length; i++) {
-      const resolved = resolveFk(ctx, SP_LISTS.ordenesTrabajo, otRes.items[i].id, otRes.items[i].fields, resolution);
-      if (resolved != null) {
-        ids.push(otRes.rows[i].id as number);
-        revisionIds.push(resolved);
-      }
-    }
-    if (ids.length === 0 || !commit || !pg) return;
-    await pg.query(
-      `UPDATE ordenes_trabajo AS o SET orden_revision_id = v.revision_id
-       FROM (SELECT unnest($1::bigint[]) AS id, unnest($2::bigint[]) AS revision_id) AS v
-       WHERE o.id = v.id`,
-      [ids, revisionIds],
-    );
-  }
-
-  // --------------------------------------------------------------------------
-  // Documentos library: walk every drive on the site, classify each file by
-  // its top-level folder (Ordenes|Compras|Bitacoras), resolve the parent
-  // orden_trabajo/compra by the folder-name join, upload to the matching
-  // bucket, and insert one documentos row per file.
-  //
-  // ASSUMPTION (data_model.md open question #7 leaves this ambiguous): the
-  // 'Bitacoras' Documentos subfolder is OT-scoped (like 'Ordenes'), so both
-  // resolve orden_trabajo_id the same way; only 'Compras' resolves compra_id.
-  // Bucket name mirrors the folder name 1:1 (ordenes/compras/bitacoras).
-  // --------------------------------------------------------------------------
-  async function loadDocumentos(): Promise<void> {
-    const drives = await graph.listDrives(siteId);
-    const rows: Row[] = [];
-    let unresolvedBefore = ctx.unresolved.length;
-
-    for (const drive of drives) {
-      const files = await graph.listDriveItemsRecursive(drive.id);
-      for (const file of files) {
-        const segments = file.parentPath.split('/').filter(Boolean);
-        const carpetaRaw = segments[0] ?? '';
-        const folderKey = segments[1] ?? '';
-        const carpeta = ['Ordenes', 'Compras', 'Bitacoras'].includes(carpetaRaw) ? carpetaRaw : null;
-        const bucket = carpeta ? carpeta.toLowerCase() : null;
-
-        let ordenTrabajoId: number | null = null;
-        let compraId: number | null = null;
-        if (carpeta === 'Ordenes' || carpeta === 'Bitacoras') {
-          const idOrdenes = (file.listItemFields?.['IDOrdenes'] as string | undefined) ?? folderKey;
-          ordenTrabajoId = ctx.resolveByMap(ctx.otByUnivoco, idOrdenes);
-          if (ordenTrabajoId === null && idOrdenes) ctx.report('Documentos', file.id, 'orden_trabajo_id', idOrdenes);
-        } else if (carpeta === 'Compras') {
-          compraId = ctx.resolveDirectId(ctx.compraIds, folderKey);
-          if (compraId === null && folderKey) ctx.report('Documentos', file.id, 'compra_id', folderKey);
-        }
-
-        const targetId = ordenTrabajoId ?? compraId;
-        const objectPath = bucket
-          ? `${bucket}/${targetId ?? `_unresolved/${folderKey || 'root'}`}/${file.name}`
-          : `_unclassified/${file.parentPath}/${file.name}`;
-
-        if (!options.skipFiles && bucket) {
-          const buffer = await graph.downloadDriveItemContent(drive.id, file.id);
-          await uploadFile(bucket, objectPath, buffer, file.mimeType);
-        }
-
-        rows.push({
-          nombre: file.name,
-          storage_path: objectPath,
-          carpeta,
-          orden_trabajo_id: ordenTrabajoId,
-          compra_id: compraId,
-          content_type: file.mimeType,
-          created_at: file.createdDateTime ?? new Date().toISOString(),
-        });
-      }
-    }
-
-    await insertBatched('documentos', rows);
-    await fixSequence('documentos');
-    onProgress({
-      table: 'documentos',
-      rowsRead: rows.length,
-      rowsInserted: commit ? rows.length : 0,
-      unresolved: ctx.unresolved.length - unresolvedBefore,
-    });
-  }
 }
 
 // ============================================================================

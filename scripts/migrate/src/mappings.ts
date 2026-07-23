@@ -17,6 +17,7 @@
 import {
   activoToBool,
   altaBajaToBool,
+  combineDateTime,
   emptyToNull,
   parseDMY,
   parseHora,
@@ -124,8 +125,7 @@ export function mapRow(mappings: Mapping[], fields: Record<string, unknown>): Re
   const row: Record<string, unknown> = {};
   for (const m of mappings) {
     if (isDateTimeMapping(m)) {
-      const date = parseDMY(fields[m.spDate]);
-      row[m.pg] = date ? `${date}T${parseHora(fields[m.spHora]) ?? '00:00:00'}` : null;
+      row[m.pg] = combineDateTime(fields[m.spDate], fields[m.spHora]);
     } else {
       row[m.pg] = coerceColumn(m.type, fields[m.sp]);
     }

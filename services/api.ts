@@ -107,6 +107,10 @@ export interface DataApi {
       condicion_corte: number;
       usuario_id: number;
     }): Promise<StockRowWithEdificios>;
+    /** Corrects the quantity on an existing salida: re-adjusts stock by the delta + audit row. */
+    editarSalida(input: { salida_id: number; cantidad: number; usuario_id: number }): Promise<SalidaStock>;
+    /** Confirms the return of a pending DEVOLUCION: credits stock back, stamps fecha_reingreso, tipo -> 'DEVUELTO'. Writes the audit row PA forgot. */
+    confirmarDevolucion(input: { salida_id: number; usuario_id: number }): Promise<SalidaStock>;
     movimientos(): Promise<MovimientoStock[]>;
     salidas(): Promise<SalidaStock[]>;
   };
@@ -127,8 +131,12 @@ export interface DataApi {
     list(): Promise<Aprobacion[]>;
     aprobar(id: number, user_aprob_id: number): Promise<Aprobacion>;
     rechazar(id: number, motivo: string, user_aprob_id: number): Promise<Aprobacion>;
-    /** Edits the underlying (still Pendiente) compra's lines and recomputes cantidad/monto on the aprobacion. */
-    editar(id: number, lineas: CompraLineaInput[]): Promise<Aprobacion>;
+    /** Edits the underlying (still Pendiente) compra's lines (and optionally its header) and recomputes cantidad/monto on the aprobacion. */
+    editar(
+      id: number,
+      lineas: CompraLineaInput[],
+      header?: Partial<Pick<Compra, 'usuario_compra' | 'urgencia' | 'observacion'>>,
+    ): Promise<Aprobacion>;
   };
 
   ots: {
@@ -165,6 +173,8 @@ export interface DataApi {
     list(): Promise<Ventilacion[]>;
     crear(input: NewEntity<Ventilacion>): Promise<Ventilacion>;
     programar(id: number, fecha_programada: string): Promise<Ventilacion>;
+    /** Assigns técnico + próxima fecha (desktop endpoint behind FEATURES.asignarVentilacionDesktop). */
+    asignar(input: { id: number; tecnico_id: number; proxima_limpieza: string; frecuencia_dias?: number }): Promise<Ventilacion>;
     /** Closes the cycle AND atomically creates the next 'Pendiente' one (proxima_limpieza = today + frecuencia). */
     finalizar(input: { id: number; obs_resuelto: string; usuario_id: number; foto_path?: string }): Promise<{ cerrada: Ventilacion; siguiente: Ventilacion }>;
     adelantar(input: { id: number; obs_adelanto: string }): Promise<Ventilacion>;

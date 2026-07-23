@@ -374,6 +374,92 @@ export function createMockAdapter(): DataApi {
         return withEdificios(row);
       },
 
+      async editarSalida({ salida_id, cantidad, usuario_id }) {
+        await sleep();
+        const salida = db.salidasStock.find((s) => s.id === salida_id);
+        if (!salida) throw new Error(`Salida ${salida_id} no encontrada.`);
+        if (salida.fecha_reingreso) throw new Error('La salida ya fue devuelta.');
+        const edificio = db.edificios.find((e) => e.nombre === salida.centro_de_costo) ?? null;
+        const stockRow =
+          (edificio &&
+            db.stock.find(
+              (s) => s.articulo_id === salida.articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && se.edificio_id === edificio.id),
+            )) ||
+          db.stock.find((s) => s.articulo_id === salida.articulo_id);
+        if (!stockRow) throw new Error('No se encontró stock para el artículo.');
+        const delta = salida.cantidad - cantidad; // positive delta returns stock to the shelf
+        if (delta < 0 && stockRow.cantidad < -delta) throw new Error('Cantidad insuficiente.');
+        const cant_anterior = stockRow.cantidad;
+        stockRow.cantidad += delta;
+        salida.cantidad = cantidad;
+        registrarMovimiento({
+          articulo_id: salida.articulo_id,
+          articulo_raw: String(salida.articulo_id),
+          concat_articulo: nombreArticulo(salida.articulo_id),
+          articulo: nombreArticulo(salida.articulo_id),
+          cant_anterior,
+          cant_posterior: stockRow.cantidad,
+          costo_anterior: stockRow.precio_unitario,
+          costo_posterior: stockRow.precio_unitario,
+          stock_min_anterior: stockRow.condicion_corte,
+          stock_min_posterior: stockRow.condicion_corte,
+          edificio_id: edificio?.id ?? null,
+          edificio_raw: null,
+          edificio: edificio?.nombre ?? null,
+          edificio_traslado: null,
+          desde: 'Desktop - Salida Stock',
+          tipo_movimiento: `${salida.tipo} - EDIT CANT`,
+          cantidad,
+          usuario_id,
+          fecha: nowIso(),
+          version_app: null,
+        });
+        return structuredClone(salida);
+      },
+
+      async confirmarDevolucion({ salida_id, usuario_id }) {
+        await sleep();
+        const salida = db.salidasStock.find((s) => s.id === salida_id);
+        if (!salida) throw new Error(`Salida ${salida_id} no encontrada.`);
+        if (salida.tipo !== 'DEVOLUCION' || salida.fecha_reingreso) throw new Error('La salida no está pendiente de devolución.');
+        const edificio = db.edificios.find((e) => e.nombre === salida.centro_de_costo) ?? null;
+        const stockRow =
+          (edificio &&
+            db.stock.find(
+              (s) => s.articulo_id === salida.articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && se.edificio_id === edificio.id),
+            )) ||
+          db.stock.find((s) => s.articulo_id === salida.articulo_id);
+        if (!stockRow) throw new Error('No se encontró stock para el artículo.');
+        const cant_anterior = stockRow.cantidad;
+        stockRow.cantidad += salida.cantidad;
+        salida.fecha_reingreso = todayIso();
+        salida.tipo = 'DEVUELTO';
+        // Audit row on return — deliberately added: the PA flow had this Patch commented out.
+        registrarMovimiento({
+          articulo_id: salida.articulo_id,
+          articulo_raw: String(salida.articulo_id),
+          concat_articulo: nombreArticulo(salida.articulo_id),
+          articulo: nombreArticulo(salida.articulo_id),
+          cant_anterior,
+          cant_posterior: stockRow.cantidad,
+          costo_anterior: stockRow.precio_unitario,
+          costo_posterior: stockRow.precio_unitario,
+          stock_min_anterior: stockRow.condicion_corte,
+          stock_min_posterior: stockRow.condicion_corte,
+          edificio_id: edificio?.id ?? null,
+          edificio_raw: null,
+          edificio: edificio?.nombre ?? null,
+          edificio_traslado: null,
+          desde: 'Desktop - Salida Stock',
+          tipo_movimiento: 'DEVOLUCION - REINGRESO',
+          cantidad: salida.cantidad,
+          usuario_id,
+          fecha: nowIso(),
+          version_app: null,
+        });
+        return structuredClone(salida);
+      },
+
       async movimientos() {
         await sleep();
         return structuredClone(db.movimientosStock);
@@ -550,7 +636,7 @@ export function createMockAdapter(): DataApi {
         }
         return structuredClone(row);
       },
-      async editar(id, lineas) {
+      async editar(id, lineas, header) {
         await sleep();
         const row = db.aprobaciones.find((a) => a.id === id);
         if (!row) throw new Error(`Aprobacion ${id} no encontrada.`);
@@ -562,7 +648,9 @@ export function createMockAdapter(): DataApi {
         if (compraRow) {
           compraRow.cantidad_total = totales.cantidad_total;
           compraRow.monto_total = totales.monto_total;
+          if (header) Object.assign(compraRow, header);
         }
+        if (header?.urgencia) row.urgencia = header.urgencia;
         return structuredClone(row);
       },
     },
@@ -728,6 +816,25 @@ export function createMockAdapter(): DataApi {
         await sleep();
         const row: Ventilacion = { id: nextId(db.ventilaciones), ...input };
         db.ventilaciones.push(row);
+        // PA parity: creating a schedule flags the unit as under ventilation control.
+        const unidad = db.unidades.find((u) => u.id === row.unidad_id);
+        if (unidad) unidad.requiere_ventilacion = true;
+        return structuredClone(row);
+      },
+      async asignar({ id, tecnico_id, proxima_limpieza, frecuencia_dias }) {
+        await sleep();
+        const row = db.ventilaciones.find((v) => v.id === id);
+        if (!row) throw new Error(`Ventilacion ${id} no encontrada.`);
+        row.estado = 'Asignada';
+        row.asignado_id = tecnico_id;
+        row.proxima_limpieza = proxima_limpieza;
+        row.fecha_asignado = nowIso();
+        row.orden = 3;
+        if (frecuencia_dias != null) {
+          row.frecuencia_dias = frecuencia_dias;
+          const unidad = db.unidades.find((u) => u.id === row.unidad_id);
+          if (unidad) unidad.frecuencia_ventilacion_dias = frecuencia_dias;
+        }
         return structuredClone(row);
       },
       async programar(id, fecha_programada) {
@@ -798,7 +905,12 @@ export function createMockAdapter(): DataApi {
       },
       async eliminar(id) {
         await sleep();
-        db.ventilaciones = db.ventilaciones.filter((v) => v.id !== id);
+        // Soft-delete like PA (Estado 'Eliminada') + release the unit for a new schedule.
+        const row = db.ventilaciones.find((v) => v.id === id);
+        if (!row) return;
+        row.estado = 'Eliminada';
+        const unidad = db.unidades.find((u) => u.id === row.unidad_id);
+        if (unidad) unidad.requiere_ventilacion = false;
       },
     },
 
