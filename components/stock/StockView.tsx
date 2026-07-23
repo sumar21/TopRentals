@@ -188,10 +188,10 @@ const StockView: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código</TableHead>
+                  <TableHead>N°</TableHead>
                   <TableHead>Artículo</TableHead>
-                  <TableHead>Edificios</TableHead>
-                  <TableHead className="text-right">Precio unitario</TableHead>
+                  <TableHead>Edificio</TableHead>
+                  <TableHead className="text-right">Costo unitario</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead className="text-right">Stock mínimo</TableHead>
                   <TableHead className="text-right">Costo total</TableHead>

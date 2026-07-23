@@ -123,9 +123,8 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
     return () => { cancelled = true; };
   }, [isOpen, compraId, user]);
 
-  if (!visible || !user) return null;
-
   const requesterOptions = useMemo(() => {
+    if (!user) return [];
     const base = usuarios.filter((u) => u.perfil === 'Tecnico' || (user.perfil === 'Admin' && u.id === user.id));
     if (solicitanteId && !base.some((u) => String(u.id) === solicitanteId)) {
       const current = usuarios.find((u) => String(u.id) === solicitanteId);
@@ -137,8 +136,12 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   const edificioOptions = useMemo(() => edificios.map((e) => ({ value: String(e.id), label: e.nombre })), [edificios]);
   const articuloOptions = useMemo(() => articulos.map((a) => ({ value: String(a.id), label: a.nombre })), [articulos]);
 
-  const buildingLocked = !canEditBuilding(user.perfil);
   const total = useMemo(() => cart.reduce((sum, l) => sum + l.cantidad * parseMoney(l.costo), 0), [cart]);
+
+  // Early-return AFTER all hooks (Rules of Hooks): the useMemo above must run every render.
+  if (!visible || !user) return null;
+
+  const buildingLocked = !canEditBuilding(user.perfil);
 
   const handleSelectArticulo = (value: string) => {
     setNuevoArticuloId(value);

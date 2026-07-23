@@ -164,7 +164,7 @@ const AprobacionesView: React.FC = () => {
     <div className="flex flex-col gap-4 w-full">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
-          <h1 className="text-2xl font-bold tracking-tight">Aprobaciones</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Mis aprobaciones</h1>
           <p className="text-sm text-muted-foreground mt-1">Cola de solicitudes de compra pendientes de aprobación.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap lg:justify-end">
@@ -222,7 +222,7 @@ const AprobacionesView: React.FC = () => {
                   <StatusBadge status={a.urgencia ?? ''} />
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
-                  <span>Cant. {a.cantidad ?? 0} · {a.sector ?? 'Sin sector'}</span>
+                  <span>Cant. {a.cantidad ?? 0}</span>
                   <span className="font-semibold tabular-nums">$ {maskFromNumber(a.monto ?? 0)}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t">{renderActions(a)}</div>
@@ -235,11 +235,10 @@ const AprobacionesView: React.FC = () => {
                 <TableRow>
                   <TableHead>Estado</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead>Sector</TableHead>
                   <TableHead>Urgencia</TableHead>
                   <TableHead>Técnico</TableHead>
-                  <TableHead>N° Compra</TableHead>
-                  <TableHead>Usuario gen.</TableHead>
+                  <TableHead>Compra</TableHead>
+                  <TableHead>Usuario</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -250,7 +249,6 @@ const AprobacionesView: React.FC = () => {
                   <TableRow key={a.id}>
                     <TableCell><StatusBadge status={a.status} /></TableCell>
                     <TableCell className="text-sm">{formatDate(a.fecha)}</TableCell>
-                    <TableCell className="text-sm">{a.sector ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={a.urgencia ?? ''} /></TableCell>
                     <TableCell className="text-sm">{a.tecnico ?? '—'}</TableCell>
                     <TableCell className="text-sm font-medium">{idCompraLabel(a)}</TableCell>

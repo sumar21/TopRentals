@@ -17,9 +17,9 @@ import { bucketOf, matchesSearch, type BoardColumn } from './otBoard.ts';
 
 const COLUMN_DEFS: { key: BoardColumn; title: string }[] = [
   { key: 'pendiente', title: 'Pendiente' },
-  { key: 'alta', title: 'Asignada · Alta' },
-  { key: 'media', title: 'Asignada · Media' },
-  { key: 'baja', title: 'Asignada · Baja' },
+  { key: 'alta', title: 'Alta' },
+  { key: 'media', title: 'Media' },
+  { key: 'baja', title: 'Baja' },
 ];
 
 const MOBILE_TABS = [
@@ -208,19 +208,25 @@ const HomeView: React.FC = () => {
             )}
           </div>
 
-          {/* DESKTOP: 4 side-by-side triage columns */}
-          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {COLUMN_DEFS.map(({ key, title }) => {
-              const items = board[key];
-              return (
-                <div key={key} className="flex flex-col gap-2 min-w-0">
-                  <ColumnHeader title={title} count={items.length} column={key} />
-                  <Card className="border shadow-sm p-2 flex flex-col gap-2 min-h-[10rem] max-h-[70vh] overflow-y-auto">
-                    {items.length === 0 ? <ColumnEmpty label={title.toLowerCase()} /> : items.map(renderCard)}
-                  </Card>
-                </div>
-              );
-            })}
+          {/* DESKTOP: grupos (paridad PA) — pendientes vs asignadas, para no repetir "Asignada" por columna */}
+          <div className="hidden md:block space-y-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <h2 className="text-sm font-bold tracking-tight text-foreground">Asignaciones de tarea pendientes</h2>
+              <h2 className="text-sm font-bold tracking-tight text-foreground lg:col-span-3">Tareas Asignadas · Sin Resolver</h2>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {COLUMN_DEFS.map(({ key, title }) => {
+                const items = board[key];
+                return (
+                  <div key={key} className="flex flex-col gap-2 min-w-0">
+                    <ColumnHeader title={title} count={items.length} column={key} />
+                    <Card className="border shadow-sm p-2 flex flex-col gap-2 min-h-[10rem] max-h-[70vh] overflow-y-auto">
+                      {items.length === 0 ? <ColumnEmpty label={title.toLowerCase()} /> : items.map(renderCard)}
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

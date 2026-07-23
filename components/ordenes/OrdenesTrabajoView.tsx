@@ -326,7 +326,7 @@ const OrdenesTrabajoView: React.FC = () => {
                 <TableRow>
                   <TableHead>Estado</TableHead>
                   <TableHead>ID</TableHead>
-                  <TableHead>ID F</TableHead>
+                  <TableHead className="whitespace-nowrap">ID F</TableHead>
                   <TableHead>Acciones</TableHead>
                   <TableHead>Detalle</TableHead>
                   <TableHead>Torre</TableHead>

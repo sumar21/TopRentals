@@ -129,7 +129,7 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
               <Select value={frecuenciaId} onChange={setFrecuenciaId} options={frecuenciaOptions} placeholder="Elegí una frecuencia" />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de inicio<span className="text-destructive ml-0.5">*</span></label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima fecha<span className="text-destructive ml-0.5">*</span></label>
               <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
             </div>

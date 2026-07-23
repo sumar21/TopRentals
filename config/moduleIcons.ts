@@ -23,6 +23,7 @@ export function moduleIcon(modulo: string): LucideIcon {
 // PA shows this screen as "Configuración", not its list name.
 const MODULE_LABELS: Record<string, string> = {
   ABM: 'Configuración',
+  Aprobaciones: 'Mis aprobaciones',
 };
 
 export function moduleLabel(modulo: string): string {
