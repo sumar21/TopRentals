@@ -8,14 +8,14 @@ import { Button, cn, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/UIComponents';
 import { backdropClose } from '../ui/backdropClose';
-import { formatDate } from '../../utils/dates';
+import { todayISO } from '../../utils/dates';
 import { api } from '../../services/index.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { Articulo, Edificio, TipoSalidaStock, Usuario } from '../../services/types.ts';
 
 const TIPOS: { value: TipoSalidaStock; label: string }[] = [
-  { value: 'CONSUMIBLE', label: 'Consumible' },
   { value: 'ASIGNACION', label: 'Asignación' },
+  { value: 'CONSUMIBLE', label: 'Consumible' },
   { value: 'DEVOLUCION', label: 'Devolución' },
   { value: 'TRASLADO', label: 'Traslado' },
 ];
@@ -40,9 +40,10 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
   const [edificioId, setEdificioId] = useState('');
   const [centroCosto, setCentroCosto] = useState('');
   const [edificioDestinoId, setEdificioDestinoId] = useState('');
+  const [fecha, setFecha] = useState(todayISO());
   const [saving, setSaving] = useState(false);
 
-  const reset = () => { setTipo(''); setTecnicoId(''); setCantidad(''); setEdificioId(''); setCentroCosto(''); setEdificioDestinoId(''); };
+  const reset = () => { setTipo(''); setTecnicoId(''); setCantidad(''); setEdificioId(''); setCentroCosto(''); setEdificioDestinoId(''); setFecha(todayISO()); };
   const close = () => { if (!saving) { reset(); onClose(); } };
 
   const edificiosDelRow = useMemo(
@@ -80,6 +81,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
         uso: 'Consumo Diario',
         centro_de_costo: centroCosto,
         usuario_id: usuarioId,
+        fecha_salida: fecha,
         ...(tipo === 'TRASLADO' ? { edificio_destino_id: Number(edificioDestinoId) } : {}),
       });
       onSaved();
@@ -112,8 +114,8 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
             <div>
-              <span className="block font-medium text-muted-foreground/80 mb-0.5">Fecha</span>
-              {formatDate(new Date().toISOString())}
+              <label className="block font-medium text-muted-foreground/80 mb-0.5">Fecha</label>
+              <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-8 text-xs" />
             </div>
             <div>
               <span className="block font-medium text-muted-foreground/80 mb-0.5">Uso</span>

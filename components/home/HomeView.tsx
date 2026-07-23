@@ -48,7 +48,7 @@ const TipoTag: React.FC<{ tipo: OrdenTrabajo['tipo'] }> = ({ tipo }) =>
     </span>
   );
 
-const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; onClick: () => void }> = ({ ot, asignador, onClick }) => (
+const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColumn; onClick: () => void }> = ({ ot, asignador, column, onClick }) => (
   <button
     type="button"
     onClick={onClick}
@@ -56,24 +56,26 @@ const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; onClick: () => voi
   >
     <div className="flex items-start justify-between gap-2">
       <p className="text-sm font-medium leading-snug line-clamp-2">{ot.detalle || 'Sin detalle'}</p>
-      <StatusBadge status={ot.prioridad} className="shrink-0" />
+      {column === 'pendiente' && <StatusBadge status={ot.prioridad} className="shrink-0" />}
     </div>
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      <TipoTag tipo={ot.tipo} />
-    </div>
+    {column === 'pendiente' && (
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <TipoTag tipo={ot.tipo} />
+      </div>
+    )}
     <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-      <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
-      <p>{[ot.tipo_tarea, ot.tipo_trabajo].filter(Boolean).join(' · ') || 'Sin tipo de tarea'}</p>
       <p>Inicio: {formatDate(ot.fecha_inicio) || '-'}</p>
+      <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
+      <p>{[ot.tipo_trabajo, ot.tipo_tarea].filter(Boolean).join(' · ') || 'Sin tipo de tarea'}</p>
       <p>Asignador: {asignador}</p>
     </div>
   </button>
 );
 
-const ColumnHeader: React.FC<{ title: string; count: number }> = ({ title, count }) => (
+const ColumnHeader: React.FC<{ title: string; count: number; column: BoardColumn }> = ({ title, count, column }) => (
   <div className="flex items-center justify-between px-1">
     <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-    <Badge variant="secondary" className="text-[11px] tabular-nums">{count}</Badge>
+    {column !== 'pendiente' && <Badge variant="secondary" className="text-[11px] tabular-nums">{count}</Badge>}
   </div>
 );
 
@@ -143,6 +145,7 @@ const HomeView: React.FC = () => {
       key={ot.id}
       ot={ot}
       asignador={ot.asignador_id ? nombreById.get(ot.asignador_id) ?? 'Sin asignar' : 'Sin asignar'}
+      column={bucketOf(ot) ?? 'pendiente'}
       onClick={goToDetail}
     />
   );
@@ -211,7 +214,7 @@ const HomeView: React.FC = () => {
               const items = board[key];
               return (
                 <div key={key} className="flex flex-col gap-2 min-w-0">
-                  <ColumnHeader title={title} count={items.length} />
+                  <ColumnHeader title={title} count={items.length} column={key} />
                   <Card className="border shadow-sm p-2 flex flex-col gap-2 min-h-[10rem] max-h-[70vh] overflow-y-auto">
                     {items.length === 0 ? <ColumnEmpty label={title.toLowerCase()} /> : items.map(renderCard)}
                   </Card>

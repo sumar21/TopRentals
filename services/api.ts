@@ -109,6 +109,7 @@ export interface DataApi {
       centro_de_costo: string | null;
       usuario_id: number;
       edificio_destino_id?: number; // required when tipo === 'TRASLADO'
+      fecha_salida?: string; // ISO date; defaults to today when omitted
     }): Promise<SalidaStock>;
     /** Editar Stock: overwrites cantidad/precio_unitario/condicion_corte directly. Writes movimientos_stock. */
     editar(input: {

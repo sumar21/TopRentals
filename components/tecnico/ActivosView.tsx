@@ -132,7 +132,12 @@ const ActivosView: React.FC = () => {
         isOpen={activeSheet === 'filter'}
         onClose={() => setActiveSheet(null)}
         title="Filtrar activos"
-        footer={<Button className="flex-1" disabled={!filterUnidadId} onClick={handleAceptarFiltro}>Aceptar</Button>}
+        footer={
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
+            <Button className="flex-1" disabled={!filterUnidadId} onClick={handleAceptarFiltro}>Aceptar</Button>
+          </>
+        }
       >
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
@@ -145,7 +150,13 @@ const ActivosView: React.FC = () => {
       </BottomSheet>
 
       {/* Ver observación */}
-      <BottomSheet isOpen={activeSheet === 'obs'} onClose={() => setActiveSheet(null)} title="Observación del incidente" subtitle={selectedOt?.concat_activo ?? undefined}>
+      <BottomSheet
+        isOpen={activeSheet === 'obs'}
+        onClose={() => setActiveSheet(null)}
+        title="Observación del incidente"
+        subtitle={selectedOt?.concat_activo ?? undefined}
+        footer={<Button className="flex-1" onClick={() => setActiveSheet(null)}>Cerrar</Button>}
+      >
         <p className="text-sm whitespace-pre-wrap">{selectedOt?.detalle || 'Sin observaciones.'}</p>
       </BottomSheet>
 

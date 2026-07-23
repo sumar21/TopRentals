@@ -56,6 +56,7 @@ const OrdenesTecnicoView: React.FC = () => {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const repuestosReqRef = useRef<number | null>(null); // descarta respuestas de un OT ya no seleccionado
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
   const [repuestosSel, setRepuestosSel] = useState<RepuestoOT[]>([]);
@@ -137,17 +138,35 @@ const OrdenesTecnicoView: React.FC = () => {
   const openRepuestos = async (ot: OrdenTrabajo) => {
     setSelectedOt(ot);
     setActiveSheet('repuestos');
+    repuestosReqRef.current = ot.id;
     try {
-      setRepuestosSel(await api.ots.repuestos.list(ot.id));
+      const rows = await api.ots.repuestos.list(ot.id);
+      if (repuestosReqRef.current === ot.id) setRepuestosSel(rows);
     } catch {
       showToast('No se pudieron cargar los repuestos.', 'error');
     }
   };
-  const openAgregarRepuesto = (ot: OrdenTrabajo) => {
+  const openAgregarRepuesto = async (ot: OrdenTrabajo) => {
     setSelectedOt(ot);
     setRepuestoSearch('');
     setQtyMap({});
+    setRepuestosSel([]);
     setActiveSheet('agregarRepuesto');
+    repuestosReqRef.current = ot.id;
+    try {
+      const rows = await api.ots.repuestos.list(ot.id);
+      if (repuestosReqRef.current === ot.id) setRepuestosSel(rows);
+    } catch {
+      showToast('No se pudieron cargar los repuestos.', 'error');
+    }
+  };
+
+  // Flujo PA: el check "completar" abre el paso de repuestos; su botón "Completar
+  // orden" encadena en la confirmación de cierre (Group_CerrarOT) -> finalizar.
+  const handleCompletarDesdeRepuestos = () => {
+    if (!selectedOt) return;
+    setConfirmFinalizar(selectedOt);
+    setActiveSheet(null);
   };
   const openNuevaSolicitud = () => {
     setFecha(todayISO());
@@ -317,16 +336,15 @@ const OrdenesTecnicoView: React.FC = () => {
               <p className="text-xs text-muted-foreground">{ot.tipo_trabajo ?? 'Sin tipo'} | {formatDate(ot.fecha_asignada) || 'Sin fecha'}</p>
               <div className="flex items-center gap-2 pt-1">
                 <Button size="sm" className="flex-1" onClick={() => openDetalle(ot)}>Ver Detalle</Button>
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => openAgregarRepuesto(ot)}>Repuestos</Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => openRepuestos(ot)}>Repuestos</Button>
                 <button
-                  aria-label="Completar orden"
-                  onClick={() => setConfirmFinalizar(ot)}
+                  aria-label="Completar orden: repuestos y cierre"
+                  onClick={() => openAgregarRepuesto(ot)}
                   className="h-9 w-9 shrink-0 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center active:scale-95 transition-transform"
                 >
                   <CheckCircle2 className="h-5 w-5" />
                 </button>
               </div>
-              <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => openRepuestos(ot)}>Ver repuestos ya asignados</button>
             </div>
           ))}
         </div>
@@ -337,7 +355,12 @@ const OrdenesTecnicoView: React.FC = () => {
         isOpen={activeSheet === 'cambiarEdificio'}
         onClose={() => setActiveSheet(null)}
         title="Cambiar edificio"
-        footer={<Button className="flex-1" disabled={!pickerValue} onClick={handleTowerPick}>Aceptar</Button>}
+        footer={
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
+            <Button className="flex-1" disabled={!pickerValue} onClick={handleTowerPick}>Aceptar</Button>
+          </>
+        }
       >
         <Select value={pickerValue} onChange={setPickerValue} options={towerOptions} placeholder="Seleccioná un edificio" />
       </BottomSheet>
@@ -353,6 +376,7 @@ const OrdenesTecnicoView: React.FC = () => {
               <dt className="text-xs text-muted-foreground uppercase tracking-wide">Prioridad</dt>
               <dd><StatusBadge status={selectedOt.prioridad} /></dd>
             </div>
+            <DetailRow label="Requiere parada de equipo" value={selectedOt.tipo_prioridad ?? '—'} />
             <DetailRow label="Tipo de trabajo" value={selectedOt.tipo_trabajo ?? '—'} />
             <DetailRow label="Días estimado" value={selectedOt.dias_estimado != null ? String(selectedOt.dias_estimado) : '—'} />
             <DetailRow label="Personas requeridas" value={selectedOt.personas_requeridas != null ? String(selectedOt.personas_requeridas) : '—'} />
@@ -380,8 +404,29 @@ const OrdenesTecnicoView: React.FC = () => {
         )}
       </BottomSheet>
 
-      {/* Agregar repuesto */}
-      <BottomSheet isOpen={activeSheet === 'agregarRepuesto'} onClose={closeSheets} title="Agregar repuesto" subtitle={selectedOt?.concat_activo ?? undefined}>
+      {/* Completar orden: reconciliar repuestos -> cerrar (flujo PA) */}
+      <BottomSheet
+        isOpen={activeSheet === 'agregarRepuesto'}
+        onClose={closeSheets}
+        title="Repuestos de la orden"
+        subtitle={selectedOt?.concat_activo ?? undefined}
+        footer={
+          <>
+            <Button variant="outline" className="flex-1" onClick={closeSheets}>Cancelar</Button>
+            <Button className="flex-1" onClick={handleCompletarDesdeRepuestos}>Completar orden</Button>
+          </>
+        }
+      >
+        {repuestosSel.length > 0 && (
+          <div className="rounded-md border bg-muted/20 p-2 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Repuestos ya asignados</p>
+            {repuestosSel.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{r.repuesto}</span><Badge className="shrink-0">{r.cantidad}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
         <Input placeholder="Buscar artículo…" value={repuestoSearch} onChange={(e) => setRepuestoSearch(e.target.value)} className="h-9 text-sm" />
         {filteredStock.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">Sin stock disponible en este edificio.</p>
@@ -408,7 +453,7 @@ const OrdenesTecnicoView: React.FC = () => {
                     />
                     <button
                       aria-label="Asignar repuesto"
-                      disabled={!qty || invalid || assigningId === row.id}
+                      disabled={!qty || invalid || assigningId !== null}
                       onClick={() => handleAsignarRepuesto(row)}
                       className="h-9 w-9 shrink-0 rounded-md bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50 transition-colors"
                     >

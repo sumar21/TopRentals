@@ -33,13 +33,13 @@ const canReject = (perfil: Perfil, status: EstadoAprobacion) => REJECTABLE.inclu
 const canApprove = (perfil: Perfil, status: EstadoAprobacion) => REJECTABLE.includes(status) && (perfil === 'Gerencia' || perfil === 'Admin' || perfil === 'Compras');
 const canEdit = (status: EstadoAprobacion) => status === 'Pendiente';
 
+// Estados alcanzables en esta cola (paridad con cmbox_estado_AP de PA): En Aprobacion
+// y Recibida no se escriben ni filtran acá, se omiten.
 const ESTADO_OPTIONS: { value: EstadoAprobacion; label: string }[] = [
   { value: 'Pendiente', label: 'Pendiente' },
-  { value: 'En Aprobacion', label: 'En aprobación' },
   { value: 'Aprobada Supervision', label: 'Aprobada supervisión' },
   { value: 'Aprobada', label: 'Aprobada' },
   { value: 'Rechazada', label: 'Rechazada' },
-  { value: 'Recibida', label: 'Recibida' },
 ];
 
 const mesLabel = (isoMonth: string) => {
@@ -141,9 +141,9 @@ const AprobacionesView: React.FC = () => {
         <button title="Ver detalle" aria-label="Ver detalle de la compra" onClick={() => setDetalleCompraId(a.compra_id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center">
           <Eye className="h-4 w-4" />
         </button>
-        {canEdit(a.status) && (
-          <button title="Editar" aria-label="Editar renglones de la compra" onClick={() => setEditTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center">
-            <Pencil className="h-4 w-4" />
+        {canApprove(user.perfil, a.status) && (
+          <button title="Aprobar" aria-label="Aprobar compra" onClick={() => setAprobarTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center">
+            <Check className="h-4 w-4" />
           </button>
         )}
         {canReject(user.perfil, a.status) && (
@@ -151,9 +151,9 @@ const AprobacionesView: React.FC = () => {
             <XIcon className="h-4 w-4" />
           </button>
         )}
-        {canApprove(user.perfil, a.status) && (
-          <button title="Aprobar" aria-label="Aprobar compra" onClick={() => setAprobarTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center">
-            <Check className="h-4 w-4" />
+        {canEdit(a.status) && (
+          <button title="Editar" aria-label="Editar renglones de la compra" onClick={() => setEditTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center">
+            <Pencil className="h-4 w-4" />
           </button>
         )}
       </div>

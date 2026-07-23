@@ -23,6 +23,7 @@ interface RecibirCompraModalProps {
 
 interface LineState {
   detalle_id: number;
+  edificio: string;
   articulo: string;
   cantidad: number;
   recibidoInput: string;
@@ -50,7 +51,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
       if (cancelled || !row) return;
       setCompra(row);
       const activas = row.detalle.filter((d) => d.status === 'Activo');
-      setLines(activas.map((d) => ({ detalle_id: d.id, articulo: d.articulo ?? '—', cantidad: d.cantidad, recibidoInput: String(d.cantidad), noRecibido: false })));
+      setLines(activas.map((d) => ({ detalle_id: d.id, edificio: d.edificio ?? '—', articulo: d.articulo ?? '—', cantidad: d.cantidad, recibidoInput: String(d.cantidad), noRecibido: false })));
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [isOpen, compraId]);
@@ -123,7 +124,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Artículo</TableHead>
+                    <TableHead>Edificio | Artículo</TableHead>
                     <TableHead className="text-right">Pedido</TableHead>
                     <TableHead className="text-right w-32">Recibido</TableHead>
                     <TableHead className="w-32 text-center">No recibido</TableHead>
@@ -132,7 +133,9 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                 <TableBody>
                   {lines.map((l) => (
                     <TableRow key={l.detalle_id}>
-                      <TableCell className="text-sm">{l.articulo}</TableCell>
+                      <TableCell className="text-sm">
+                        <span className="text-muted-foreground">{l.edificio}</span> | {l.articulo}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{l.cantidad}</TableCell>
                       <TableCell className="text-right">
                         <Input type="number" min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
@@ -148,6 +151,12 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                   ))}
                 </TableBody>
               </Table>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas de recepción</label>
+                <textarea rows={3} maxLength={1000} value={obs} onChange={(e) => setObs(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
+              </div>
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Comprobante (foto o PDF)</label>
@@ -169,12 +178,6 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                 {/* ponytail: staged client-side only — no Storage backend yet. Upgrade path: upload
                     to a bucket on submit and persist the resulting path via services/documentos. */}
                 <p className="text-[11px] text-muted-foreground/70 mt-1">El comprobante se adjunta cuando el backend de almacenamiento esté definido.</p>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas de recepción</label>
-                <textarea rows={3} maxLength={1000} value={obs} onChange={(e) => setObs(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
               </div>
             </>
           )}

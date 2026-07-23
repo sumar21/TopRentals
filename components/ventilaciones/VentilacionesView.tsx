@@ -226,7 +226,7 @@ const VentilacionesView: React.FC = () => {
                   <TableHead>Habitación</TableHead>
                   <TableHead>Última limpieza</TableHead>
                   <TableHead>Próxima/Programada</TableHead>
-                  <TableHead className="text-right w-px whitespace-nowrap">Acciones</TableHead>
+                  <TableHead className="text-right w-px whitespace-nowrap pr-6">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -246,7 +246,7 @@ const VentilacionesView: React.FC = () => {
                     <TableCell>{v.habitacion || '-'}</TableCell>
                     <TableCell>{formatDate(v.fecha_ultima) || '-'}</TableCell>
                     <TableCell>{formatDate(v.fecha_programada ?? v.proxima_limpieza) || '-'}</TableCell>
-                    <TableCell className="w-px whitespace-nowrap">{renderAcciones(v)}</TableCell>
+                    <TableCell className="w-px whitespace-nowrap pr-6">{renderAcciones(v)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

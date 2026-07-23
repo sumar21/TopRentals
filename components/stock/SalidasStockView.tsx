@@ -14,6 +14,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { api } from '../../services/index.ts';
 import { useAuth } from '../../contexts/AuthContext';
+import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { SalidaStock, Usuario } from '../../services/types.ts';
 import { formatDate } from '../../utils/dates';
 
@@ -47,6 +48,7 @@ const SalidasStockView: React.FC = () => {
   const { showToast } = useToast();
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [stockRows, setStockRows] = useState<StockRowWithEdificios[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
@@ -62,8 +64,8 @@ const SalidasStockView: React.FC = () => {
   const load = () => {
     setLoading(true);
     setLoadError(false);
-    return Promise.all([api.stock.salidas(), api.usuarios.list()])
-      .then(([s, u]) => { setSalidas(s); setUsuarios(u); })
+    return Promise.all([api.stock.salidas(), api.usuarios.list(), api.stock.list()])
+      .then(([s, u, st]) => { setSalidas(s); setUsuarios(u); setStockRows(st); })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   };
@@ -82,6 +84,7 @@ const SalidasStockView: React.FC = () => {
   };
 
   const tecnicosById = useMemo(() => new Map(usuarios.map((u) => [u.id, u])), [usuarios]);
+  const stockById = useMemo(() => new Map(stockRows.map((r) => [r.id, r])), [stockRows]);
   const tecnicoOptions = useMemo(
     () => usuarios.filter((u) => u.perfil === 'Tecnico').map((u) => ({ label: u.concat_name, value: String(u.id) })),
     [usuarios],
@@ -241,6 +244,7 @@ const SalidasStockView: React.FC = () => {
 
       <EditarSalidaModal
         salida={editTarget}
+        disponibleActual={editTarget?.stock_id != null ? stockById.get(editTarget.stock_id)?.cantidad ?? null : null}
         onClose={() => setEditTarget(null)}
         onSaved={async () => {
           await reload();
@@ -284,12 +288,14 @@ const RowActions: React.FC<{ puedeEditar: boolean; puedeDevolver: boolean; onEdi
 );
 
 /** Edit the quantity of an existing salida — re-adjusts stock by the delta (DESIGN.md §4.1 modal). */
-const EditarSalidaModal: React.FC<{ salida: SalidaStock | null; onClose: () => void; onSaved: () => Promise<void>; usuarioId: number }> = ({
-  salida,
-  onClose,
-  onSaved,
-  usuarioId,
-}) => {
+const EditarSalidaModal: React.FC<{
+  salida: SalidaStock | null;
+  /** Current cantidad of the debited stock row (post this salida) — null on legacy rows with no stock_id. */
+  disponibleActual: number | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+  usuarioId: number;
+}> = ({ salida, disponibleActual, onClose, onSaved, usuarioId }) => {
   const { showToast } = useToast();
   const { visible, overlayClass, modalClass } = useModalAnimation(salida != null);
   const [cantidad, setCantidad] = useState('');
@@ -301,7 +307,9 @@ const EditarSalidaModal: React.FC<{ salida: SalidaStock | null; onClose: () => v
 
   if (!visible) return null;
   const parsed = Number(cantidad);
-  const valid = Number.isFinite(parsed) && parsed > 0;
+  // Upper bound mirrors adapter's editarSalida check: max = stock actual + lo que ya debitó esta salida.
+  const maxCantidad = salida && disponibleActual != null ? disponibleActual + salida.cantidad : null;
+  const valid = Number.isFinite(parsed) && parsed > 0 && (maxCantidad == null || parsed <= maxCantidad);
 
   const save = async () => {
     if (!salida || !valid) return;
@@ -332,10 +340,15 @@ const EditarSalidaModal: React.FC<{ salida: SalidaStock | null; onClose: () => v
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+            Cantidad{maxCantidad != null && <> · Disponible <span className="font-semibold text-foreground">{maxCantidad}</span></>}
+          </label>
           <Input autoFocus inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value.replace(/[^\d]/g, ''))} />
-          {!valid && cantidad !== '' && (
+          {cantidad !== '' && parsed <= 0 && (
             <p className="mt-1 text-xs text-red-600" role="alert">Ingresá una cantidad mayor a cero.</p>
+          )}
+          {cantidad !== '' && parsed > 0 && maxCantidad != null && parsed > maxCantidad && (
+            <p className="mt-1 text-xs text-red-600" role="alert">Cantidad insuficiente — disponible: {maxCantidad}.</p>
           )}
         </div>
         <div className="p-4 border-t bg-muted/20 flex flex-wrap justify-end gap-2">

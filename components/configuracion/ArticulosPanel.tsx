@@ -21,6 +21,16 @@ import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
 interface FormState { codigo: string; nombre: string; precio: string; corte: string; detalle: string; }
 const emptyForm: FormState = { codigo: '', nombre: '', precio: '', corte: '', detalle: '' };
 
+// PA genera el código automáticamente (txt_Nro_ART: DisplayMode.View, Value = Max(ID)+1);
+// nunca es editable. Acá replicamos el auto-incremento respetando el formato del catálogo (AR-NNN).
+function nextCodigo(articulos: Articulo[]): string {
+  const max = articulos.reduce((m, a) => {
+    const n = Number(String(a.codigo ?? '').replace(/\D/g, ''));
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  return `AR-${String(max + 1).padStart(3, '0')}`;
+}
+
 const ArticuloFormModal: React.FC<{
   isOpen: boolean; onClose: () => void; onSaved: () => void; articulo: Articulo | null; articulos: Articulo[];
 }> = ({ isOpen, onClose, onSaved, articulo, articulos }) => {
@@ -34,7 +44,7 @@ const ArticuloFormModal: React.FC<{
     if (isOpen) {
       setForm(articulo
         ? { codigo: articulo.codigo ?? '', nombre: articulo.nombre, precio: maskFromNumber(articulo.precio_unitario), corte: String(articulo.corte ?? ''), detalle: articulo.detalle ?? '' }
-        : emptyForm);
+        : { ...emptyForm, codigo: nextCodigo(articulos) });
       setErrors({});
     }
   }, [isOpen, articulo]);
@@ -43,10 +53,8 @@ const ArticuloFormModal: React.FC<{
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
-    const codigo = form.codigo.trim();
     const nombre = form.nombre.trim();
-    if (!codigo) next.codigo = 'El código es obligatorio.';
-    else if (articulos.some((a) => a.id !== articulo?.id && (a.codigo ?? '').trim() === codigo)) next.codigo = 'Ya existe un artículo con este código.';
+    // El código es autogenerado y no editable (paridad con PA) — no se valida.
     if (!nombre) next.nombre = 'El nombre es obligatorio.';
     else if (articulos.some((a) => a.id !== articulo?.id && a.nombre.trim().toLowerCase() === nombre.toLowerCase())) next.nombre = 'Ya existe un artículo con este nombre.';
     if (!form.precio || parseMoney(form.precio) <= 0) next.precio = 'Ingresá un precio válido.';
@@ -97,10 +105,15 @@ const ArticuloFormModal: React.FC<{
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Código<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
-                aria-invalid={!!errors.codigo} className={cn(errors.codigo && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('codigo')}
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Código</label>
+              <Input value={form.codigo} readOnly tabIndex={-1} aria-readonly title="Se genera automáticamente"
+                className="bg-muted/50 text-muted-foreground cursor-not-allowed" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Artículo<span className="text-destructive ml-0.5">*</span></label>
+              <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                aria-invalid={!!errors.nombre} className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+              {err('nombre')}
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Stock mínimo<span className="text-destructive ml-0.5">*</span></label>
@@ -108,14 +121,8 @@ const ArticuloFormModal: React.FC<{
                 aria-invalid={!!errors.corte} className={cn(errors.corte && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('corte')}
             </div>
-            <div className="sm:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Artículo<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                aria-invalid={!!errors.nombre} className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('nombre')}
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Precio<span className="text-destructive ml-0.5">*</span></label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Costo unitario<span className="text-destructive ml-0.5">*</span></label>
               <MoneyInput value={form.precio} onChange={(v) => setForm((f) => ({ ...f, precio: v }))}
                 aria-invalid={!!errors.precio} className={cn(errors.precio && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('precio')}
@@ -243,7 +250,7 @@ const ArticulosPanel: React.FC = () => {
                 <TableRow>
                   <TableHead>Código</TableHead>
                   <TableHead>Artículo</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
+                  <TableHead className="text-right">Costo unitario</TableHead>
                   <TableHead className="text-right">Stock mínimo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>

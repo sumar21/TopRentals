@@ -292,7 +292,7 @@ export function createMockAdapter(): DataApi {
         return withEdificios(row);
       },
 
-      async salida({ stock_id, edificio_id, tipo, cantidad, tecnico_id, uso, centro_de_costo, usuario_id, edificio_destino_id }) {
+      async salida({ stock_id, edificio_id, tipo, cantidad, tecnico_id, uso, centro_de_costo, usuario_id, edificio_destino_id, fecha_salida }) {
         await sleep();
         const row = db.stock.find((s) => s.id === stock_id);
         if (!row) throw new Error(`Stock ${stock_id} no encontrado.`);
@@ -339,7 +339,7 @@ export function createMockAdapter(): DataApi {
           concat_articulo: nombreArticulo(row.articulo_id),
           tecnico_id,
           tipo,
-          fecha_salida: todayIso(),
+          fecha_salida: fecha_salida ?? todayIso(),
           fecha_reingreso: null,
           uso,
           centro_de_costo,

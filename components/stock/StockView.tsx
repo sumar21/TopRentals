@@ -275,6 +275,7 @@ const StockView: React.FC = () => {
         onError={handleMutationError}
         row={editRow}
         articulo={editRow ? articulosById.get(editRow.articulo_id) : undefined}
+        edificioNombre={editRow ? edificioNames(editRow.edificio_ids) : '—'}
         usuarioId={user?.id ?? 0}
       />
     </div>

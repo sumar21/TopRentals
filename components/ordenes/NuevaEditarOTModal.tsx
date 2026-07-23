@@ -11,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
-import { PRIORIDAD_OPTIONS, TIPO_TRABAJO_TAREA_OPTIONS } from './otHelpers';
+import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TRABAJO_TAREA_OPTIONS } from './otHelpers';
 
 interface StagedPhoto { id: string; file: File; url: string; }
 
@@ -53,7 +53,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
       setEdificioId(unidad?.edificio_id != null ? String(unidad.edificio_id) : String(edificios.find((e) => e.nombre === ot.torre)?.id ?? ''));
       setUnidadId(ot.unidad_id != null ? String(ot.unidad_id) : '');
       setPrioridad(ot.prioridad);
-      setTipoPrioridad(ot.tipo_prioridad ?? 'Media');
+      setTipoPrioridad(ot.tipo_prioridad ?? '');
       setTipoTrabajo(ot.tipo_trabajo ?? '');
       setTipoTarea(ot.tipo_tarea ?? '');
       setDiasEstimado(ot.dias_estimado != null ? String(ot.dias_estimado) : '');
@@ -64,7 +64,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
       setEdificioId('');
       setUnidadId('');
       setPrioridad('Media');
-      setTipoPrioridad('Media');
+      setTipoPrioridad('');
       setTipoTrabajo('');
       setTipoTarea('');
       setDiasEstimado('');
@@ -112,7 +112,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
         prioridad: prioridad as OrdenTrabajo['prioridad'],
         tipo_trabajo: tipoTrabajo,
         tipo_tarea: tipoTarea,
-        tipo_prioridad: tipoPrioridad,
+        tipo_prioridad: tipoPrioridad || null,
         unidad_id: unidad?.id ?? null,
         torre: unidad?.torre ?? null,
         departamento: unidad?.depto ?? null,
@@ -155,7 +155,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
 
   return createPortal(
     <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+      <div className={`${modalClass} bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">{title}</h2>
@@ -173,27 +173,33 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de inicio *</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha Incidente *</label>
               <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} disabled={readOnly} />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio *</label>
-              <Select value={edificioId} onChange={(v) => { setEdificioId(v); setUnidadId(''); }} options={edificioOptions} placeholder="Seleccionar edificio…" disabled={readOnly} />
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre *</label>
+              <Select value={edificioId} onChange={(v) => { setEdificioId(v); setUnidadId(''); }} options={edificioOptions} placeholder="Seleccionar…" disabled={readOnly} />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidad *</label>
-              <Select value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Seleccionar unidad…' : 'Elegí un edificio primero'} disabled={readOnly || !edificioId} />
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Departamento *</label>
+              <Select value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Seleccionar…' : 'Elegí una torre primero'} disabled={readOnly || !edificioId} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad de unidad</label>
-              <Select value={tipoPrioridad} onChange={setTipoPrioridad} options={PRIORIDAD_OPTIONS} disabled={readOnly} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad *</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridad</label>
               <Select value={prioridad} onChange={setPrioridad} options={PRIORIDAD_OPTIONS} disabled={readOnly} />
             </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Requiere parada de equipo</label>
+              <Select value={tipoPrioridad} onChange={setTipoPrioridad} options={OCUPACION_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de trabajo *</label>
               <Select value={tipoTrabajo} onChange={setTipoTrabajo} options={TIPO_TRABAJO_TAREA_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
@@ -207,7 +213,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
               <Input type="number" min={0} inputMode="numeric" value={diasEstimado} onChange={(e) => setDiasEstimado(e.target.value)} disabled={readOnly} />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Personas requeridas *</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Personas necesarias *</label>
               <Input type="number" min={0} inputMode="numeric" value={personasRequeridas} onChange={(e) => setPersonasRequeridas(e.target.value)} disabled={readOnly} />
             </div>
           </div>
@@ -219,7 +225,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> Fotos adjuntas</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> Adjuntar archivos</label>
             {!readOnly && (
               <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
                 className="flex flex-col items-center justify-center gap-1.5 h-24 rounded-lg border-2 border-dashed border-input bg-muted/10 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors text-center">
@@ -250,7 +256,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
           <Button variant="outline" onClick={onClose} disabled={saving}>{readOnly ? 'Cerrar' : 'Cancelar'}</Button>
           {!readOnly && (
             <Button onClick={handleSave} disabled={!isValid || saving} className="min-w-[140px] w-full sm:w-auto gap-2">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {ot ? 'Guardar' : 'Agregar'}
             </Button>
           )}
         </div>

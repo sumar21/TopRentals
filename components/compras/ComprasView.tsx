@@ -178,22 +178,12 @@ const ComprasView: React.FC = () => {
 
   const renderActions = (c: Compra) => (
     <div className="flex justify-end gap-1">
-      {c.status === 'Pendiente' && (
-        <button title="Editar" aria-label="Editar compra" onClick={() => openEdit(c.id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center">
-          <Pencil className="h-4 w-4" />
-        </button>
-      )}
       <button title="Ver detalle" aria-label="Ver detalle de la compra" onClick={() => setDetalleId(c.id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center">
         <Eye className="h-4 w-4" />
       </button>
       {c.status === 'Pendiente' && (
-        <button title="Enviar a aprobación" aria-label="Enviar a aprobación" onClick={() => setEnviarTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center">
-          <SendHorizonal className="h-4 w-4" />
-        </button>
-      )}
-      {c.status === 'Pendiente' && (
-        <button title="Anular" aria-label="Anular compra" onClick={() => setAnularTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center">
-          <XCircle className="h-4 w-4" />
+        <button title="Editar" aria-label="Editar compra" onClick={() => openEdit(c.id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center">
+          <Pencil className="h-4 w-4" />
         </button>
       )}
       {c.status === 'Aprobada' && (
@@ -204,6 +194,16 @@ const ComprasView: React.FC = () => {
       {c.status === 'Recibida' && (
         <button title="Ver documento" aria-label="Ver documento adjunto" onClick={() => setDocumentoOpen(true)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-primary hover:bg-accent flex items-center justify-center">
           <FileText className="h-4 w-4" />
+        </button>
+      )}
+      {c.status === 'Pendiente' && (
+        <button title="Enviar a aprobación" aria-label="Enviar a aprobación" onClick={() => setEnviarTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center">
+          <SendHorizonal className="h-4 w-4" />
+        </button>
+      )}
+      {c.status === 'Pendiente' && (
+        <button title="Anular" aria-label="Anular compra" onClick={() => setAnularTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center">
+          <XCircle className="h-4 w-4" />
         </button>
       )}
     </div>

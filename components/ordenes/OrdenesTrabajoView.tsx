@@ -314,7 +314,7 @@ const OrdenesTrabajoView: React.FC = () => {
             <Table className="min-w-[1500px]">
               {/* Orden exacto de gal_incidentes (PA), por coordenada X del .msapp:
                   Estado · ID · ID F · Acciones · Detalle · Torre · Departamento · Prioridad ·
-                  Prioridad unidad · F. inicio · Tipo trabajo · Tipo tarea · F. asignada ·
+                  Requiere parada de equipo · F. inicio · Tipo trabajo · Tipo tarea · F. asignada ·
                   Días est. · F. cierre · Días reales · Tipo */}
               <TableHeader>
                 <TableRow>
@@ -326,7 +326,7 @@ const OrdenesTrabajoView: React.FC = () => {
                   <TableHead>Torre</TableHead>
                   <TableHead>Departamento</TableHead>
                   <TableHead>Prioridad</TableHead>
-                  <TableHead>Prioridad unidad</TableHead>
+                  <TableHead className="whitespace-nowrap">Requiere parada de equipo</TableHead>
                   <TableHead>F. inicio</TableHead>
                   <TableHead>Tipo trabajo</TableHead>
                   <TableHead>Tipo tarea</TableHead>

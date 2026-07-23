@@ -17,6 +17,10 @@ export const TIPO_TRABAJO_TAREA_OPTIONS: ComboboxOption[] = [
 
 export const PRIORIDAD_OPTIONS: ComboboxOption[] = ['Alta', 'Media', 'Baja'].map((v) => ({ label: v, value: v }));
 
+// "Requiere parada de equipo" (PA: cmbox_prioridad_OT -> Prioridad_IN). NO es una
+// prioridad: es el estado de ocupación de la unidad al momento del trabajo.
+export const OCUPACION_OPTIONS: ComboboxOption[] = ['Vacante', 'Vacante con ingreso', 'Bloqueada', 'Ocupada'].map((v) => ({ label: v, value: v }));
+
 export const ESTADO_OT_OPTIONS: ComboboxOption[] = ['Pendiente', 'Asignada', 'Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada'].map((v) => ({ label: v, value: v }));
 
 // ---------------------------------------------------------------------------

@@ -324,7 +324,12 @@ const VentilacionesTecnicoView: React.FC = () => {
         isOpen={activeSheet === 'cambiarTorre'}
         onClose={() => setActiveSheet(null)}
         title="Cambiar torre"
-        footer={<Button className="flex-1" disabled={!torrePickerValue} onClick={handleCambiarTorre}>Aceptar</Button>}
+        footer={
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
+            <Button className="flex-1" disabled={!torrePickerValue} onClick={handleCambiarTorre}>Aceptar</Button>
+          </>
+        }
       >
         <Select value={torrePickerValue} onChange={setTorrePickerValue} options={zonaOptions} placeholder="Seleccioná un edificio" />
       </BottomSheet>

@@ -115,7 +115,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
         setSolicitanteNombre(user.perfil === 'Admin' ? user.concat_name : '');
         setUrgencia('Media');
         setObservacion('');
-        setEdificioId(String(user.edificio_id ?? ''));
+        setEdificioId(canEditBuilding(user.perfil) ? '' : String(user.edificio_id ?? ''));
         setCart([]);
       }
     }).catch(() => { if (!cancelled) setError('No se pudo cargar la información de la compra.'); })
@@ -254,7 +254,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   </div>
                   <div>
                     <label className="text-[11px] text-muted-foreground mb-1 block">Costo unit.</label>
-                    <MoneyInput value={nuevoCosto} onChange={setNuevoCosto} />
+                    <MoneyInput value={nuevoCosto} onChange={setNuevoCosto} readOnly disabled />
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!nuevoArticuloId} className="gap-1.5">
                     <Plus className="h-4 w-4" /> Agregar línea
@@ -282,7 +282,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                             <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
                           </TableCell>
                           <TableCell className="text-right">
-                            <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} className="h-8 w-28 text-right ml-auto" />
+                            <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 w-28 text-right ml-auto" />
                           </TableCell>
                           <TableCell className="text-right text-sm font-medium tabular-nums">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
                           <TableCell>

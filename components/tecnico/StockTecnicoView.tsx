@@ -201,7 +201,12 @@ const StockTecnicoView: React.FC = () => {
         isOpen={activeSheet === 'swap'}
         onClose={() => setActiveSheet(null)}
         title="Cambiar edificio"
-        footer={<Button className="flex-1" disabled={!pickerValue} onClick={handlePickBuilding}>Aceptar</Button>}
+        footer={
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
+            <Button className="flex-1" disabled={!pickerValue} onClick={handlePickBuilding}>Aceptar</Button>
+          </>
+        }
       >
         <Select value={pickerValue} onChange={setPickerValue} options={buildingOptions} placeholder="Seleccioná un edificio" />
       </BottomSheet>
@@ -242,7 +247,7 @@ const StockTecnicoView: React.FC = () => {
         footer={
           <>
             <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)} disabled={savingEdit}>Cancelar</Button>
-            <Button className="flex-1 gap-2" disabled={editCantidad === '' || Number(editCantidad) < 0 || savingEdit} onClick={handleEditarStock}>
+            <Button className="flex-1 gap-2" disabled={editCantidad === '' || Number(editCantidad) <= 0 || savingEdit} onClick={handleEditarStock}>
               {savingEdit && <Loader2 className="h-4 w-4 animate-spin" />}Guardar
             </Button>
           </>

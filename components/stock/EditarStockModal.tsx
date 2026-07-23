@@ -17,10 +17,12 @@ interface EditarStockModalProps {
   onError: (message: string) => void;
   row: StockRowWithEdificios | null;
   articulo: Articulo | undefined;
+  /** Building name(s) the row pools stock in — shown next to the article in the header, PA parity (Articulo | Edificio). */
+  edificioNombre: string;
   usuarioId: number;
 }
 
-export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onClose, onSaved, onError, row, articulo, usuarioId }) => {
+export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onClose, onSaved, onError, row, articulo, edificioNombre, usuarioId }) => {
   const { visible, overlayClass, modalClass } = useModalAnimation(isOpen);
   const [cantidad, setCantidad] = useState('');
   const [minimo, setMinimo] = useState('');
@@ -69,7 +71,10 @@ export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onCl
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Editar Stock</h2>
-            <p className="text-xs text-muted-foreground">Artículo <span className="font-medium text-foreground">{articulo?.nombre ?? '—'}</span></p>
+            <p className="text-xs text-muted-foreground">
+              Artículo <span className="font-medium text-foreground">{articulo?.nombre ?? '—'}</span> · Edificio{' '}
+              <span className="font-medium text-foreground">{edificioNombre}</span>
+            </p>
           </div>
           <button onClick={close} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
