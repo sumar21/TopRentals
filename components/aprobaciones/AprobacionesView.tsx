@@ -54,6 +54,7 @@ const AprobacionesView: React.FC = () => {
 
   const [aprobaciones, setAprobaciones] = useState<Aprobacion[]>([]);
   const [comprasById, setComprasById] = useState<Map<number, Compra>>(new Map());
+  const [usuariosById, setUsuariosById] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -70,10 +71,11 @@ const AprobacionesView: React.FC = () => {
   const load = () => {
     setLoading(true);
     setLoadError(false);
-    return Promise.all([api.aprobaciones.list(), api.compras.list()])
-      .then(([aps, compras]) => {
+    return Promise.all([api.aprobaciones.list(), api.compras.list(), api.usuarios.list()])
+      .then(([aps, compras, usuarios]) => {
         setAprobaciones(user ? scopeAprobaciones(user.perfil, aps) : []);
         setComprasById(new Map(compras.map((c) => [c.id, c])));
+        setUsuariosById(new Map(usuarios.map((u) => [u.id, u.concat_name])));
       })
       .catch(() => { showToast('No se pudieron cargar las aprobaciones.', 'error'); setLoadError(true); })
       .finally(() => setLoading(false));
@@ -231,28 +233,30 @@ const AprobacionesView: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead>N° Compra</TableHead>
-                  <TableHead>Usuario gen.</TableHead>
                   <TableHead>Sector</TableHead>
                   <TableHead>Urgencia</TableHead>
+                  <TableHead>Técnico</TableHead>
+                  <TableHead>N° Compra</TableHead>
+                  <TableHead>Usuario gen.</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
-                  <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((a) => (
                   <TableRow key={a.id}>
+                    <TableCell><StatusBadge status={a.status} /></TableCell>
                     <TableCell className="text-sm">{formatDate(a.fecha)}</TableCell>
-                    <TableCell className="text-sm font-medium">{idCompraLabel(a)}</TableCell>
-                    <TableCell className="text-sm">{a.tecnico ?? '—'}</TableCell>
                     <TableCell className="text-sm">{a.sector ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={a.urgencia ?? ''} /></TableCell>
+                    <TableCell className="text-sm">{a.tecnico ?? '—'}</TableCell>
+                    <TableCell className="text-sm font-medium">{idCompraLabel(a)}</TableCell>
+                    <TableCell className="text-sm">{a.user_gen_id != null ? usuariosById.get(a.user_gen_id) ?? '—' : '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{a.cantidad ?? 0}</TableCell>
                     <TableCell className="text-right tabular-nums font-semibold">$ {maskFromNumber(a.monto ?? 0)}</TableCell>
-                    <TableCell><StatusBadge status={a.status} /></TableCell>
                     <TableCell>{renderActions(a)}</TableCell>
                   </TableRow>
                 ))}

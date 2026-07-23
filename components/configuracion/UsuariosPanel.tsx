@@ -17,6 +17,7 @@ import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
+import { formatDate } from '../../utils/dates';
 
 const PERFIL_OPTIONS: { value: Perfil; label: string }[] = [
   { value: 'Admin', label: 'Admin' },
@@ -260,7 +261,8 @@ const UsuariosPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      <div className="flex items-center gap-2 flex-wrap justify-end">
+      {/* En desktop el toolbar sube a la fila de los tabs (ConfiguracionView); en mobile queda debajo. */}
+      <div className="flex items-center gap-2 flex-wrap justify-end md:self-end md:-mt-[46px]">
         <div className="relative flex-1 sm:w-56 sm:flex-none min-w-[7rem]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
@@ -296,7 +298,7 @@ const UsuariosPanel: React.FC = () => {
             ))}
           </div>
           <Card className="hidden md:block border shadow-sm">
-            <Table>
+            <Table className="min-w-[1100px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
@@ -305,6 +307,7 @@ const UsuariosPanel: React.FC = () => {
                   <TableHead>Usuario</TableHead>
                   <TableHead>Edificio</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>F. nacimiento</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -317,6 +320,7 @@ const UsuariosPanel: React.FC = () => {
                     <TableCell>{u.usuario_app}</TableCell>
                     <TableCell>{u.edificio_default || '-'}</TableCell>
                     <TableCell><EstadoBadge status={u.status} /></TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(u.fecha_nac) || '—'}</TableCell>
                     <TableCell>{renderAcciones(u)}</TableCell>
                   </TableRow>
                 ))}

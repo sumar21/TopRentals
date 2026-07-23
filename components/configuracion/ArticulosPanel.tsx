@@ -200,7 +200,9 @@ const ArticulosPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      <div className="flex items-center gap-2 flex-wrap justify-end">
+      {/* En desktop el toolbar sube a la misma fila que los tabs (que viven en ConfiguracionView),
+          para no dejar un header alto de dos filas. En mobile queda debajo (no entran juntos). */}
+      <div className="flex items-center gap-2 flex-wrap justify-end md:self-end md:-mt-[46px]">
         <div className="relative flex-1 sm:w-56 sm:flex-none min-w-[7rem]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
