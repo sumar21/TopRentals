@@ -59,7 +59,7 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                 <div><p className="text-[11px] uppercase text-muted-foreground">Fecha</p><p className="font-medium">{formatDate(compra.fecha)}</p></div>
                 <div><p className="text-[11px] uppercase text-muted-foreground">Estado</p><StatusBadge status={compra.status} /></div>
-                <div><p className="text-[11px] uppercase text-muted-foreground">Solicitante</p><p className="font-medium">{compra.usuario_compra ?? '—'}</p></div>
+                <div><p className="text-[11px] uppercase text-muted-foreground">Usuario</p><p className="font-medium">{compra.usuario_compra ?? '—'}</p></div>
                 <div><p className="text-[11px] uppercase text-muted-foreground">Urgencia</p><StatusBadge status={compra.urgencia ?? ''} /></div>
               </div>
               <div>

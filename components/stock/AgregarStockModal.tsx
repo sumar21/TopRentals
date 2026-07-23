@@ -115,7 +115,7 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
               <Input type="number" min={1} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Precio unitario</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Costo unitario</label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-muted-foreground text-sm z-10 pointer-events-none">$</span>
                 <MoneyInput className="pl-7" value={precio} onChange={setPrecio} />

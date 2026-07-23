@@ -217,7 +217,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Solicitante</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario</label>
                   {headerEditable ? (
                     <Select value={solicitanteId} onChange={setSolicitanteId} options={requesterOptions} placeholder="Seleccionar técnico…" />
                   ) : (
