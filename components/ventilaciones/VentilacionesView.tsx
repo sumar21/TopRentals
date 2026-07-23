@@ -2,7 +2,7 @@
 // See docs/analysis/desktop_Screen_Ventilaciones.md. Horizonte por defecto: <=90 días
 // (paridad con el DateDiff de la PA original); el filtro de mes permite ampliarlo.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, ChevronDown, ChevronUp, Plus, Trash2, Eye, UserCheck, TriangleAlert, Wind } from 'lucide-react';
+import { Search, SlidersHorizontal, ChevronDown, ChevronUp, Plus, Trash2, UserCheck, TriangleAlert, Fan } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import type { Edificio, Frecuencia, Perfil, Unidad, Usuario, Ventilacion } from '../../services/types.ts';
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input } from '../ui/UIComponents';
@@ -16,7 +16,7 @@ import ConfirmModal from '../ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/dates.ts';
 import { FEATURES } from '../../config/features.ts';
-import { CrearVentilacionModal, AsignarVentilacionModal, DetalleVentilacionModal } from './VentilacionesModals';
+import { CrearVentilacionModal, AsignarVentilacionModal } from './VentilacionesModals';
 
 const HORIZONTE_DIAS = 90;
 const ESTADOS: Ventilacion['estado'][] = ['Pendiente', 'Asignada', 'Programada', 'Realizada'];
@@ -65,7 +65,6 @@ const VentilacionesView: React.FC = () => {
 
   const [crearOpen, setCrearOpen] = useState(false);
   const [asignarTarget, setAsignarTarget] = useState<Ventilacion | null>(null);
-  const [detalleTarget, setDetalleTarget] = useState<Ventilacion | null>(null);
   const [eliminarTarget, setEliminarTarget] = useState<Ventilacion | null>(null);
 
   const load = async () => {
@@ -135,11 +134,6 @@ const VentilacionesView: React.FC = () => {
             <UserCheck className="h-4 w-4" />
           </Button>
         )}
-        {v.estado === 'Realizada' && (
-          <Button variant="ghost" size="icon" aria-label="Ver detalle" title="Ver detalle" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setDetalleTarget(v)}>
-            <Eye className="h-4 w-4" />
-          </Button>
-        )}
         {canManage && v.estado === 'Pendiente' && (
           <Button variant="ghost" size="icon" aria-label="Eliminar" title="Eliminar" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setEliminarTarget(v)}>
             <Trash2 className="h-4 w-4" />
@@ -171,7 +165,7 @@ const VentilacionesView: React.FC = () => {
           </button>
           {canCreate && (
             <Button className="h-9 px-3 text-sm gap-1.5 shrink-0" onClick={() => setCrearOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Agregar</span>
+              <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Agregar edificio</span>
             </Button>
           )}
         </div>
@@ -195,7 +189,7 @@ const VentilacionesView: React.FC = () => {
       ) : loadError ? (
         <LoadErrorState onRetry={load} />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Wind} title="Sin ventilaciones para mostrar" message="Ajustá la búsqueda o los filtros." />
+        <EmptyState icon={Fan} title="Sin ventilaciones para mostrar" message="Ajustá la búsqueda o los filtros." />
       ) : (
         <>
           {/* MOBILE */}
@@ -232,7 +226,7 @@ const VentilacionesView: React.FC = () => {
                   <TableHead>Habitación</TableHead>
                   <TableHead>Última limpieza</TableHead>
                   <TableHead>Próxima/Programada</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead className="text-right w-px whitespace-nowrap">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -252,7 +246,7 @@ const VentilacionesView: React.FC = () => {
                     <TableCell>{v.habitacion || '-'}</TableCell>
                     <TableCell>{formatDate(v.fecha_ultima) || '-'}</TableCell>
                     <TableCell>{formatDate(v.fecha_programada ?? v.proxima_limpieza) || '-'}</TableCell>
-                    <TableCell>{renderAcciones(v)}</TableCell>
+                    <TableCell className="w-px whitespace-nowrap">{renderAcciones(v)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -269,8 +263,6 @@ const VentilacionesView: React.FC = () => {
           onSaved={() => { load(); showToast('Ventilación asignada.', 'success'); }}
           ventilacion={asignarTarget} tecnicos={tecnicos} frecuencias={frecuencias} />
       )}
-
-      <DetalleVentilacionModal isOpen={!!detalleTarget} onClose={() => setDetalleTarget(null)} ventilacion={detalleTarget} />
 
       <ConfirmModal
         isOpen={!!eliminarTarget}

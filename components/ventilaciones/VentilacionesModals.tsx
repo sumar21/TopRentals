@@ -35,9 +35,11 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
 
   useEffect(() => {
     if (isOpen) {
-      setEdificioId(''); setUnidadId(''); setFrecuenciaId(''); setFechaInicio(todayISO()); setError(null);
+      // Default de frecuencia = 90 días (paridad con PA: DefaultSelectedItems: =["90"]).
+      const f90 = frecuencias.find((f) => f.dias === 90);
+      setEdificioId(''); setUnidadId(''); setFrecuenciaId(f90 ? String(f90.id) : ''); setFechaInicio(todayISO()); setError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, frecuencias]);
 
   if (!visible) return null;
 
@@ -45,7 +47,7 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
   const unidadOptions = unidades
     .filter((u) => u.status === 'Alta' && !u.requiere_ventilacion && String(u.edificio_id) === edificioId)
     .map((u) => ({ value: String(u.id), label: [u.depto, u.tipo_depto].filter(Boolean).join(' · ') || `Unidad #${u.id}` }));
-  const frecuenciaOptions = frecuencias.filter((f) => f.status === 'Activo').map((f) => ({ value: String(f.id), label: `${f.nombre} (${f.dias} días)` }));
+  const frecuenciaOptions = frecuencias.filter((f) => f.status === 'Activo').map((f) => ({ value: String(f.id), label: `${f.dias} días` }));
 
   const canSave = !!edificioId && !!unidadId && !!frecuenciaId && !!fechaInicio;
 
@@ -181,7 +183,7 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
   if (!visible) return null;
 
   const tecnicoOptions = tecnicos.map((t) => ({ value: String(t.id), label: t.concat_name }));
-  const frecuenciaOptions = frecuencias.filter((f) => f.status === 'Activo').map((f) => ({ value: String(f.id), label: `${f.nombre} (${f.dias} días)` }));
+  const frecuenciaOptions = frecuencias.filter((f) => f.status === 'Activo').map((f) => ({ value: String(f.id), label: `${f.dias} días` }));
   const canSave = !!tecnicoId && !!fecha && fecha >= todayISO();
 
   const handleSave = async () => {

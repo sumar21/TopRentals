@@ -8,7 +8,7 @@ import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
 import { canAccessModule, moduleRoute } from '../utils/permissions';
-import { moduleIcon } from '../config/moduleIcons';
+import { moduleIcon, moduleLabel } from '../config/moduleIcons';
 
 interface NavEntry {
   modulo: string;
@@ -21,7 +21,7 @@ const NavItem = ({ entry, collapsed, onClick }: { entry: NavEntry; collapsed: bo
     <NavLink
       to={entry.route}
       onClick={onClick}
-      title={collapsed ? entry.modulo : undefined}
+      title={collapsed ? moduleLabel(entry.modulo) : undefined}
       className={({ isActive }) =>
         cn(
           'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full',
@@ -31,7 +31,7 @@ const NavItem = ({ entry, collapsed, onClick }: { entry: NavEntry; collapsed: bo
       }
     >
       <Icon className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />
-      {!collapsed && <span className="truncate">{entry.modulo}</span>}
+      {!collapsed && <span className="truncate">{moduleLabel(entry.modulo)}</span>}
     </NavLink>
   );
 };
@@ -104,7 +104,7 @@ const Layout = () => {
         <button onClick={() => setDrawerOpen(true)} aria-label="Abrir menú" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <Menu className="h-5 w-5" />
         </button>
-        <span className="text-sm font-bold tracking-tight">{activeModule}</span>
+        <span className="text-sm font-bold tracking-tight">{moduleLabel(activeModule)}</span>
         <div className="ml-auto">
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-brand/10 text-brand text-xs font-semibold">{initials}</AvatarFallback>

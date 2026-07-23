@@ -135,13 +135,16 @@ function a(id: number, codigo: string, nombre: string, precio_unitario: number, 
 
 // ---------------------------------------------------------------------------
 // Frecuencias (ventilaciones picklist)
+// Valores reales de la lista SharePoint '99.ABM_Frecuencias' (columna Frecuencia_FE,
+// Status_FE = "Activo"). En PA el desplegable muestra el número de días crudo
+// (Distinct(CollectFrecuencias, Frecuencia_FE), default 90) — no hay columna de nombre.
 // ---------------------------------------------------------------------------
-export const frecuencias: Frecuencia[] = [
-  { id: 1, nombre: 'Mensual', dias: 30, status: 'Activo' },
-  { id: 2, nombre: 'Bimestral', dias: 60, status: 'Activo' },
-  { id: 3, nombre: 'Trimestral', dias: 90, status: 'Activo' },
-  { id: 4, nombre: 'Semestral', dias: 180, status: 'Activo' },
-];
+export const frecuencias: Frecuencia[] = [30, 60, 90, 120, 180, 182, 230, 240, 300, 365, 450, 500].map((dias, i) => ({
+  id: i + 1,
+  nombre: `${dias} días`,
+  dias,
+  status: 'Activo',
+}));
 
 // ---------------------------------------------------------------------------
 // Unidades — 2 per edificio

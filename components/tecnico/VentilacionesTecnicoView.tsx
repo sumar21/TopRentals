@@ -2,7 +2,7 @@
 // docs/analysis/mobile_Screen_Ventilaciones.md react_mapping.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader2, Trash2, Wind } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader2, Trash2, Fan } from 'lucide-react';
 import { Button, Input } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -183,7 +183,7 @@ const VentilacionesTecnicoView: React.FC = () => {
       ) : loadError ? (
         <LoadErrorState onRetry={loadVentilaciones} />
       ) : visible.length === 0 ? (
-        <EmptyState icon={Wind} title="Sin ventilaciones asignadas" message="No tenés tareas de ventilación pendientes en este edificio." />
+        <EmptyState icon={Fan} title="Sin ventilaciones asignadas" message="No tenés tareas de ventilación pendientes en este edificio." />
       ) : (
         <div className="space-y-2">
           {visible.map((v) => {
