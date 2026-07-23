@@ -168,7 +168,7 @@ const OrdenesTrabajoView: React.FC = () => {
     if (!perfil) return null;
     const editable = canEditar(ot, perfil);
     return (
-      <div className="flex justify-end gap-1 flex-wrap">
+      <div className="flex items-center justify-end gap-0.5 flex-nowrap">
         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" title={editable ? 'Editar' : 'Ver detalle'} aria-label={editable ? 'Editar' : 'Ver detalle'}
           onClick={() => (editable ? openEditar(ot) : openVer(ot))}>
           {editable ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -308,20 +308,23 @@ const OrdenesTrabajoView: React.FC = () => {
             ))}
           </div>
 
-          {/* DESKTOP: tabla ancha con scroll horizontal */}
-          <Card className="hidden md:block border shadow-sm overflow-x-auto">
-            <Table>
+          {/* DESKTOP: tabla ancha con scroll horizontal — columnas 1:1 con gal_incidentes (PA).
+              min-w fuerza el ancho natural para que el contenedor del kit haga scroll en vez de clippear. */}
+          <Card className="hidden md:block border shadow-sm">
+            <Table className="min-w-[1500px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
+                  <TableHead>IDF</TableHead>
                   <TableHead>Torre / Depto</TableHead>
                   <TableHead>Detalle</TableHead>
                   <TableHead>Prioridad</TableHead>
-                  <TableHead>Tipo trabajo / tarea</TableHead>
+                  <TableHead>Tipo trabajo</TableHead>
+                  <TableHead>Tipo tarea</TableHead>
                   <TableHead>F. inicio</TableHead>
                   <TableHead>F. asignada</TableHead>
-                  <TableHead>F. cierre</TableHead>
                   <TableHead className="text-right">Días est.</TableHead>
+                  <TableHead>F. cierre</TableHead>
                   <TableHead className="text-right">Días reales</TableHead>
                   <TableHead>Prioridad unidad</TableHead>
                   <TableHead>Estado</TableHead>
@@ -332,29 +335,25 @@ const OrdenesTrabajoView: React.FC = () => {
               <TableBody>
                 {visible.map((ot) => (
                   <TableRow key={ot.id}>
-                    <TableCell className="whitespace-nowrap">
-                      <div className="font-medium">#{ot.id}</div>
-                      {ot.orden_revision_id != null && <div className="text-[10px] text-muted-foreground">IDF #{ot.orden_revision_id}</div>}
-                    </TableCell>
+                    <TableCell className="whitespace-nowrap font-medium">#{ot.id}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div className="font-medium">{ot.torre ?? '—'}</div>
                       {ot.departamento && <div className="text-[10px] text-muted-foreground">{ot.departamento}</div>}
                     </TableCell>
-                    <TableCell className="max-w-[220px]" title={ot.detalle ?? ''}>{truncate(ot.detalle)}</TableCell>
+                    <TableCell className="max-w-[220px] truncate" title={ot.detalle ?? ''}>{truncate(ot.detalle)}</TableCell>
                     <TableCell><StatusBadge status={ot.prioridad} /></TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <div>{ot.tipo_trabajo ?? '—'}</div>
-                      {ot.tipo_tarea && <div className="text-[10px] text-muted-foreground">{ot.tipo_tarea}</div>}
-                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{ot.tipo_trabajo ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{ot.tipo_tarea ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_inicio) || '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_asignada) || '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_cierre) || '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{ot.dias_estimado ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_cierre) || '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{diasReales(ot) ?? '—'}</TableCell>
-                    <TableCell>{ot.tipo_prioridad ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{ot.tipo_prioridad ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={ot.status} /></TableCell>
-                    {!compras && <TableCell><Badge variant="outline">{ot.tipo}</Badge></TableCell>}
-                    <TableCell><RowActions ot={ot} /></TableCell>
+                    {!compras && <TableCell><Badge variant="outline" className="whitespace-nowrap">{ot.tipo}</Badge></TableCell>}
+                    <TableCell className="whitespace-nowrap"><RowActions ot={ot} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
