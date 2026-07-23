@@ -356,12 +356,16 @@ export const movimientosStock: MovimientoStock[] = stock.slice(0, 6).map((row, i
   version_app: 'v20260622_1.3.2',
 }));
 
+/** First stock row for an articulo — deterministic reference for the salida seeds. */
+const stockIdFor = (articuloId: number) => stock.find((s) => s.articulo_id === articuloId)?.id ?? null;
+
 export const salidasStock: SalidaStock[] = [
-  { id: 1, articulo_id: 1, concat_articulo: 'Lámpara LED 9W', tecnico_id: 2, tipo: 'ASIGNACION', fecha_salida: '2026-07-18', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Soho', cantidad: 3, usuario_id: 2, fecha: '2026-07-18T10:15:00Z', version_app: 'v20260622_1.3.2' },
-  { id: 2, articulo_id: 7, concat_articulo: 'Detergente Multiuso 5L', tecnico_id: 8, tipo: 'CONSUMIBLE', fecha_salida: '2026-07-10', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Nuñez', cantidad: 2, usuario_id: 8, fecha: '2026-07-10T11:00:00Z', version_app: 'v20260622_1.3.2' },
-  { id: 3, articulo_id: 2, concat_articulo: 'Cable UTP Cat6 (rollo)', tecnico_id: 10, tipo: 'DEVOLUCION', fecha_salida: '2026-07-05', fecha_reingreso: '2026-07-12', uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 1, usuario_id: 10, fecha: '2026-07-05T09:30:00Z', version_app: 'v20260622_1.3.2' },
-  { id: 4, articulo_id: 5, concat_articulo: 'Pintura Látex Blanco 20L', tecnico_id: 2, tipo: 'TRASLADO', fecha_salida: '2026-07-08', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Chico', cantidad: 2, usuario_id: 1, fecha: '2026-07-08T09:00:00Z', version_app: 'v20260622_1.3.2' },
-  { id: 5, articulo_id: 9, concat_articulo: 'Filtro de Aire Split', tecnico_id: 10, tipo: 'DEVUELTO', fecha_salida: '2026-07-05', fecha_reingreso: '2026-07-06', uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 2, usuario_id: 10, fecha: '2026-07-05T11:00:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 1, articulo_id: 1, stock_id: stockIdFor(1), concat_articulo: 'Lámpara LED 9W', tecnico_id: 2, tipo: 'ASIGNACION', fecha_salida: '2026-07-18', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Soho', cantidad: 3, usuario_id: 2, fecha: '2026-07-18T10:15:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 2, articulo_id: 7, stock_id: stockIdFor(7), concat_articulo: 'Detergente Multiuso 5L', tecnico_id: 8, tipo: 'CONSUMIBLE', fecha_salida: '2026-07-10', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Nuñez', cantidad: 2, usuario_id: 8, fecha: '2026-07-10T11:00:00Z', version_app: 'v20260622_1.3.2' },
+  // Pending DEVOLUCION — exercises confirmarDevolucion in the demo.
+  { id: 3, articulo_id: 2, stock_id: stockIdFor(2), concat_articulo: 'Cable UTP Cat6 (rollo)', tecnico_id: 10, tipo: 'DEVOLUCION', fecha_salida: '2026-07-05', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 1, usuario_id: 10, fecha: '2026-07-05T09:30:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 4, articulo_id: 5, stock_id: stockIdFor(5), concat_articulo: 'Pintura Látex Blanco 20L', tecnico_id: 2, tipo: 'TRASLADO', fecha_salida: '2026-07-08', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Chico', cantidad: 2, usuario_id: 1, fecha: '2026-07-08T09:00:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 5, articulo_id: 9, stock_id: stockIdFor(9), concat_articulo: 'Filtro de Aire Split', tecnico_id: 10, tipo: 'DEVUELTO', fecha_salida: '2026-07-05', fecha_reingreso: '2026-07-06', uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 2, usuario_id: 10, fecha: '2026-07-05T11:00:00Z', version_app: 'v20260622_1.3.2' },
 ];
 
 // ---------------------------------------------------------------------------

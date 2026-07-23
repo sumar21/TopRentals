@@ -10,6 +10,7 @@ import { Loader } from '../ui/Loader';
 import { StatusBadge } from '../ui/StatusBadge';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { api } from '../../services/index.ts';
 import { useAuth } from '../../contexts/AuthContext';
@@ -47,6 +48,7 @@ const SalidasStockView: React.FC = () => {
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [meses, setMeses] = useState<string[]>([]);
@@ -57,12 +59,16 @@ const SalidasStockView: React.FC = () => {
 
   const reload = () => api.stock.salidas().then(setSalidas);
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
-    Promise.all([api.stock.salidas(), api.usuarios.list()])
+    setLoadError(false);
+    return Promise.all([api.stock.salidas(), api.usuarios.list()])
       .then(([s, u]) => { setSalidas(s); setUsuarios(u); })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { load(); }, []);
 
   const confirmarDevolucion = async () => {
     if (!devolucionTarget || !user) return;
@@ -159,6 +165,8 @@ const SalidasStockView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando salidas…" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={load} />
       ) : visible.length === 0 ? (
         <EmptyState icon={PackageSearch} title="Sin resultados" message="No hay salidas de stock que coincidan con la búsqueda/filtros." />
       ) : (
@@ -310,7 +318,7 @@ const EditarSalidaModal: React.FC<{ salida: SalidaStock | null; onClose: () => v
   };
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
       <div className={`${modalClass} bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
@@ -319,7 +327,7 @@ const EditarSalidaModal: React.FC<{ salida: SalidaStock | null; onClose: () => v
               {salida?.concat_articulo} · <span className="font-medium text-foreground">{salida?.tipo}</span>
             </p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>

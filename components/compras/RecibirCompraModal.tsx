@@ -104,7 +104,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
             <h2 className="text-xl font-bold tracking-tight">Recibir compra</h2>
             {compra && <p className="text-xs text-muted-foreground">{compra.id_compra}</p>}
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>

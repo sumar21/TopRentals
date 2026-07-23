@@ -207,7 +207,7 @@ export interface ComboboxProps {
   className?: string; disabled?: boolean; emptyText?: string;
 }
 
-export const Combobox: React.FC<ComboboxProps> = ({ options, value, onChange, placeholder = "Select...", searchPlaceholder = "Search...", icon, className, disabled, emptyText = "No results" }) => {
+export const Combobox: React.FC<ComboboxProps> = ({ options, value, onChange, placeholder = "Seleccionar…", searchPlaceholder = "Buscar…", icon, className, disabled, emptyText = "Sin resultados" }) => {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -238,8 +238,8 @@ export const Combobox: React.FC<ComboboxProps> = ({ options, value, onChange, pl
   const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
 
   const dropdown = open && coords ? createPortal(
-    <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width, zIndex: 999999 }}
-      className="bg-popover text-popover-foreground border rounded-md shadow-lg overflow-hidden">
+    <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width }}
+      className="z-[90] bg-popover text-popover-foreground border rounded-md shadow-lg overflow-hidden">
       <div className="p-2 border-b bg-muted/20">
         <div className="flex items-center px-2 py-1.5 bg-background rounded border group focus-within:ring-1 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all">
           <Search className="h-3.5 w-3.5 text-muted-foreground mr-2 shrink-0 group-focus-within:text-primary transition-colors" />
@@ -290,7 +290,7 @@ export interface MultiComboboxProps {
   className?: string; disabled?: boolean; emptyText?: string;
 }
 
-export const MultiCombobox: React.FC<MultiComboboxProps> = ({ options, value, onChange, placeholder = "Select...", searchPlaceholder = "Search...", icon, className, disabled, emptyText = "No results" }) => {
+export const MultiCombobox: React.FC<MultiComboboxProps> = ({ options, value, onChange, placeholder = "Seleccionar…", searchPlaceholder = "Buscar…", icon, className, disabled, emptyText = "Sin resultados" }) => {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -319,11 +319,11 @@ export const MultiCombobox: React.FC<MultiComboboxProps> = ({ options, value, on
 
   const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
   const toggleValue = (v: string) => onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v]);
-  const triggerLabel = value.length === 0 ? placeholder : value.length === 1 ? (options.find(o => o.value === value[0])?.label ?? placeholder) : `${value.length} selected`;
+  const triggerLabel = value.length === 0 ? placeholder : value.length === 1 ? (options.find(o => o.value === value[0])?.label ?? placeholder) : `${value.length} seleccionados`;
 
   const dropdown = open && coords ? createPortal(
-    <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width, zIndex: 999999 }}
-      className="bg-popover text-popover-foreground border rounded-md shadow-lg overflow-hidden">
+    <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width }}
+      className="z-[90] bg-popover text-popover-foreground border rounded-md shadow-lg overflow-hidden">
       <div className="p-2 border-b bg-muted/20">
         <div className="flex items-center px-2 py-1.5 bg-background rounded border group focus-within:ring-1 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all">
           <Search className="h-3.5 w-3.5 text-muted-foreground mr-2 shrink-0 group-focus-within:text-primary transition-colors" />
@@ -346,7 +346,7 @@ export const MultiCombobox: React.FC<MultiComboboxProps> = ({ options, value, on
           })}
       </div>
       {value.length > 0 && (
-        <button type="button" onClick={() => onChange([])} className="w-full border-t px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent text-left">Clear all</button>
+        <button type="button" onClick={() => onChange([])} className="w-full border-t px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent text-left">Limpiar</button>
       )}
     </div>, document.body) : null;
 

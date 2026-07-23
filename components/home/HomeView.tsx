@@ -11,6 +11,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import { formatDate } from '../../utils/dates.ts';
 import { bucketOf, matchesSearch, type BoardColumn } from './otBoard.ts';
 
@@ -88,6 +89,7 @@ const HomeView: React.FC = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [mobileTab, setMobileTab] = useState<(typeof MOBILE_TABS)[number]['key']>('todas');
   const debouncedSearch = useDebounced(search, 300);
@@ -100,6 +102,7 @@ const HomeView: React.FC = () => {
 
   const load = async (isRefresh: boolean) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
+    setLoadError(false);
     try {
       const [otRows, userRows] = await Promise.all([api.ots.list(), api.usuarios.list()]);
       setOts(otRows);
@@ -107,6 +110,7 @@ const HomeView: React.FC = () => {
       if (isRefresh) showToast('Tablero actualizado.', 'success');
     } catch {
       showToast('No se pudo cargar el tablero de OTs.', 'error');
+      setLoadError(true);
     } finally {
       isRefresh ? setRefreshing(false) : setLoading(false);
     }
@@ -179,6 +183,8 @@ const HomeView: React.FC = () => {
         <div className="flex items-center justify-center py-20">
           <Loader size="lg" text="Cargando tablero…" subtext="Órdenes de trabajo" />
         </div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={() => load(false)} />
       ) : (
         <div className={`transition-opacity duration-300 ${refreshing ? 'opacity-60' : ''}`}>
           {/* MOBILE: single list gated by a segmented Tabs filter */}

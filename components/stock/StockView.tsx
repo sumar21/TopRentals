@@ -7,6 +7,7 @@ import { Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeade
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { api } from '../../services/index.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
@@ -36,6 +37,7 @@ const StockView: React.FC = () => {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
 
   const [showAgregar, setShowAgregar] = useState(false);
@@ -45,16 +47,21 @@ const StockView: React.FC = () => {
   const readOnly = user?.perfil === 'Compras';
 
   const load = async () => {
-    const [stockRows, art, edi, usr] = await Promise.all([
-      api.stock.list(),
-      api.articulos.list(),
-      api.edificios.list(),
-      api.usuarios.list(),
-    ]);
-    setRows(stockRows);
-    setArticulos(art);
-    setEdificios(edi);
-    setUsuarios(usr);
+    setLoadError(false);
+    try {
+      const [stockRows, art, edi, usr] = await Promise.all([
+        api.stock.list(),
+        api.articulos.list(),
+        api.edificios.list(),
+        api.usuarios.list(),
+      ]);
+      setRows(stockRows);
+      setArticulos(art);
+      setEdificios(edi);
+      setUsuarios(usr);
+    } catch {
+      setLoadError(true);
+    }
   };
 
   useEffect(() => {
@@ -112,7 +119,13 @@ const StockView: React.FC = () => {
           <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={refresh} disabled={loading} aria-label="Actualizar">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
-          <Button variant="secondary" className="h-9 px-3 text-sm gap-1.5 shrink-0" onClick={() => navigate('/salidas-stock')}>
+          <Button
+            variant="secondary"
+            className="h-9 px-3 text-sm gap-1.5 shrink-0"
+            onClick={() => navigate('/salidas-stock')}
+            disabled={readOnly}
+            title={readOnly ? 'No tenés permiso para esta acción.' : undefined}
+          >
             <ArrowRightLeft className="h-3.5 w-3.5" /> Salidas
           </Button>
           <Button
@@ -128,6 +141,8 @@ const StockView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando stock…" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={refresh} />
       ) : visibleRows.length === 0 ? (
         <EmptyState icon={Package} title="Sin resultados" message="No hay stock que coincida con la búsqueda." />
       ) : (

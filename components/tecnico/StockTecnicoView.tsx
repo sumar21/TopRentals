@@ -10,6 +10,7 @@ import { Button, Input, Combobox } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
@@ -31,6 +32,7 @@ const StockTecnicoView: React.FC = () => {
   const [articulos, setArticulos] = useState<Articulo[]>([]);
   const [stockAll, setStockAll] = useState<StockRowWithEdificios[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
 
   const [grupo, setGrupo] = useState<string | null>(navState.grupo ?? null);
@@ -46,11 +48,17 @@ const StockTecnicoView: React.FC = () => {
   const [editCantidad, setEditCantidad] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
-  useEffect(() => {
-    Promise.all([api.edificios.list(), api.articulos.list(), api.stock.list()])
+  const load = () => {
+    setLoading(true);
+    setLoadError(false);
+    return Promise.all([api.edificios.list(), api.articulos.list(), api.stock.list()])
       .then(([eds, arts, stock]) => { setEdificios(eds); setArticulos(arts); setStockAll(stock); })
-      .catch(() => showToast('No se pudo cargar el stock.', 'error'))
+      .catch(() => { showToast('No se pudo cargar el stock.', 'error'); setLoadError(true); })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -170,6 +178,8 @@ const StockTecnicoView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={load} />
       ) : filteredRows.length === 0 ? (
         <EmptyState icon={Package} title="Sin stock" message="No hay artículos con stock disponible en este edificio." />
       ) : (
@@ -200,6 +210,7 @@ const StockTecnicoView: React.FC = () => {
       <BottomSheet
         isOpen={activeSheet === 'add'}
         onClose={() => setActiveSheet(null)}
+        locked={savingAdd}
         title="Ingresar stock"
         subtitle={edificioNombre ?? undefined}
         footer={
@@ -225,6 +236,7 @@ const StockTecnicoView: React.FC = () => {
       <BottomSheet
         isOpen={activeSheet === 'edit'}
         onClose={() => setActiveSheet(null)}
+        locked={savingEdit}
         title="Editar cantidad"
         subtitle={editRow ? articulosMap.get(editRow.articulo_id)?.nombre : undefined}
         footer={

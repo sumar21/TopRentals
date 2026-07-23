@@ -259,6 +259,9 @@ export interface MovimientoStock {
 export interface SalidaStock {
   id: number;
   articulo_id: number | null;
+  /** Stock row actually debited — the ONLY safe target to credit back on edit/devolución.
+   *  Null on legacy rows migrated from SharePoint (no such column there). */
+  stock_id: number | null;
   concat_articulo: string | null;
   tecnico_id: number | null;
   tipo: TipoSalidaStock;

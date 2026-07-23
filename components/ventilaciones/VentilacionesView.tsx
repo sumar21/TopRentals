@@ -11,6 +11,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/dates.ts';
@@ -54,6 +55,7 @@ const VentilacionesView: React.FC = () => {
   const [frecuencias, setFrecuencias] = useState<Frecuencia[]>([]);
   const [tecnicos, setTecnicos] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -68,6 +70,7 @@ const VentilacionesView: React.FC = () => {
 
   const load = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [ventRows, edRows, uniRows, freqRows, userRows] = await Promise.all([
         api.ventilaciones.list(),
@@ -83,6 +86,7 @@ const VentilacionesView: React.FC = () => {
       setTecnicos(userRows.filter((u) => u.perfil === 'Tecnico' && u.status === 'ALTA'));
     } catch {
       showToast('No se pudieron cargar las ventilaciones.', 'error');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -188,6 +192,8 @@ const VentilacionesView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Ventilaciones" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={load} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={Wind} title="Sin ventilaciones para mostrar" message="Ajustá la búsqueda o los filtros." />
       ) : (

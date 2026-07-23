@@ -18,7 +18,7 @@ export interface ConfirmModalProps {
   icon?: React.ReactNode;
 }
 
-const ConfirmModal: React.FC<ConfirmModalProps> = ({ isOpen, onClose, onConfirm, title, description, confirmText = "Confirm", cancelText = "Cancel", variant = 'default', icon }) => {
+const ConfirmModal: React.FC<ConfirmModalProps> = ({ isOpen, onClose, onConfirm, title, description, confirmText = "Confirmar", cancelText = "Cancelar", variant = 'default', icon }) => {
   const [isProcessing, setIsProcessing] = React.useState(false);
   if (!isOpen) return null;
   const handleConfirm = async () => { setIsProcessing(true); try { await onConfirm(); } finally { setIsProcessing(false); onClose(); } };

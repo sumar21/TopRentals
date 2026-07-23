@@ -8,6 +8,7 @@ import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Edificio, OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
@@ -25,6 +26,7 @@ const ActivosView: React.FC = () => {
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [appliedUnidad, setAppliedUnidad] = useState<Unidad | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [filterEdificioId, setFilterEdificioId] = useState('');
@@ -32,10 +34,15 @@ const ActivosView: React.FC = () => {
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
   const [repuestosSel, setRepuestosSel] = useState<RepuestoOT[]>([]);
 
-  useEffect(() => {
-    Promise.all([api.edificios.list(), api.unidades.list(), api.usuarios.list()])
+  const loadInit = () => {
+    setLoadError(false);
+    return Promise.all([api.edificios.list(), api.unidades.list(), api.usuarios.list()])
       .then(([eds, uns, us]) => { setEdificios(eds); setUnidades(uns); setUsuarios(us); })
-      .catch(() => showToast('No se pudieron cargar los edificios.', 'error'));
+      .catch(() => { showToast('No se pudieron cargar los edificios.', 'error'); setLoadError(true); });
+  };
+
+  useEffect(() => {
+    loadInit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -94,7 +101,9 @@ const ActivosView: React.FC = () => {
         </Button>
       </div>
 
-      {!appliedUnidad ? (
+      {loadError ? (
+        <LoadErrorState onRetry={loadInit} />
+      ) : !appliedUnidad ? (
         <EmptyState icon={Building2} title="Elegí un edificio y una unidad" message="Usá 'Filtrar' para ver el historial de órdenes de trabajo de un activo." />
       ) : loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>

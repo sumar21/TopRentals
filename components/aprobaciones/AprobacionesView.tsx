@@ -7,6 +7,7 @@ import { Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, Tab
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
@@ -54,6 +55,7 @@ const AprobacionesView: React.FC = () => {
   const [aprobaciones, setAprobaciones] = useState<Aprobacion[]>([]);
   const [comprasById, setComprasById] = useState<Map<number, Compra>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const [q, setQ] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -67,12 +69,13 @@ const AprobacionesView: React.FC = () => {
 
   const load = () => {
     setLoading(true);
+    setLoadError(false);
     return Promise.all([api.aprobaciones.list(), api.compras.list()])
       .then(([aps, compras]) => {
         setAprobaciones(user ? scopeAprobaciones(user.perfil, aps) : []);
         setComprasById(new Map(compras.map((c) => [c.id, c])));
       })
-      .catch(() => showToast('No se pudieron cargar las aprobaciones.', 'error'))
+      .catch(() => { showToast('No se pudieron cargar las aprobaciones.', 'error'); setLoadError(true); })
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [user?.id]);
@@ -196,6 +199,8 @@ const AprobacionesView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Aprobaciones" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={load} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="No hay solicitudes pendientes" message="Las compras enviadas a aprobación van a aparecer acá." />
       ) : (
@@ -216,7 +221,7 @@ const AprobacionesView: React.FC = () => {
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span>Cant. {a.cantidad ?? 0} · {a.sector ?? 'Sin sector'}</span>
-                  <span className="font-semibold tabular-nums">{maskFromNumber(a.monto ?? 0)}</span>
+                  <span className="font-semibold tabular-nums">$ {maskFromNumber(a.monto ?? 0)}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t">{renderActions(a)}</div>
               </div>
@@ -246,7 +251,7 @@ const AprobacionesView: React.FC = () => {
                     <TableCell className="text-sm">{a.sector ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={a.urgencia ?? ''} /></TableCell>
                     <TableCell className="text-right tabular-nums">{a.cantidad ?? 0}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{maskFromNumber(a.monto ?? 0)}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">$ {maskFromNumber(a.monto ?? 0)}</TableCell>
                     <TableCell><StatusBadge status={a.status} /></TableCell>
                     <TableCell>{renderActions(a)}</TableCell>
                   </TableRow>

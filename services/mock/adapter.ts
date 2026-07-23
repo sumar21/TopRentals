@@ -17,6 +17,7 @@ import type {
   Ventilacion,
 } from '../types.ts';
 import * as seed from './data.ts';
+import { todayISO } from '../../utils/dates.ts';
 
 const LATENCY_MS = 150;
 const sleep = (ms = LATENCY_MS) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -26,7 +27,7 @@ function nextId(rows: { id: number }[]): number {
 }
 
 const nowIso = () => new Date().toISOString();
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = todayISO; // single source of truth — local calendar day (utils/dates.ts)
 
 function addDaysIso(dateIso: string, days: number): string {
   const d = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`);
@@ -322,6 +323,7 @@ export function createMockAdapter(): DataApi {
         const salidaRow: SalidaStock = {
           id: nextId(db.salidasStock),
           articulo_id: row.articulo_id,
+          stock_id: row.id, // the row actually debited — credit target for edit/devolución
           concat_articulo: nombreArticulo(row.articulo_id),
           tecnico_id,
           tipo,
@@ -379,14 +381,10 @@ export function createMockAdapter(): DataApi {
         const salida = db.salidasStock.find((s) => s.id === salida_id);
         if (!salida) throw new Error(`Salida ${salida_id} no encontrada.`);
         if (salida.fecha_reingreso) throw new Error('La salida ya fue devuelta.');
-        const edificio = db.edificios.find((e) => e.nombre === salida.centro_de_costo) ?? null;
-        const stockRow =
-          (edificio &&
-            db.stock.find(
-              (s) => s.articulo_id === salida.articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && se.edificio_id === edificio.id),
-            )) ||
-          db.stock.find((s) => s.articulo_id === salida.articulo_id);
-        if (!stockRow) throw new Error('No se encontró stock para el artículo.');
+        // Credit target = the row actually debited. Never guess by centro_de_costo (free text).
+        const stockRow = salida.stock_id != null ? db.stock.find((s) => s.id === salida.stock_id) : undefined;
+        if (!stockRow) throw new Error('La salida no tiene stock de origen registrado (registro legacy) — no se puede reajustar.');
+        const edificio = db.edificios.find((e) => db.stockEdificios.some((se) => se.stock_id === stockRow.id && se.edificio_id === e.id)) ?? null;
         const delta = salida.cantidad - cantidad; // positive delta returns stock to the shelf
         if (delta < 0 && stockRow.cantidad < -delta) throw new Error('Cantidad insuficiente.');
         const cant_anterior = stockRow.cantidad;
@@ -422,14 +420,10 @@ export function createMockAdapter(): DataApi {
         const salida = db.salidasStock.find((s) => s.id === salida_id);
         if (!salida) throw new Error(`Salida ${salida_id} no encontrada.`);
         if (salida.tipo !== 'DEVOLUCION' || salida.fecha_reingreso) throw new Error('La salida no está pendiente de devolución.');
-        const edificio = db.edificios.find((e) => e.nombre === salida.centro_de_costo) ?? null;
-        const stockRow =
-          (edificio &&
-            db.stock.find(
-              (s) => s.articulo_id === salida.articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && se.edificio_id === edificio.id),
-            )) ||
-          db.stock.find((s) => s.articulo_id === salida.articulo_id);
-        if (!stockRow) throw new Error('No se encontró stock para el artículo.');
+        // Credit target = the row actually debited. Never guess by centro_de_costo (free text).
+        const stockRow = salida.stock_id != null ? db.stock.find((s) => s.id === salida.stock_id) : undefined;
+        if (!stockRow) throw new Error('La salida no tiene stock de origen registrado (registro legacy) — no se puede devolver.');
+        const edificio = db.edificios.find((e) => db.stockEdificios.some((se) => se.stock_id === stockRow.id && se.edificio_id === e.id)) ?? null;
         const cant_anterior = stockRow.cantidad;
         stockRow.cantidad += salida.cantidad;
         salida.fecha_reingreso = todayIso();

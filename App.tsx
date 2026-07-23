@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
 import { Loader } from './components/ui/Loader';
-import { canAccessTecnico, isTecnicoOnly } from './utils/permissions';
+import { canAccessModule, canAccessTecnico, isTecnicoOnly } from './utils/permissions';
 import Layout from './components/Layout';
 import LayoutTecnico from './components/LayoutTecnico';
 import Login from './components/Login';
@@ -42,6 +42,19 @@ const BackOffice = () => {
   return <Layout />;
 };
 
+/**
+ * Per-module route gate (DESIGN.md §14): direct URL to a module the perfil's
+ * perfiles_permisos row denies redirects home — the sidebar already hides the link,
+ * this closes the deep-link hole. Home itself stays ungated (it is the fallback).
+ */
+const RequireModule = ({ modulo, children }: { modulo: string; children: ReactNode }) => {
+  const { user, permisos } = useAuth();
+  if (user && !canAccessModule(user.perfil, modulo, permisos)) {
+    return <Navigate to={isTecnicoOnly(user.perfil) ? '/tecnico' : '/home'} replace />;
+  }
+  return <>{children}</>;
+};
+
 /** Technician module: Tecnico + Admin only. */
 const Tecnico = () => {
   const { user } = useAuth();
@@ -73,22 +86,22 @@ const App = () => (
             {/* Back-office */}
             <Route element={<BackOffice />}>
               <Route path="/home" element={<HomeView />} />
-              <Route path="/stock" element={<StockView />} />
-              <Route path="/salidas-stock" element={<SalidasStockView />} />
-              <Route path="/ordenes-trabajo" element={<OrdenesTrabajoView />} />
-              <Route path="/compras" element={<ComprasView />} />
-              <Route path="/aprobaciones" element={<AprobacionesView />} />
-              <Route path="/ventilaciones" element={<VentilacionesView />} />
-              <Route path="/abm" element={<ConfiguracionView />} />
+              <Route path="/stock" element={<RequireModule modulo="Stock"><StockView /></RequireModule>} />
+              <Route path="/salidas-stock" element={<RequireModule modulo="Stock"><SalidasStockView /></RequireModule>} />
+              <Route path="/ordenes-trabajo" element={<RequireModule modulo="Ordenes de Trabajo"><OrdenesTrabajoView /></RequireModule>} />
+              <Route path="/compras" element={<RequireModule modulo="Compras"><ComprasView /></RequireModule>} />
+              <Route path="/aprobaciones" element={<RequireModule modulo="Aprobaciones"><AprobacionesView /></RequireModule>} />
+              <Route path="/ventilaciones" element={<RequireModule modulo="Ventilaciones"><VentilacionesView /></RequireModule>} />
+              <Route path="/abm" element={<RequireModule modulo="ABM"><ConfiguracionView /></RequireModule>} />
             </Route>
 
             {/* Módulo técnico */}
             <Route path="/tecnico" element={<Tecnico />}>
               <Route index element={<HomeTecnicoView />} />
-              <Route path="ot" element={<OrdenesTecnicoView />} />
-              <Route path="activos" element={<ActivosView />} />
-              <Route path="stock" element={<StockTecnicoView />} />
-              <Route path="ventilaciones" element={<VentilacionesTecnicoView />} />
+              <Route path="ot" element={<RequireModule modulo="OT"><OrdenesTecnicoView /></RequireModule>} />
+              <Route path="activos" element={<RequireModule modulo="Activos"><ActivosView /></RequireModule>} />
+              <Route path="stock" element={<RequireModule modulo="Stock"><StockTecnicoView /></RequireModule>} />
+              <Route path="ventilaciones" element={<RequireModule modulo="Ventilaciones"><VentilacionesTecnicoView /></RequireModule>} />
             </Route>
           </Route>
 

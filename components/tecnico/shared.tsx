@@ -20,16 +20,19 @@ export interface BottomSheetProps {
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** Suppresses X/backdrop close while a save is in flight — pass `saving` from the consumer. */
+  locked?: boolean;
 }
 
-export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title, subtitle, children, footer }) => {
+export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title, subtitle, children, footer, locked = false }) => {
   const { visible, modalClass } = useModalAnimation(isOpen);
   if (!visible) return null;
   const closing = modalClass === 'modal-exit';
+  const guardedClose = () => { if (!locked) onClose(); };
   return createPortal(
     <div
       className={cn('fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm', closing ? 'overlay-exit' : 'overlay-enter')}
-      {...backdropClose(onClose)}
+      {...backdropClose(guardedClose)}
     >
       <div
         className={cn(
@@ -42,7 +45,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
             <h2 className="text-base font-bold tracking-tight truncate">{title}</h2>
             {subtitle && <p className="text-xs text-muted-foreground mt-0.5 truncate">{subtitle}</p>}
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 -m-2 shrink-0 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={locked ? undefined : onClose} aria-label="Cerrar" className="p-2 -m-2 shrink-0 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>

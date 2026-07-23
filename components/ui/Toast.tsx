@@ -33,7 +33,7 @@ const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({
     <div className={`flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg max-w-md animate-in slide-in-from-top-2 fade-in duration-200 ${STYLES[toast.type]}`}>
       <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${ICON_COLORS[toast.type]}`} />
       <p className="text-sm font-medium flex-1">{toast.message}</p>
-      <button onClick={() => onRemove(toast.id)} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"><X className="w-4 h-4" /></button>
+      <button onClick={() => onRemove(toast.id)} aria-label="Cerrar" className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"><X className="w-4 h-4" /></button>
     </div>
   );
 };

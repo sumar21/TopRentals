@@ -196,7 +196,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
             <h2 className="text-xl font-bold tracking-tight">{title}</h2>
             {!headerEditable && <p className="text-xs text-muted-foreground">Solo se pueden editar los renglones de esta solicitud.</p>}
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -284,7 +284,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                           <TableCell className="text-right">
                             <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} className="h-8 w-28 text-right ml-auto" />
                           </TableCell>
-                          <TableCell className="text-right text-sm font-medium tabular-nums">{maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
+                          <TableCell className="text-right text-sm font-medium tabular-nums">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
                           <TableCell>
                             <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                               <Trash2 className="h-4 w-4" />
@@ -296,7 +296,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   </Table>
                 )}
                 {cart.length > 0 && (
-                  <div className="flex justify-end text-sm font-bold font-mono text-brand">Total: {maskFromNumber(total)}</div>
+                  <div className="flex justify-end text-sm font-bold font-mono text-brand">Total: $ {maskFromNumber(total)}</div>
                 )}
               </div>
 

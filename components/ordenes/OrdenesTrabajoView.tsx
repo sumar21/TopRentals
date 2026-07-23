@@ -2,7 +2,7 @@
 // Page skeleton per DESIGN.md §4.4; filters per §4.7 pattern C (collapsible bar, never a modal).
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AlertCircle, Ban, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
+  Ban, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, RefreshCw, Search,
   SlidersHorizontal, UserCog, X,
 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
 import EmptyState from '../EmptyState';
+import LoadErrorState from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
@@ -275,14 +276,10 @@ const OrdenesTrabajoView: React.FC = () => {
         </div>
       )}
 
-      {loadError && (
-        <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {loadError}
-        </div>
-      )}
-
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Órdenes de trabajo" /></div>
+      ) : loadError ? (
+        <LoadErrorState message={loadError} onRetry={load} />
       ) : searched.length === 0 ? (
         <EmptyState icon={Search} title="Sin resultados" message="No hay órdenes de trabajo para los filtros seleccionados." />
       ) : (

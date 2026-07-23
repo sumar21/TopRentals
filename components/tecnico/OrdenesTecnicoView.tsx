@@ -11,6 +11,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
@@ -49,6 +50,7 @@ const OrdenesTecnicoView: React.FC = () => {
   const [stockAll, setStockAll] = useState<StockRowWithEdificios[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [zona, setZona] = useState<string | null>(navState.zona ?? null);
   const [pickerValue, setPickerValue] = useState('');
 
@@ -82,12 +84,14 @@ const OrdenesTecnicoView: React.FC = () => {
 
   const loadOts = useCallback(async (z: string) => {
     setLoading(true);
+    setLoadError(false);
     try {
       const towers = torresEnZona(edificios, z);
       const rows = await api.ots.list();
       setOts(rows.filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status)));
     } catch {
       showToast('No se pudieron cargar las órdenes de trabajo.', 'error');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -298,6 +302,8 @@ const OrdenesTecnicoView: React.FC = () => {
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={() => zona && loadOts(zona)} />
       ) : ots.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="No hay órdenes pendientes, asignadas o programadas en este edificio." />
       ) : (
@@ -423,6 +429,7 @@ const OrdenesTecnicoView: React.FC = () => {
       <BottomSheet
         isOpen={activeSheet === 'nuevaSolicitud'}
         onClose={() => setActiveSheet(null)}
+        locked={savingSolicitud}
         title="Agregar solicitud"
         footer={
           <>

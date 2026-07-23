@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore session on mount: only the user is persisted, permisos are always re-fetched.
   useEffect(() => {
+    let cancelled = false;
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) {
       setLoading(false);
@@ -39,12 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedUser: Usuario = JSON.parse(raw);
       setUser(storedUser);
       loadPermisos(storedUser)
-        .then(setPermisos)
-        .finally(() => setLoading(false));
+        .then((rows) => { if (!cancelled) setPermisos(rows); })
+        .finally(() => { if (!cancelled) setLoading(false); });
     } catch {
       sessionStorage.removeItem(SESSION_KEY);
       setLoading(false);
     }
+    return () => { cancelled = true; };
   }, []);
 
   const login = useCallback(async (usuario: string, password: string) => {

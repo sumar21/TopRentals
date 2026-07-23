@@ -8,6 +8,7 @@ import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
@@ -25,6 +26,7 @@ const VentilacionesTecnicoView: React.FC = () => {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [ventilaciones, setVentilaciones] = useState<Ventilacion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [zonaFilter, setZonaFilter] = useState<string | null>(null);
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
@@ -48,11 +50,13 @@ const VentilacionesTecnicoView: React.FC = () => {
   const loadVentilaciones = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setLoadError(false);
     try {
       const rows = await api.ventilaciones.list();
       setVentilaciones(rows.filter((v) => v.asignado_id === user.id && (v.estado === 'Asignada' || v.estado === 'Programada')));
     } catch {
       showToast('No se pudieron cargar las ventilaciones.', 'error');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -176,6 +180,8 @@ const VentilacionesTecnicoView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={loadVentilaciones} />
       ) : visible.length === 0 ? (
         <EmptyState icon={Wind} title="Sin ventilaciones asignadas" message="No tenés tareas de ventilación pendientes en este edificio." />
       ) : (
@@ -213,6 +219,7 @@ const VentilacionesTecnicoView: React.FC = () => {
       <BottomSheet
         isOpen={activeSheet === 'programar'}
         onClose={() => setActiveSheet(null)}
+        locked={savingProgramar}
         title="Programar ventilación"
         subtitle={selectedVent?.edificio ?? undefined}
         footer={
@@ -234,6 +241,7 @@ const VentilacionesTecnicoView: React.FC = () => {
       <BottomSheet
         isOpen={activeSheet === 'finalizar'}
         onClose={() => setActiveSheet(null)}
+        locked={savingFinalizar}
         title="Finalizar ventilación"
         subtitle={selectedVent?.edificio ?? undefined}
         footer={
@@ -279,6 +287,7 @@ const VentilacionesTecnicoView: React.FC = () => {
       <BottomSheet
         isOpen={activeSheet === 'adelantar'}
         onClose={() => setActiveSheet(null)}
+        locked={savingAdelantar}
         title="Adelantar ventilación"
         footer={
           <>

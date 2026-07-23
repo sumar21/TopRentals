@@ -14,6 +14,7 @@ import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 
@@ -125,14 +126,14 @@ const UsuarioFormModal: React.FC<{
   );
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
       <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h2>
             <p className="text-xs text-muted-foreground">Cuentas de acceso al back-office</p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
+          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -196,18 +197,21 @@ const UsuariosPanel: React.FC = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [formTarget, setFormTarget] = useState<Usuario | 'new' | null>(null);
   const [toggleTarget, setToggleTarget] = useState<Usuario | null>(null);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [userRows, edRows] = await Promise.all([api.usuarios.list(), api.edificios.list()]);
       setUsuarios(userRows);
       setEdificios(edRows);
     } catch {
       showToast('No se pudieron cargar los usuarios.', 'error');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -268,6 +272,8 @@ const UsuariosPanel: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Usuarios" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={load} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={Users} title="Sin usuarios para mostrar" message="Ajustá la búsqueda o agregá uno nuevo." />
       ) : (

@@ -9,7 +9,7 @@ interface SelectProps {
   placeholder?: string; className?: string; disabled?: boolean;
 }
 
-export const Select: React.FC<SelectProps> = ({ value, onChange, options, placeholder = 'Select...', className, disabled = false }) => {
+export const Select: React.FC<SelectProps> = ({ value, onChange, options, placeholder = 'Seleccionar…', className, disabled = false }) => {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -48,8 +48,8 @@ export const Select: React.FC<SelectProps> = ({ value, onChange, options, placeh
   const selectedLabel = options.find(o => o.value === value)?.label;
 
   const dropdown = open ? createPortal(
-    <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width, zIndex: 999999 }}
-      className="bg-popover text-popover-foreground border rounded-md shadow-md overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width }}
+      className="z-[90] bg-popover text-popover-foreground border rounded-md shadow-md overflow-hidden" onClick={e => e.stopPropagation()}>
       <div className="p-1 max-h-60 overflow-y-auto">
         {options.map(option => (
           <button key={option.value} type="button" onClick={() => { onChange(option.value); setOpen(false); }}

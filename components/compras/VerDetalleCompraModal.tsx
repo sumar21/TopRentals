@@ -91,8 +91,8 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                       <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">{d.cantidad}</TableCell>
                       {showRecibido && <TableCell className="text-right tabular-nums">{d.recibido ?? '—'}</TableCell>}
-                      <TableCell className="text-right tabular-nums">{maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">{maskFromNumber(d.costo_total ?? 0)}</TableCell>
+                      <TableCell className="text-right tabular-nums">$ {maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-medium">$ {maskFromNumber(d.costo_total ?? 0)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -13,6 +13,7 @@ import {
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 import { useToast } from '../ui/Toast';
@@ -66,6 +67,7 @@ const ComprasView: React.FC = () => {
   const [compras, setCompras] = useState<Compra[]>([]);
   const [tecnicos, setTecnicos] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const [q, setQ] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -83,9 +85,10 @@ const ComprasView: React.FC = () => {
 
   const load = () => {
     setLoading(true);
+    setLoadError(false);
     return Promise.all([api.compras.list(), api.usuarios.list()])
       .then(([c, u]) => { setCompras(c); setTecnicos(u.filter((x) => x.perfil === 'Tecnico')); })
-      .catch(() => showToast('No se pudieron cargar las compras.', 'error'))
+      .catch(() => { showToast('No se pudieron cargar las compras.', 'error'); setLoadError(true); })
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
@@ -254,6 +257,8 @@ const ComprasView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Solicitudes de compra" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={load} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={ShoppingCart} title="No hay compras para mostrar" message="Probá cambiar los filtros o crear una compra nueva." />
       ) : (
@@ -274,7 +279,7 @@ const ComprasView: React.FC = () => {
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span>Cant. {c.cantidad_total ?? 0}</span>
-                  <span className="font-semibold tabular-nums">{maskFromNumber(c.monto_total ?? 0)}</span>
+                  <span className="font-semibold tabular-nums">$ {maskFromNumber(c.monto_total ?? 0)}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t">{renderActions(c)}</div>
               </div>
@@ -303,7 +308,7 @@ const ComprasView: React.FC = () => {
                     <TableCell><StatusBadge status={c.urgencia ?? ''} /></TableCell>
                     <TableCell className="text-sm">{formatDate(c.fecha)}</TableCell>
                     <TableCell className="text-right tabular-nums">{c.cantidad_total ?? 0}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{maskFromNumber(c.monto_total ?? 0)}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">$ {maskFromNumber(c.monto_total ?? 0)}</TableCell>
                     <TableCell>{renderActions(c)}</TableCell>
                   </TableRow>
                 ))}

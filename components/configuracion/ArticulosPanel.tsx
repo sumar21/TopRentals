@@ -13,6 +13,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
@@ -83,14 +84,14 @@ const ArticuloFormModal: React.FC<{
   );
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
       <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">{articulo ? 'Editar artículo' : 'Nuevo artículo'}</h2>
             <p className="text-xs text-muted-foreground">Catálogo de precios</p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
+          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -143,16 +144,19 @@ const ArticulosPanel: React.FC = () => {
   const { showToast } = useToast();
   const [articulos, setArticulos] = useState<Articulo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [formTarget, setFormTarget] = useState<Articulo | 'new' | null>(null);
   const [toggleTarget, setToggleTarget] = useState<Articulo | null>(null);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       setArticulos(await api.articulos.list());
     } catch {
       showToast('No se pudieron cargar los artículos.', 'error');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -208,6 +212,8 @@ const ArticulosPanel: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Artículos" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={load} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={PackageSearch} title="Sin artículos para mostrar" message="Ajustá la búsqueda o agregá uno nuevo." />
       ) : (

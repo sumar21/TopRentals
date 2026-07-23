@@ -9,6 +9,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
 import { EmptyState } from '../EmptyState';
+import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
@@ -35,6 +36,7 @@ const HomeTecnicoView: React.FC = () => {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [loadingOts, setLoadingOts] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
@@ -48,22 +50,27 @@ const HomeTecnicoView: React.FC = () => {
       setOts(rows.filter((o) => o.tecnico_id === user.id && o.status === 'Asignada'));
     } catch {
       showToast('No se pudieron cargar tus órdenes de trabajo.', 'error');
+      throw new Error('ots');
     }
   }, [user, showToast]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadAll = useCallback(() => {
     setLoadingOts(true);
-    Promise.all([api.edificios.list(), loadOts()])
-      .then(([eds]) => { if (!cancelled) setEdificios(eds); })
-      .finally(() => { if (!cancelled) setLoadingOts(false); });
-    return () => { cancelled = true; };
+    setLoadError(false);
+    return Promise.all([api.edificios.list(), loadOts()])
+      .then(([eds]) => setEdificios(eds))
+      .catch(() => setLoadError(true))
+      .finally(() => setLoadingOts(false));
+  }, [loadOts]);
+
+  useEffect(() => {
+    loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadOts();
+    await loadOts().catch(() => {});
     setRefreshing(false);
   };
 
@@ -151,6 +158,8 @@ const HomeTecnicoView: React.FC = () => {
       {/* Carousel de OT asignadas */}
       {loadingOts ? (
         <div className="py-8"><Loader size="sm" /></div>
+      ) : loadError ? (
+        <LoadErrorState onRetry={loadAll} />
       ) : ots.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Sin tareas asignadas" className="p-6" />
       ) : (
