@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Neutros (fijos) */
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --border: 240 6% 90%;
+  --input: 240 6% 90%;
+  --ring: 240 5% 65%;
+
+  /* ── COLOR DE MARCA DEL CLIENTE ──────────────────────────────────
+     Único bloque a reemplazar por empresa. TopRentals = navy #23313E.
+     Usá EL MISMO valor acá y en el backend de emails (DESIGN.md §13). */
+  --brand: 209 28% 19%;           /* #23313E */
+  --brand-foreground: 0 0% 100%;
+}
+
+/* Clamp del documento al ancho del viewport: sin esto, un elemento que
+   desborda horizontal en mobile hace que un backdrop `fixed inset-0` no
+   cubra todo el ancho (queda una franja blanca a la derecha). */
+html { overflow-x: hidden; }
+/* Reservar el gutter del scrollbar SOLO en desktop, para que alternar entre
+   una vista corta y una alta no desplace el layout. En mobile el scrollbar es
+   overlay y `scrollbar-gutter: stable` dejaría una franja fantasma que el
+   backdrop no puede cubrir. */
+@media (min-width: 768px) { html { scrollbar-gutter: stable; } }
+body { margin: 0; padding: 0; overflow-x: hidden; max-width: 100vw; }
+
+/* ── Animaciones de modal/overlay (las usa useModalAnimation) ── */
+@keyframes detail-panel-in  { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes detail-panel-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(24px); opacity: 0; } }
+@keyframes overlay-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlay-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.modal-enter   { animation: detail-panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.modal-exit    { animation: detail-panel-out 180ms ease-in forwards; pointer-events: none; }
+.overlay-enter { animation: overlay-fade-in 200ms ease-out both; }
+.overlay-exit  { animation: overlay-fade-out 200ms ease-in forwards; pointer-events: none; }
+
+/* ── Drawer lateral derecho (paneles de detalle) ── */
+@keyframes drawer-in-right  { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes drawer-out-right { from { transform: translateX(0); } to { transform: translateX(100%); } }
+.drawer-enter-right { animation: drawer-in-right 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.drawer-exit-right  { animation: drawer-out-right 200ms ease-in forwards; pointer-events: none; }
+
+/* ── Drawer lateral izquierdo (navegación mobile) ── */
+@keyframes drawer-in-left  { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes drawer-out-left { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+.drawer-enter-left { animation: drawer-in-left 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.drawer-exit-left  { animation: drawer-out-left 200ms ease-in forwards; pointer-events: none; }
+
+/* ── Tooltip global (data-tooltip) — ver Tooltip.tsx ── */
+@keyframes tooltip-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+.kaut-tooltip { animation: tooltip-in 120ms ease-out both; }

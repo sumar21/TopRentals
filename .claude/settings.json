@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir)",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\FACUND~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Facundo-Rombola-Desktop-Proyectos-TopRentals-TopRentals\\\\98f90a04-05d3-4e8b-94b4-9df023e3ec3d\\\\scratchpad\\\\svg\\\\desktop\\\\Screen_Compras' | Select-Object Name, Length | Sort-Object Name\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\FACUND~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Facundo-Rombola-Desktop-Proyectos-TopRentals-TopRentals\\\\98f90a04-05d3-4e8b-94b4-9df023e3ec3d\\\\scratchpad\\\\svg\\\\desktop\\\\Screen_Configuracion' | Select-Object Name, Length | Sort-Object Name\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\FACUND~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Facundo-Rombola-Desktop-Proyectos-TopRentals-TopRentals\\\\98f90a04-05d3-4e8b-94b4-9df023e3ec3d\\\\scratchpad\\\\svg\\\\mobile\\\\Ordenes de Trabajo' | Select-Object Name, Length\")",
+      "Bash(rg -o \"'\\(Arenera-SubirFoto|Arenera-SubirFotoCompra|Arenera-SubirPDFCompra|GetPDF-Compra|ObtenerPDF-Compra|TopRentals-FotoArticulo|TopRentals-PDFArticulo|ObtenerVideo-TR|TopRentals-FotoVentilacion\\)'\\\\.Run\\\\\\([^;]{0,400}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('07\\\\.OrdenesTrabajo'[^;]{0,700}\" -g \"*.pa.yaml\")",
+      "Bash(powershell -Command 'wc = @\\(\"007\",\"008\",\"009\",\"010\",\"011\",\"012\",\"014\",\"015\",\"016\",\"017\",\"020\",\"021\",\"022\",\"023\",\"025\",\"026\",\"027\"\\); $dir=\"C:\\\\Users\\\\FACUND~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Facundo-Rombola-Desktop-Proyectos-TopRentals-TopRentals\\\\98f90a04-05d3-4e8b-94b4-9df023e3ec3d\\\\scratchpad\\\\svg\\\\mobile\\\\Ordenes de Trabajo\"; foreach \\($f in $wc\\) { $p = Join-Path $dir \\($f + \".svg\"\\); $c = Get-Content -LiteralPath $p; Write-Output \\($f + \" : \" + $c.Count + \" lines\"\\) }')",
+      "Bash(rg -o \"IDUnivoco[^,;\\\\\\\\\\\\\\\\]{0,120}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"IDUnivoco_IN:[^,}]{0,160}|IDUnivoco_ROT:[^,}]{0,160}|IDCompra_C:[^,}]{0,160}|IDUnivoco_DC:[^,}]{0,160}|IDCompra_DC:[^,}]{0,160}|IDUnivoco_AP:[^,}]{0,160}|IDCompra_AP?:[^,}]{0,160}|IDOrden_BC:[^,}]{0,160}|IDUnivocoBitacora_BC:[^,}]{0,160}|IDUnivocoOT_FB:[^,}]{0,160}|IDBitacora_FB:[^,}]{0,160}|IDUnivoco_ST:[^,}]{0,160}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Set\\\\\\(Id[Uu]nivoco[^;]{0,200}|Set\\\\\\(IDUnivoco[^;]{0,200}|UpdateContext\\\\\\(\\\\{Id[Uu]nivoco[^;]{0,200}|UpdateContext\\\\\\(\\\\{IDUnivoco[^;]{0,200}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('08\\\\.MovimientoStock'[^;]{0,600}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('09\\\\.SalidaStock'[^;]{0,600}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('19\\\\.Ventilaciones'[^;]{0,600}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('08\\\\.MovimientoStock',Defaults\\\\\\('08\\\\.MovimientoStock'\\\\\\),\\\\{[^}]{0,800}\" -g \"desktop/Screen_Stock.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('19\\\\.Ventilaciones',Defaults\\\\\\('19\\\\.Ventilaciones'\\\\\\),\\\\{[^}]{0,900}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('07\\\\.OrdenesTrabajo',Defaults\\\\\\('07\\\\.OrdenesTrabajo'\\\\\\),\\\\{[^}]{0,1400}\" \"desktop/Screen_OrdenesTrabajo.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('16\\\\.Aprobaciones',Defaults\\\\\\('16\\\\.Aprobaciones'\\\\\\),\\\\{[^}]{0,900}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Patch\\\\\\('14\\\\.Compras',Defaults\\\\\\('14\\\\.Compras'\\\\\\),\\\\{[^}]{0,700}\" -g \"*.pa.yaml\")",
+      "Bash(rg -o \"Tecnico_IN\\\\s*[:=]\\\\s*[^,}\\\\r\\\\n]{0,80}\" -g \"*.pa.yaml\")",
+      "Bash(python)"
+    ]
+  }
+}
