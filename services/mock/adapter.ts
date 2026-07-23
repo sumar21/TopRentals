@@ -134,6 +134,18 @@ export function createMockAdapter(): DataApi {
         if (!usr || db.credenciales[usuario] !== password) throw new Error('Usuario o contraseña incorrectos.');
         return structuredClone(usr);
       },
+      async demoUsers() {
+        await sleep(0);
+        return db.usuarios
+          .filter((u) => u.status === 'ALTA')
+          .map((u) => ({
+            usuario_app: u.usuario_app,
+            nombre: `${u.nombre} ${u.apellido}`,
+            perfil: u.perfil,
+            app: u.perfil === 'Tecnico' ? ('Mantenimiento' as const) : ('Desktop' as const),
+            password: db.credenciales[u.usuario_app] ?? '1234',
+          }));
+      },
     },
 
     usuarios: {

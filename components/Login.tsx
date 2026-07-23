@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, Lock } from 'lucide-react';
 import { Button, Card, CardContent, Input } from './ui/UIComponents';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../services/index.ts';
+import type { DemoUser } from '../services/api.ts';
 import { isTecnicoOnly } from '../utils/permissions';
 import { formatLockTime, getLockStatus, recordFailedAttempt, resetAttempts } from '../utils/rateLimit';
 
@@ -19,6 +21,7 @@ const Login = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lockSecs, setLockSecs] = useState(() => getLockStatus('login').lockSecs);
+  const [demoUsers, setDemoUsers] = useState<DemoUser[]>([]);
 
   // Tick the lockout countdown once per second while locked.
   useEffect(() => {
@@ -27,15 +30,20 @@ const Login = () => {
     return () => clearInterval(t);
   }, [lockSecs > 0]);
 
+  // Demo quick-access: only the mock backend exposes demoUsers(); on a real backend
+  // the method is absent, demoUsers stays [] and the whole panel never renders.
+  useEffect(() => {
+    api.auth.demoUsers?.().then(setDemoUsers).catch(() => setDemoUsers([]));
+  }, []);
+
   const locked = lockSecs > 0;
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const runLogin = async (user: string, pass: string) => {
     if (locked || loading) return;
     setError(null);
     setLoading(true);
     try {
-      const logged = await login(usuario.trim(), password);
+      const logged = await login(user.trim(), pass);
       resetAttempts('login');
       // Redirect by perfil: the technician app is /tecnico, everyone else lands on /home.
       navigate(isTecnicoOnly(logged.perfil) ? '/tecnico' : '/home', { replace: true });
@@ -48,12 +56,18 @@ const Login = () => {
     }
   };
 
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void runLogin(usuario, password);
+  };
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background animate-in fade-in duration-500">
-      {/* Panel de branding (solo desktop) */}
+      {/* Panel de branding (solo desktop) — receta DESIGN.md §12.1: foto hero + dos gradientes */}
       <div className="hidden md:flex flex-col justify-between w-1/2 lg:w-3/5 relative overflow-hidden text-white">
-        <div className="absolute inset-0 z-0 bg-gradient-to-br from-brand via-brand to-black" />
-        <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+        <div className="absolute inset-0 z-0 bg-cover bg-center transition-transform duration-1000 hover:scale-105" style={{ backgroundImage: 'url(/login-hero.jpg)' }} />
+        <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+        <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/90 via-transparent to-black/30" />
         <div className="relative z-10 p-12 h-full flex flex-col justify-between">
           <img src="/logo.png" alt="TopRentals" className="h-12 w-12 rounded-lg drop-shadow-lg" />
           <div>
@@ -128,11 +142,49 @@ const Login = () => {
                 </Button>
               </form>
 
+              {demoUsers.length > 0 && <DemoAccess users={demoUsers} disabled={loading || locked} onPick={runLogin} />}
+
               <p className="mt-6 text-center text-xs font-medium tracking-wide text-muted-foreground/70">{APP_VERSION}</p>
             </CardContent>
           </Card>
         </div>
       </div>
+    </div>
+  );
+};
+
+/** Demo quick-access panel (mock backend only). One click logs in as a seed user
+ *  so the team can walk both apps on the deployed link without knowing credentials. */
+const DemoAccess = ({ users, disabled, onPick }: { users: DemoUser[]; disabled: boolean; onPick: (u: string, p: string) => void }) => {
+  const backoffice = users.filter((u) => u.app === 'Desktop');
+  const tecnicos = users.filter((u) => u.app === 'Mantenimiento');
+
+  const Group = ({ title, list }: { title: string; list: DemoUser[] }) =>
+    list.length === 0 ? null : (
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {list.map((u) => (
+            <button
+              key={u.usuario_app}
+              type="button"
+              disabled={disabled}
+              onClick={() => onPick(u.usuario_app, u.password)}
+              title={`Entrar como ${u.nombre} (${u.perfil})`}
+              className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {u.nombre} <span className="text-muted-foreground">· {u.perfil}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="mt-6 rounded-lg border border-dashed border-border bg-muted/20 p-3 space-y-3">
+      <p className="text-xs font-semibold text-foreground">Acceso de prueba <span className="font-normal text-muted-foreground">(modo demo · sin backend)</span></p>
+      <Group title="Back-office" list={backoffice} />
+      <Group title="App técnicos" list={tecnicos} />
     </div>
   );
 };

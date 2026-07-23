@@ -40,10 +40,21 @@ export interface CompraLineaInput {
   costo_unitario: number;
 }
 
+/** Quick-access entry for the login demo panel — only meaningful on the mock backend. */
+export interface DemoUser {
+  usuario_app: string;
+  nombre: string;
+  perfil: string;
+  app: 'Desktop' | 'Mantenimiento';
+  password: string;
+}
+
 export interface DataApi {
   auth: {
     /** Plain-text mock check (usuario_app + password + status 'ALTA'). Throws on failure. */
     login(usuario: string, password: string): Promise<Usuario>;
+    /** Seed users for the login quick-access panel. Absent on real backends → panel hides. */
+    demoUsers?(): Promise<DemoUser[]>;
   };
 
   usuarios: {
