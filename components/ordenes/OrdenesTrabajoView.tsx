@@ -312,48 +312,51 @@ const OrdenesTrabajoView: React.FC = () => {
               min-w fuerza el ancho natural para que el contenedor del kit haga scroll en vez de clippear. */}
           <Card className="hidden md:block border shadow-sm">
             <Table className="min-w-[1500px]">
+              {/* Orden exacto de gal_incidentes (PA), por coordenada X del .msapp:
+                  Estado · ID · ID F · Acciones · Detalle · Torre · Departamento · Prioridad ·
+                  Prioridad unidad · F. inicio · Tipo trabajo · Tipo tarea · F. asignada ·
+                  Días est. · F. cierre · Días reales · Tipo */}
               <TableHeader>
                 <TableRow>
+                  <TableHead>Estado</TableHead>
                   <TableHead>ID</TableHead>
-                  <TableHead>IDF</TableHead>
-                  <TableHead>Torre / Depto</TableHead>
+                  <TableHead>ID F</TableHead>
+                  <TableHead>Acciones</TableHead>
                   <TableHead>Detalle</TableHead>
+                  <TableHead>Torre</TableHead>
+                  <TableHead>Departamento</TableHead>
                   <TableHead>Prioridad</TableHead>
+                  <TableHead>Prioridad unidad</TableHead>
+                  <TableHead>F. inicio</TableHead>
                   <TableHead>Tipo trabajo</TableHead>
                   <TableHead>Tipo tarea</TableHead>
-                  <TableHead>F. inicio</TableHead>
                   <TableHead>F. asignada</TableHead>
                   <TableHead className="text-right">Días est.</TableHead>
                   <TableHead>F. cierre</TableHead>
                   <TableHead className="text-right">Días reales</TableHead>
-                  <TableHead>Prioridad unidad</TableHead>
-                  <TableHead>Estado</TableHead>
                   {!compras && <TableHead>Tipo</TableHead>}
-                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visible.map((ot) => (
                   <TableRow key={ot.id}>
+                    <TableCell><StatusBadge status={ot.status} /></TableCell>
                     <TableCell className="whitespace-nowrap font-medium">#{ot.id}</TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      <div className="font-medium">{ot.torre ?? '—'}</div>
-                      {ot.departamento && <div className="text-[10px] text-muted-foreground">{ot.departamento}</div>}
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate" title={ot.detalle ?? ''}>{truncate(ot.detalle)}</TableCell>
+                    <TableCell className="whitespace-nowrap"><RowActions ot={ot} /></TableCell>
+                    <TableCell className="max-w-[240px] truncate" title={ot.detalle ?? ''}>{truncate(ot.detalle)}</TableCell>
+                    <TableCell className="whitespace-nowrap font-medium">{ot.torre ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{ot.departamento ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={ot.prioridad} /></TableCell>
+                    <TableCell className="whitespace-nowrap">{ot.tipo_prioridad ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_inicio) || '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{ot.tipo_trabajo ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{ot.tipo_tarea ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_inicio) || '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_asignada) || '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{ot.dias_estimado ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_cierre) || '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{diasReales(ot) ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.tipo_prioridad ?? '—'}</TableCell>
-                    <TableCell><StatusBadge status={ot.status} /></TableCell>
                     {!compras && <TableCell><Badge variant="outline" className="whitespace-nowrap">{ot.tipo}</Badge></TableCell>}
-                    <TableCell className="whitespace-nowrap"><RowActions ot={ot} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
