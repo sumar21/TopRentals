@@ -168,8 +168,7 @@ const UsuarioFormModal: React.FC<{
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento</label>
-              <input type="date" value={form.fechaNac} onChange={(e) => setForm((f) => ({ ...f, fechaNac: e.target.value }))}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+              <Input type="date" value={form.fechaNac} onChange={(e) => setForm((f) => ({ ...f, fechaNac: e.target.value }))} />
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>

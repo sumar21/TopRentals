@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Save, X, Loader2, AlertCircle, FileImage } from 'lucide-react';
-import { Button, useModalAnimation } from '../ui/UIComponents';
+import { Button, Input, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
@@ -130,8 +130,7 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima fecha<span className="text-destructive ml-0.5">*</span></label>
-              <input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+              <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
             </div>
           </div>
         </div>
@@ -232,8 +231,7 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima limpieza<span className="text-destructive ml-0.5">*</span></label>
-              <input type="date" value={fecha} min={todayISO()} onChange={(e) => setFecha(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+              <Input type="date" value={fecha} min={todayISO()} onChange={(e) => setFecha(e.target.value)} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico<span className="text-destructive ml-0.5">*</span></label>
