@@ -18,8 +18,8 @@ export default {
         ring: "hsl(var(--ring) / <alpha-value>)",
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",
-        // primary = negro casi puro. Botones, nav activo, focus, controles. Fijo.
-        primary: { DEFAULT: "#1a1a1a", foreground: "#fafafa" },
+        // primary = navy de marca (#23313E). Experimento en develop: fundir primary con brand.
+        primary: { DEFAULT: "#23313E", foreground: "#fafafa" },
         // brand = EL COLOR DEL CLIENTE. Único token que se reemplaza por empresa.
         brand: { DEFAULT: "hsl(var(--brand) / <alpha-value>)", foreground: "hsl(var(--brand-foreground) / <alpha-value>)" },
         // Neutros y semánticos fijos:
