@@ -2,8 +2,9 @@
 // Queue is role-scoped per spec: Gerencia -> 'Aprobada Supervision'; Admin -> that +
 // 'Pendiente'; everyone else -> 'Pendiente' only.
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Check, ClipboardList, Eye, Pencil, Search, SlidersHorizontal, X as XIcon } from 'lucide-react';
+import { Check, ClipboardList, Eye, Pencil, Search, X as XIcon } from 'lucide-react';
 import { Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
+import { FilterPopover } from '../ui/FilterPopover';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
@@ -59,7 +60,6 @@ const AprobacionesView: React.FC = () => {
   const [loadError, setLoadError] = useState(false);
 
   const [q, setQ] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [estadoFilter, setEstadoFilter] = useState<string[]>([]);
   const [mesFilter, setMesFilter] = useState<string[]>([]);
 
@@ -172,32 +172,22 @@ const AprobacionesView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-          <button onClick={() => setShowFilters((v) => !v)}
-            className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 h-9 text-sm font-medium transition-colors ${showFilters ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-            <SlidersHorizontal className="h-4 w-4" /> <span className="hidden sm:inline">Filtros</span>
-            {activeFilterCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeFilterCount}</span>}
-            {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
+          <FilterPopover
+            activeCount={activeFilterCount}
+            clearLabel="Limpiar"
+            onClear={() => { setEstadoFilter([]); setMesFilter([]); }}
+          >
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</label>
+              <MultiCombobox options={mesOptions} value={mesFilter} onChange={setMesFilter} placeholder="Todos" searchPlaceholder="Buscar mes…" className="w-full" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Estado</label>
+              <MultiCombobox options={ESTADO_OPTIONS} value={estadoFilter} onChange={setEstadoFilter} placeholder="Todos" searchPlaceholder="Buscar estado…" className="w-full" />
+            </div>
+          </FilterPopover>
         </div>
       </div>
-
-      {showFilters && (
-        <div className="rounded-xl border bg-muted/20 p-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full sm:w-48">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</label>
-              <MultiCombobox options={mesOptions} value={mesFilter} onChange={setMesFilter} placeholder="Todos" searchPlaceholder="Buscar mes…" />
-            </div>
-            <div className="w-full sm:w-52">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Estado</label>
-              <MultiCombobox options={ESTADO_OPTIONS} value={estadoFilter} onChange={setEstadoFilter} placeholder="Todos" searchPlaceholder="Buscar estado…" />
-            </div>
-            {activeFilterCount > 0 && (
-              <button onClick={() => { setEstadoFilter([]); setMesFilter([]); }} className="h-10 rounded-md px-3 text-xs font-medium text-muted-foreground hover:text-foreground">Limpiar</button>
-            )}
-          </div>
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Aprobaciones" /></div>

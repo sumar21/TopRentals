@@ -322,7 +322,7 @@ export const MultiCombobox: React.FC<MultiComboboxProps> = ({ options, value, on
   const triggerLabel = value.length === 0 ? placeholder : value.length === 1 ? (options.find(o => o.value === value[0])?.label ?? placeholder) : `${value.length} seleccionados`;
 
   const dropdown = open && coords ? createPortal(
-    <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width }}
+    <div ref={popupRef} data-filter-portal style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width }}
       className="z-[90] bg-popover text-popover-foreground border rounded-md shadow-lg overflow-hidden">
       <div className="p-2 border-b bg-muted/20">
         <div className="flex items-center px-2 py-1.5 bg-background rounded border group focus-within:ring-1 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all">

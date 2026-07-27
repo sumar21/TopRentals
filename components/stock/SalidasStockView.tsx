@@ -1,10 +1,11 @@
 // Screen_SalidasStock port — outbound-stock ledger. See docs/analysis/desktop_Screen_SalidasStock.md.
-// Filters follow DESIGN.md §4.7 golden rule: a collapsible inline bar, never a modal.
+// Filters use an anchored FilterPopover dropdown (see VentilacionesView.tsx), never a modal.
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Loader2, Pencil, PackageSearch, Save, Search, SlidersHorizontal, X } from 'lucide-react';
-import { Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn, useModalAnimation } from '../ui/UIComponents';
+import { ArrowLeft, CheckCircle2, Loader2, Pencil, PackageSearch, Save, Search, X } from 'lucide-react';
+import { Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { FilterPopover } from '../ui/FilterPopover';
 import { backdropClose } from '../ui/backdropClose';
 import { Loader } from '../ui/Loader';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -52,7 +53,6 @@ const SalidasStockView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [meses, setMeses] = useState<string[]>([]);
   const [tipos, setTipos] = useState<string[]>([]);
   const [tecnicoIds, setTecnicoIds] = useState<string[]>([]);
@@ -128,43 +128,22 @@ const SalidasStockView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar técnico, tipo…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            className={cn(
-              'flex shrink-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors h-9',
-              showFilters ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <SlidersHorizontal className="h-4 w-4 text-brand" /> <span className="hidden sm:inline">Filtros</span>
-            {activeCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeCount}</span>}
-            {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      </div>
-
-      {showFilters && (
-        <div className="rounded-xl border bg-muted/20 p-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full sm:w-52">
+          <FilterPopover activeCount={activeCount} onClear={clearFilters}>
+            <div className="w-full">
               <label className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</label>
               <MultiCombobox options={mesOptions} value={meses} onChange={setMeses} placeholder="Todos" searchPlaceholder="Buscar mes…" />
             </div>
-            <div className="w-full sm:w-44">
+            <div className="w-full">
               <label className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo</label>
               <MultiCombobox options={TIPO_OPTIONS} value={tipos} onChange={setTipos} placeholder="Todos" searchPlaceholder="Buscar tipo…" />
             </div>
-            <div className="w-full sm:w-48">
+            <div className="w-full">
               <label className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Técnico</label>
               <MultiCombobox options={tecnicoOptions} value={tecnicoIds} onChange={setTecnicoIds} placeholder="Todos" searchPlaceholder="Buscar técnico…" />
             </div>
-            {activeCount > 0 && (
-              <button onClick={clearFilters} className="flex h-10 items-center gap-1 rounded-md px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-                <X className="h-3.5 w-3.5" /> Limpiar
-              </button>
-            )}
-          </div>
+          </FilterPopover>
         </div>
-      )}
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando salidas…" /></div>

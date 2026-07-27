@@ -45,7 +45,7 @@ export const CategoryMultiSelect: React.FC<{
         {count > 0 && <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[1rem] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">{count}</span>}
       </button>
       {open && rect && createPortal(
-        <div ref={panelRef} style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width }}
+        <div ref={panelRef} data-filter-portal style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width }}
           className="bg-popover border rounded-md shadow-md z-[90] animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
           <div className="max-h-[260px] overflow-y-auto py-1">
             {categories.length === 0 ? <div className="px-3 py-2 text-xs text-muted-foreground text-center">—</div>

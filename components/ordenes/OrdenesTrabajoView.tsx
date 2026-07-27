@@ -2,11 +2,12 @@
 // Page skeleton per DESIGN.md §4.4; filters per §4.7 pattern C (collapsible bar, never a modal).
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Ban, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
+  Ban, CheckCircle2, ChevronLeft, ChevronRight,
   Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, RefreshCw, Search,
-  SlidersHorizontal, UserCog, X,
+  UserCog,
 } from 'lucide-react';
 import { Badge, Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
+import { FilterPopover } from '../ui/FilterPopover';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
@@ -49,7 +50,6 @@ const OrdenesTrabajoView: React.FC = () => {
   const [loadError, setLoadError] = useState('');
 
   const [search, setSearch] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [draftFiltros, setDraftFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
   const [appliedFiltros, setAppliedFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
   const [page, setPage] = useState(0);
@@ -130,7 +130,6 @@ const OrdenesTrabajoView: React.FC = () => {
   const mesOptions = useMemo(() => rollingMonths(12), []);
   const edificioOptions = useMemo(() => edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: e.nombre })), [edificios]);
   const activeCount = appliedFiltros.meses.length + appliedFiltros.estados.length + appliedFiltros.edificios.length + appliedFiltros.tiposTrabajo.length + appliedFiltros.tiposTarea.length;
-  const draftCount = draftFiltros.meses.length + draftFiltros.estados.length + draftFiltros.edificios.length + draftFiltros.tiposTrabajo.length + draftFiltros.tiposTarea.length;
 
   const baseFiltered = useMemo(() => {
     if (activeCount === 0) return ots.filter(isVisibleByDefault);
@@ -229,12 +228,29 @@ const OrdenesTrabajoView: React.FC = () => {
           <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" title="Actualizar" aria-label="Actualizar" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
-          <button onClick={() => setShowFilters((v) => !v)}
-            className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 h-9 text-sm font-medium transition-colors ${showFilters ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-            <SlidersHorizontal className="h-4 w-4" /> <span className="hidden sm:inline">Filtros</span>
-            {activeCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeCount}</span>}
-            {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
+          <FilterPopover activeCount={activeCount} onClear={limpiarFiltros}>
+            <div className="w-full">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</label>
+              <MultiCombobox options={mesOptions} value={draftFiltros.meses} onChange={(v) => setDraftFiltros((p) => ({ ...p, meses: v }))} placeholder="Todos" searchPlaceholder="Buscar mes…" className="w-full" />
+            </div>
+            <div className="w-full">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Estado</label>
+              <MultiCombobox options={ESTADO_OT_OPTIONS} value={draftFiltros.estados} onChange={(v) => setDraftFiltros((p) => ({ ...p, estados: v }))} placeholder="Todos" searchPlaceholder="Buscar estado…" className="w-full" />
+            </div>
+            <div className="w-full">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Edificio</label>
+              <MultiCombobox options={edificioOptions} value={draftFiltros.edificios} onChange={(v) => setDraftFiltros((p) => ({ ...p, edificios: v }))} placeholder="Todos" searchPlaceholder="Buscar edificio…" className="w-full" />
+            </div>
+            <div className="w-full">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de trabajo</label>
+              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTrabajo} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTrabajo: v }))} placeholder="Todos" searchPlaceholder="Buscar tipo…" className="w-full" />
+            </div>
+            <div className="w-full">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de tarea</label>
+              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTarea} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTarea: v }))} placeholder="Todas" searchPlaceholder="Buscar tarea…" className="w-full" />
+            </div>
+            <Button size="sm" className="w-full" onClick={aplicarFiltros}>Filtrar</Button>
+          </FilterPopover>
           {!compras && (
             <Button className="h-9 px-3 text-sm gap-1.5 shrink-0" onClick={openNueva}>
               <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Nueva Solicitud</span>
@@ -242,39 +258,6 @@ const OrdenesTrabajoView: React.FC = () => {
           )}
         </div>
       </div>
-
-      {showFilters && (
-        <div className="mb-1 rounded-xl border bg-muted/20 p-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full sm:w-48">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</label>
-              <MultiCombobox options={mesOptions} value={draftFiltros.meses} onChange={(v) => setDraftFiltros((p) => ({ ...p, meses: v }))} placeholder="Todos" searchPlaceholder="Buscar mes…" />
-            </div>
-            <div className="w-full sm:w-44">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Estado</label>
-              <MultiCombobox options={ESTADO_OT_OPTIONS} value={draftFiltros.estados} onChange={(v) => setDraftFiltros((p) => ({ ...p, estados: v }))} placeholder="Todos" searchPlaceholder="Buscar estado…" />
-            </div>
-            <div className="w-full sm:w-44">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Edificio</label>
-              <MultiCombobox options={edificioOptions} value={draftFiltros.edificios} onChange={(v) => setDraftFiltros((p) => ({ ...p, edificios: v }))} placeholder="Todos" searchPlaceholder="Buscar edificio…" />
-            </div>
-            <div className="w-full sm:w-44">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de trabajo</label>
-              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTrabajo} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTrabajo: v }))} placeholder="Todos" searchPlaceholder="Buscar tipo…" />
-            </div>
-            <div className="w-full sm:w-44">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de tarea</label>
-              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTarea} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTarea: v }))} placeholder="Todas" searchPlaceholder="Buscar tarea…" />
-            </div>
-            <Button size="sm" className="h-10" onClick={aplicarFiltros}>Filtrar</Button>
-            {(activeCount > 0 || draftCount > 0) && (
-              <button onClick={limpiarFiltros} className="flex h-10 items-center gap-1 rounded-md px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-                <X className="h-3.5 w-3.5" /> Limpiar
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Órdenes de trabajo" /></div>

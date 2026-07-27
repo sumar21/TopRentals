@@ -2,11 +2,12 @@
 // See docs/analysis/desktop_Screen_Ventilaciones.md. Horizonte por defecto: <=90 días
 // (paridad con el DateDiff de la PA original); el filtro de mes permite ampliarlo.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, ChevronDown, ChevronUp, Plus, Trash2, UserCheck, TriangleAlert, Fan } from 'lucide-react';
+import { Search, Plus, Trash2, UserCheck, TriangleAlert, Fan } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import type { Edificio, Frecuencia, Perfil, Unidad, Usuario, Ventilacion } from '../../services/types.ts';
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input } from '../ui/UIComponents';
 import { CategoryMultiSelect } from '../ui/CategoryMultiSelect';
+import { FilterPopover } from '../ui/FilterPopover';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -58,7 +59,6 @@ const VentilacionesView: React.FC = () => {
   const [loadError, setLoadError] = useState(false);
 
   const [search, setSearch] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [mesesSel, setMesesSel] = useState<string[]>([]);
   const [estadosSel, setEstadosSel] = useState<string[]>([]);
   const [edificiosSel, setEdificiosSel] = useState<string[]>([]);
@@ -157,12 +157,14 @@ const VentilacionesView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-          <button type="button" onClick={() => setShowFilters((v) => !v)}
-            className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 h-9 text-sm font-medium transition-colors ${showFilters ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground'}`}>
-            <SlidersHorizontal className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Filtros</span>
-            {activeFilterCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeFilterCount}</span>}
-            {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
+          <FilterPopover
+            activeCount={activeFilterCount}
+            onClear={() => { setMesesSel([]); setEstadosSel([]); setEdificiosSel([]); }}
+          >
+            <CategoryMultiSelect categories={mesesOpts} selected={mesesSel} onChange={setMesesSel} label="Mes" clearLabel="Limpiar mes" className="w-full" />
+            <CategoryMultiSelect categories={ESTADOS} selected={estadosSel} onChange={setEstadosSel} label="Estado" clearLabel="Limpiar estado" className="w-full" />
+            <CategoryMultiSelect categories={edificioOpts} selected={edificiosSel} onChange={setEdificiosSel} label="Edificio" clearLabel="Limpiar edificio" className="w-full" />
+          </FilterPopover>
           {canCreate && (
             <Button className="h-9 px-3 text-sm gap-1.5 shrink-0" onClick={() => setCrearOpen(true)}>
               <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Agregar edificio</span>
@@ -170,19 +172,6 @@ const VentilacionesView: React.FC = () => {
           )}
         </div>
       </div>
-
-      {showFilters && (
-        <div className="rounded-xl border bg-muted/20 p-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <CategoryMultiSelect categories={mesesOpts} selected={mesesSel} onChange={setMesesSel} label="Mes" clearLabel="Limpiar mes" />
-            <CategoryMultiSelect categories={ESTADOS} selected={estadosSel} onChange={setEstadosSel} label="Estado" clearLabel="Limpiar estado" />
-            <CategoryMultiSelect categories={edificioOpts} selected={edificiosSel} onChange={setEdificiosSel} label="Edificio" clearLabel="Limpiar edificio" />
-            {activeFilterCount > 0 && (
-              <button onClick={() => { setMesesSel([]); setEstadosSel([]); setEdificiosSel([]); }} className="text-xs font-medium text-muted-foreground hover:text-foreground">Limpiar todo</button>
-            )}
-          </div>
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando…" subtext="Ventilaciones" /></div>
