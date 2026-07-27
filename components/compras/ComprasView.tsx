@@ -231,7 +231,7 @@ const ComprasView: React.FC = () => {
             </div>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Estado</label>
-              <MultiCombobox options={ESTADO_OPTIONS} value={estadoFilter} onChange={setEstadoFilter} placeholder="Abiertas (default)" searchPlaceholder="Buscar estado…" />
+              <MultiCombobox options={ESTADO_OPTIONS} value={estadoFilter} onChange={setEstadoFilter} placeholder="Abiertas" searchPlaceholder="Buscar estado…" />
             </div>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Técnico</label>
