@@ -215,7 +215,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario</label>
                   {headerEditable ? (
@@ -288,7 +288,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                               <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 text-right" />
                             </div>
                           </div>
-                          <div className="flex justify-end text-sm font-semibold tabular-nums">Total: $ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</div>
+                          <div className="flex justify-end text-sm font-semibold tabular-nums whitespace-nowrap">Total: $ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</div>
                         </div>
                       ))}
                     </div>
@@ -299,7 +299,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                           <TableRow>
                             <TableHead>Artículo</TableHead>
                             <TableHead className="w-24 text-right">Cant.</TableHead>
-                            <TableHead className="w-36 text-right">Costo unit.</TableHead>
+                            <TableHead className="w-36 text-right whitespace-nowrap">Costo unit.</TableHead>
                             <TableHead className="w-36 text-right">Total</TableHead>
                             <TableHead className="w-10" />
                           </TableRow>
@@ -314,7 +314,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                               <TableCell className="text-right">
                                 <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 w-28 text-right ml-auto" />
                               </TableCell>
-                              <TableCell className="text-right text-sm font-medium tabular-nums">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
+                              <TableCell className="text-right text-sm font-medium tabular-nums whitespace-nowrap">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
                               <TableCell>
                                 <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                                   <Trash2 className="h-4 w-4" />
@@ -328,7 +328,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   </>
                 )}
                 {cart.length > 0 && (
-                  <div className="flex justify-end text-sm font-bold font-mono text-brand">Total: $ {maskFromNumber(total)}</div>
+                  <div className="flex justify-end text-sm font-bold font-mono text-brand whitespace-nowrap">Total: $ {maskFromNumber(total)}</div>
                 )}
               </div>
 

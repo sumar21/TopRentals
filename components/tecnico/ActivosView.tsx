@@ -139,13 +139,15 @@ const ActivosView: React.FC = () => {
           </>
         }
       >
-        <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
-          <Select value={filterEdificioId} onChange={(v) => { setFilterEdificioId(v); setFilterUnidadId(''); }} options={edificioOptions} placeholder="Seleccioná un edificio" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidad</label>
-          <Select value={filterUnidadId} onChange={setFilterUnidadId} options={unidadOptions} placeholder="Seleccioná una unidad" disabled={!filterEdificioId} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
+            <Select value={filterEdificioId} onChange={(v) => { setFilterEdificioId(v); setFilterUnidadId(''); }} options={edificioOptions} placeholder="Seleccioná un edificio" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidad</label>
+            <Select value={filterUnidadId} onChange={setFilterUnidadId} options={unidadOptions} placeholder="Seleccioná una unidad" disabled={!filterEdificioId} />
+          </div>
         </div>
       </BottomSheet>
 

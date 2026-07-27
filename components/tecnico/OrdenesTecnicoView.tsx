@@ -485,13 +485,15 @@ const OrdenesTecnicoView: React.FC = () => {
           </>
         }
       >
-        <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
-          <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-10" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre</label>
-          <Select value={torreSel} onChange={(v) => { setTorreSel(v); setDeptoSel(''); }} options={solicitudTorreOptions} placeholder="Seleccioná una torre" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
+            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-10" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre</label>
+            <Select value={torreSel} onChange={(v) => { setTorreSel(v); setDeptoSel(''); }} options={solicitudTorreOptions} placeholder="Seleccioná una torre" />
+          </div>
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Departamento</label>

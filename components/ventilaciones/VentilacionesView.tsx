@@ -224,8 +224,8 @@ const VentilacionesView: React.FC = () => {
                   <TableHead>Estado</TableHead>
                   <TableHead>Edificio</TableHead>
                   <TableHead>Habitación</TableHead>
-                  <TableHead>Última limpieza</TableHead>
-                  <TableHead>Próxima/Programada</TableHead>
+                  <TableHead className="whitespace-nowrap">Última limpieza</TableHead>
+                  <TableHead className="whitespace-nowrap">Próxima/Programada</TableHead>
                   <TableHead className="text-right w-px whitespace-nowrap pr-6">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -244,8 +244,8 @@ const VentilacionesView: React.FC = () => {
                     </TableCell>
                     <TableCell>{v.edificio || '-'}</TableCell>
                     <TableCell>{v.habitacion || '-'}</TableCell>
-                    <TableCell>{formatDate(v.fecha_ultima) || '-'}</TableCell>
-                    <TableCell>{formatDate(v.fecha_programada ?? v.proxima_limpieza) || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(v.fecha_ultima) || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(v.fecha_programada ?? v.proxima_limpieza) || '-'}</TableCell>
                     <TableCell className="w-px whitespace-nowrap pr-6">{renderAcciones(v)}</TableCell>
                   </TableRow>
                 ))}

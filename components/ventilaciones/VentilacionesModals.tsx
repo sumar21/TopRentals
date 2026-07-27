@@ -237,13 +237,13 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico<span className="text-destructive ml-0.5">*</span></label>
               <Select value={tecnicoId} onChange={setTecnicoId} options={tecnicoOptions} placeholder="Elegí un técnico" />
             </div>
+            {ventilacion.es_incidente && (
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Frecuencia</label>
+                <Select value={frecuenciaId} onChange={setFrecuenciaId} options={frecuenciaOptions} placeholder="Elegí una frecuencia" />
+              </div>
+            )}
           </div>
-          {ventilacion.es_incidente && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Frecuencia</label>
-              <Select value={frecuenciaId} onChange={setFrecuenciaId} options={frecuenciaOptions} placeholder="Elegí una frecuencia" />
-            </div>
-          )}
         </div>
 
         <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">

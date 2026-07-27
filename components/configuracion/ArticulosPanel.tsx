@@ -240,7 +240,7 @@ const ArticulosPanel: React.FC = () => {
                   <StatusBadge status={a.status} />
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>$ {maskFromNumber(a.precio_unitario)} · mín. {a.corte ?? 0}</span>
+                  <span><span className="whitespace-nowrap">$ {maskFromNumber(a.precio_unitario)}</span> · mín. {a.corte ?? 0}</span>
                   {renderAcciones(a)}
                 </div>
               </div>
@@ -252,8 +252,8 @@ const ArticulosPanel: React.FC = () => {
                 <TableRow>
                   <TableHead>Código</TableHead>
                   <TableHead>Artículo</TableHead>
-                  <TableHead className="text-right">Costo unitario</TableHead>
-                  <TableHead className="text-right">Stock mínimo</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Costo unitario</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Stock mínimo</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -261,9 +261,9 @@ const ArticulosPanel: React.FC = () => {
               <TableBody>
                 {filtered.map((a) => (
                   <TableRow key={a.id}>
-                    <TableCell>{a.codigo}</TableCell>
+                    <TableCell className="whitespace-nowrap">{a.codigo}</TableCell>
                     <TableCell>{a.nombre}</TableCell>
-                    <TableCell className="text-right tabular-nums">$ {maskFromNumber(a.precio_unitario)}</TableCell>
+                    <TableCell className="text-right tabular-nums whitespace-nowrap">$ {maskFromNumber(a.precio_unitario)}</TableCell>
                     <TableCell className="text-right tabular-nums">{a.corte ?? 0}</TableCell>
                     <TableCell><StatusBadge status={a.status} /></TableCell>
                     <TableCell>{renderAcciones(a)}</TableCell>

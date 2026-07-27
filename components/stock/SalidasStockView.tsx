@@ -211,7 +211,7 @@ const SalidasStockView: React.FC = () => {
                   <TableHead>Técnico</TableHead>
                   <TableHead>Artículo</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
-                  <TableHead>Centro de costo</TableHead>
+                  <TableHead className="whitespace-nowrap">Centro de costo</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>

@@ -333,13 +333,13 @@ const OrdenesTrabajoView: React.FC = () => {
                   <TableHead>Departamento</TableHead>
                   <TableHead>Prioridad</TableHead>
                   <TableHead className="whitespace-nowrap">Requiere parada de equipo</TableHead>
-                  <TableHead>F. inicio</TableHead>
-                  <TableHead>Tipo trabajo</TableHead>
-                  <TableHead>Tipo tarea</TableHead>
-                  <TableHead>F. asignada</TableHead>
-                  <TableHead className="text-right">Días est.</TableHead>
-                  <TableHead>F. cierre</TableHead>
-                  <TableHead className="text-right">Días reales</TableHead>
+                  <TableHead className="whitespace-nowrap">F. inicio</TableHead>
+                  <TableHead className="whitespace-nowrap">Tipo trabajo</TableHead>
+                  <TableHead className="whitespace-nowrap">Tipo tarea</TableHead>
+                  <TableHead className="whitespace-nowrap">F. asignada</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Días est.</TableHead>
+                  <TableHead className="whitespace-nowrap">F. cierre</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Días reales</TableHead>
                   {!compras && <TableHead>Tipo</TableHead>}
                 </TableRow>
               </TableHeader>

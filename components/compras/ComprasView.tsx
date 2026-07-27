@@ -279,7 +279,7 @@ const ComprasView: React.FC = () => {
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span>Cant. {c.cantidad_total ?? 0}</span>
-                  <span className="font-semibold tabular-nums">$ {maskFromNumber(c.monto_total ?? 0)}</span>
+                  <span className="font-semibold tabular-nums whitespace-nowrap">$ {maskFromNumber(c.monto_total ?? 0)}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t">{renderActions(c)}</div>
               </div>
@@ -295,7 +295,7 @@ const ComprasView: React.FC = () => {
                   <TableHead>Urgencia</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
-                  <TableHead className="text-right">Monto total</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Monto total</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -303,12 +303,12 @@ const ComprasView: React.FC = () => {
                 {filtered.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell><StatusBadge status={c.status} /></TableCell>
-                    <TableCell className="text-sm font-medium">{c.id_compra}</TableCell>
+                    <TableCell className="text-sm font-medium whitespace-nowrap">{c.id_compra}</TableCell>
                     <TableCell className="text-sm">{c.usuario_compra ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={c.urgencia ?? ''} /></TableCell>
                     <TableCell className="text-sm">{formatDate(c.fecha)}</TableCell>
                     <TableCell className="text-right tabular-nums">{c.cantidad_total ?? 0}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">$ {maskFromNumber(c.monto_total ?? 0)}</TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold whitespace-nowrap">$ {maskFromNumber(c.monto_total ?? 0)}</TableCell>
                     <TableCell>{renderActions(c)}</TableCell>
                   </TableRow>
                 ))}

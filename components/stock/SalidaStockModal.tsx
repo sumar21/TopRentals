@@ -158,7 +158,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
 
           {/* Extra: picker de origen solo si el row agrupa varios edificios; destino solo en TRASLADO */}
           {(edificiosDelRow.length > 1 || tipo === 'TRASLADO') && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className={cn('grid grid-cols-1 gap-4', edificiosDelRow.length > 1 && tipo === 'TRASLADO' ? 'sm:grid-cols-2' : '')}>
               {edificiosDelRow.length > 1 && (
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio (origen del stock)</label>

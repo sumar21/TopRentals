@@ -138,7 +138,7 @@ const UsuarioFormModal: React.FC<{
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre<span className="text-destructive ml-0.5">*</span></label>
               <Input value={form.nombre} onChange={(e) => setNombre(e.target.value)} aria-invalid={!!errors.nombre}
@@ -170,7 +170,7 @@ const UsuarioFormModal: React.FC<{
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento</label>
               <Input type="date" value={form.fechaNac} onChange={(e) => setForm((f) => ({ ...f, fechaNac: e.target.value }))} />
             </div>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-3">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>
               <Input type="email" value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} aria-invalid={!!errors.mail}
                 className={cn(errors.mail && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
@@ -308,7 +308,7 @@ const UsuariosPanel: React.FC = () => {
                   <TableHead>Usuario</TableHead>
                   <TableHead>Edificio</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>F. nacimiento</TableHead>
+                  <TableHead className="whitespace-nowrap">F. nacimiento</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>

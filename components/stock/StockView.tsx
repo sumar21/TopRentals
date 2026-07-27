@@ -166,7 +166,7 @@ const StockView: React.FC = () => {
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div><div className="text-muted-foreground">Cantidad</div><div className="font-semibold tabular-nums">{r.cantidad}</div></div>
                     <div><div className="text-muted-foreground">Mínimo</div><div className="font-semibold tabular-nums">{r.condicion_corte ?? '—'}</div></div>
-                    <div><div className="text-muted-foreground">Costo total</div><div className="font-semibold tabular-nums">{money((r.precio_unitario ?? 0) * r.cantidad)}</div></div>
+                    <div><div className="text-muted-foreground">Costo total</div><div className="font-semibold tabular-nums whitespace-nowrap">{money((r.precio_unitario ?? 0) * r.cantidad)}</div></div>
                   </div>
                   {!readOnly && (
                     <div className="flex justify-end gap-1 pt-2 border-t">
@@ -191,10 +191,10 @@ const StockView: React.FC = () => {
                   <TableHead>N°</TableHead>
                   <TableHead>Artículo</TableHead>
                   <TableHead>Edificio</TableHead>
-                  <TableHead className="text-right">Costo unitario</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Costo unitario</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
-                  <TableHead className="text-right">Stock mínimo</TableHead>
-                  <TableHead className="text-right">Costo total</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Stock mínimo</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Costo total</TableHead>
                   {!readOnly && <TableHead className="text-right">Acciones</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -212,10 +212,10 @@ const StockView: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>{edificioNames(r.edificio_ids)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{money(r.precio_unitario)}</TableCell>
+                      <TableCell className="text-right tabular-nums whitespace-nowrap">{money(r.precio_unitario)}</TableCell>
                       <TableCell className="text-right tabular-nums font-medium">{r.cantidad}</TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">{r.condicion_corte ?? '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold">{money((r.precio_unitario ?? 0) * r.cantidad)}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold whitespace-nowrap">{money((r.precio_unitario ?? 0) * r.cantidad)}</TableCell>
                       {!readOnly && (
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -243,7 +243,7 @@ const StockView: React.FC = () => {
             </div>
             <div className="bg-muted/30 px-4 py-2.5">
               <div className="text-[10px] uppercase text-muted-foreground">Costo total</div>
-              <div className="text-sm font-bold tabular-nums text-brand">{money(totalCosto)}</div>
+              <div className="text-sm font-bold tabular-nums text-brand whitespace-nowrap">{money(totalCosto)}</div>
             </div>
           </div>
         </>

@@ -154,7 +154,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                       <TableHead>Edificio | Artículo</TableHead>
                       <TableHead className="text-right">Pedido</TableHead>
                       <TableHead className="text-right w-32">Recibido</TableHead>
-                      <TableHead className="w-32 text-center">No recibido</TableHead>
+                      <TableHead className="w-32 text-center whitespace-nowrap">No recibido</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

@@ -79,12 +79,12 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                   <div key={d.id} className="rounded-lg border bg-card p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium">{d.articulo ?? '—'}</p>
-                      <p className="text-sm font-semibold tabular-nums shrink-0">$ {maskFromNumber(d.costo_total ?? 0)}</p>
+                      <p className="text-sm font-semibold tabular-nums shrink-0 whitespace-nowrap">$ {maskFromNumber(d.costo_total ?? 0)}</p>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{d.edificio ?? '—'}</p>
                     <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                       <span>Cant. {d.cantidad}{showRecibido ? ` · Recib. ${d.recibido ?? '—'}` : ''}</span>
-                      <span>$ {maskFromNumber(d.costo_unitario ?? 0)} c/u</span>
+                      <span className="whitespace-nowrap">$ {maskFromNumber(d.costo_unitario ?? 0)} c/u</span>
                     </div>
                   </div>
                 ))}
@@ -98,7 +98,7 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                       {showRecibido && <TableHead className="text-right">Recibido</TableHead>}
                       <TableHead>Edificio</TableHead>
                       <TableHead>Artículo</TableHead>
-                      <TableHead className="text-right">Costo unit.</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Costo unit.</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -109,8 +109,8 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                         {showRecibido && <TableCell className="text-right tabular-nums">{d.recibido ?? '—'}</TableCell>}
                         <TableCell className="text-sm">{d.edificio ?? '—'}</TableCell>
                         <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
-                        <TableCell className="text-right tabular-nums">$ {maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">$ {maskFromNumber(d.costo_total ?? 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums whitespace-nowrap">$ {maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium whitespace-nowrap">$ {maskFromNumber(d.costo_total ?? 0)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -298,13 +298,15 @@ const VentilacionesTecnicoView: React.FC = () => {
           </>
         }
       >
-        <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
-          <Select value={adelantarZona} onChange={(v) => { setAdelantarZona(v); setAdelantarVentId(''); }} options={zonaOptions} placeholder="Seleccioná un edificio" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Ventilación pendiente</label>
-          <Select value={adelantarVentId} onChange={setAdelantarVentId} options={adelantarVentOptions} placeholder="Seleccioná una ventilación" disabled={!adelantarZona} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
+            <Select value={adelantarZona} onChange={(v) => { setAdelantarZona(v); setAdelantarVentId(''); }} options={zonaOptions} placeholder="Seleccioná un edificio" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Ventilación pendiente</label>
+            <Select value={adelantarVentId} onChange={setAdelantarVentId} options={adelantarVentOptions} placeholder="Seleccioná una ventilación" disabled={!adelantarZona} />
+          </div>
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Observaciones</label>
