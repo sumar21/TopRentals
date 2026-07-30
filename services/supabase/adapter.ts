@@ -64,6 +64,14 @@ async function selectOneRequired<T>(table: string, id: number, mapper: (row: any
   return mapper(data);
 }
 
+/** Server-side SharePoint write-back (Fase 3, supabase/functions/sharepoint-write) — the MS
+ *  Graph client secret can't reach the browser, so every SharePoint write goes through here. */
+async function invokeSharePointWrite<T = unknown>(action: string, payload: Record<string, unknown>): Promise<T> {
+  const { data, error } = await getSupabase().functions.invoke('sharepoint-write', { body: { action, payload } });
+  if (error) throw error;
+  return data as T;
+}
+
 async function selectStockWithEdificios(id: number): Promise<StockRowWithEdificios> {
   const sb = getSupabase();
   const [{ data: stockRow, error: err1 }, { data: linkRows, error: err2 }] = await Promise.all([
@@ -160,9 +168,20 @@ export function createSupabaseAdapter(): DataApi {
     articulos: {
       list: () => selectAll('articulos', articuloFromDb),
       async crear(input) {
-        // TODO(Fase 3): write-back to 99.ABM_Articulos via Edge Function (SharePoint mirror).
+        // SharePoint first: the app-created article must carry its real SharePoint id, so the
+        // mirror insert below is explicit (id: spId) instead of relying on the local sequence —
+        // this closes the id-collision limitation between app-created and migrated articulos.
         const { status, corte, ...rest } = input;
+        const { id: spId } = await invokeSharePointWrite<{ id: number }>('articulo-upsert', {
+          codigo: rest.codigo,
+          nombre: rest.nombre,
+          precio_unitario: rest.precio_unitario,
+          corte,
+          status,
+          detalle: rest.detalle,
+        });
         const payload = {
+          id: spId,
           ...rest,
           corte: corte == null ? null : String(corte), // schema column is text, not numeric
           activo: status === 'Activo',
@@ -173,6 +192,22 @@ export function createSupabaseAdapter(): DataApi {
         return articuloFromDb(data);
       },
       async actualizar(id, patch) {
+        // SharePoint first: 99.ABM_Articulos always gets the FULL current record (patch merged
+        // onto the row as it stands today), since the write-back contract writes every SP column
+        // on every call — a partial patch alone would blank out the fields it doesn't touch.
+        // If this throws, the mirror below is never touched.
+        const { data: currentRow, error: errCurrent } = await getSupabase().from('articulos').select('*').eq('id', id).single();
+        if (errCurrent) throw errCurrent;
+        const merged = { ...articuloFromDb(currentRow), ...patch };
+        await invokeSharePointWrite('articulo-upsert', {
+          sp_id: id,
+          codigo: merged.codigo,
+          nombre: merged.nombre,
+          precio_unitario: merged.precio_unitario,
+          corte: merged.corte,
+          status: merged.status,
+          detalle: merged.detalle,
+        });
         // Multi-table: cascades precio_unitario/condicion_corte to every active stock
         // row of this article (see supabase/rpc.sql articulos_actualizar for why).
         const { data, error } = await getSupabase().rpc('articulos_actualizar', { p_id: id, p_patch: patch });
@@ -492,7 +527,6 @@ export function createSupabaseAdapter(): DataApi {
     ventilaciones: {
       list: () => selectAll('ventilaciones', ventilacionFromDb),
       async crear(input) {
-        // TODO(Fase 3): write-back to 99.ABM_TipoUnidades (Ventilacion_ABMUnid) via Edge Function.
         const sb = getSupabase();
         const { data, error } = await sb.from('ventilaciones').insert(input).select().single();
         if (error) throw error;
@@ -501,6 +535,8 @@ export function createSupabaseAdapter(): DataApi {
           // PA parity: creating a schedule flags the unit as under ventilation control.
           const { error: err2 } = await sb.from('unidades').update({ requiere_ventilacion: true }).eq('id', row.unidad_id);
           if (err2) throw err2;
+          // Mirror the flag to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
+          await invokeSharePointWrite('unidad-ventilacion', { unidad_id: row.unidad_id, requiere_ventilacion: true });
         }
         return row;
       },
@@ -534,6 +570,14 @@ export function createSupabaseAdapter(): DataApi {
             .eq('id', row.unidad_id);
           if (err2) throw err2;
         }
+        if (row.unidad_id != null) {
+          // Mirror to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
+          await invokeSharePointWrite('unidad-ventilacion', {
+            unidad_id: row.unidad_id,
+            requiere_ventilacion: true,
+            ...(frecuencia_dias != null ? { frecuencia_dias } : {}),
+          });
+        }
         return row;
       },
       async finalizar({ id, obs_resuelto, usuario_id, foto_path }) {
@@ -564,7 +608,6 @@ export function createSupabaseAdapter(): DataApi {
         return ventilacionFromDb(data);
       },
       async eliminar(id) {
-        // TODO(Fase 3): write-back to 99.ABM_TipoUnidades (Ventilacion_ABMUnid) via Edge Function.
         const sb = getSupabase();
         const { data: row, error: err1 } = await sb.from('ventilaciones').select('id, unidad_id').eq('id', id).maybeSingle();
         if (err1) throw err1;
@@ -574,6 +617,8 @@ export function createSupabaseAdapter(): DataApi {
         if (row.unidad_id != null) {
           const { error: err3 } = await sb.from('unidades').update({ requiere_ventilacion: false }).eq('id', row.unidad_id);
           if (err3) throw err3;
+          // Mirror to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
+          await invokeSharePointWrite('unidad-ventilacion', { unidad_id: row.unidad_id, requiere_ventilacion: false });
         }
       },
     },
