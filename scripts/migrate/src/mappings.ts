@@ -113,10 +113,12 @@ function coerceColumn(type: FieldType, value: unknown): unknown {
       return parseHora(value);
     case 'bool_si_no':
       return siNoToBool(value);
+    // Soft-delete flags: every activo/activa column is NOT NULL DEFAULT true in schema.sql,
+    // so an empty/unknown SharePoint Status_* means "active" (matches the DB default) — never null.
     case 'bool_activo_inactivo':
-      return activoToBool(value);
+      return activoToBool(value) ?? true;
     case 'bool_alta_baja':
-      return altaBajaToBool(value);
+      return altaBajaToBool(value) ?? true;
   }
 }
 
@@ -299,10 +301,10 @@ export const ordenesTrabajo: Mapping[] = [
   { pg: 'id_univoco', sp: 'IDUnivoco_OT', type: 'text' }, // display IDUnivoco_IN
   { pg: 'status', sp: 'Status_OT', type: 'passthrough' },
   { pg: 'tipo', sp: 'Tipo_IN', type: 'passthrough' },
-  { pg: 'prioridad', sp: 'Prioridad_IN', type: 'passthrough' },
+  { pg: 'prioridad', sp: 'RequiereParada_OT', type: 'passthrough' }, // Alta/Media/Baja — SP internal name is misleading (values verified)
   { pg: 'tipo_trabajo', sp: 'TipoTrabajo_IN', type: 'text' },
   { pg: 'tipo_tarea', sp: 'TipoTarea_IN', type: 'text' },
-  { pg: 'tipo_prioridad', sp: 'RequiereParada_OT', type: 'text' }, // display TipoPrioridad_OT
+  { pg: 'tipo_prioridad', sp: 'Prioridad_IN', type: 'text' }, // occupancy: Vacante/Ocupada/... (was crossed with prioridad)
   { pg: 'torre', sp: 'Torre_OT', type: 'text' },
   { pg: 'departamento', sp: 'Sector_OT', type: 'text' }, // display Departamento_OT
   { pg: 'concat_activo', sp: 'ConcatActivo_IN', type: 'text' },

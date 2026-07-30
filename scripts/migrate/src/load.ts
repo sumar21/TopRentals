@@ -293,8 +293,16 @@ export async function migrate(
     mapping: Mapping[],
     resolutions: ResolutionMapping[],
     beforeInsert?: (rows: Row[], items: SpItem[]) => void | Promise<void>,
+    filterItem?: (item: SpItem) => boolean,
   ): Promise<{ items: SpItem[]; rows: Row[] }> {
-    const items = await fetchList(listKey);
+    let items = await fetchList(listKey);
+    if (filterItem) {
+      const before = items.length;
+      items = items.filter(filterItem);
+      if (before - items.length > 0) {
+        console.warn(`  ${pgTable}: skipped ${before - items.length} row(s) from another app (shared "99." list)`);
+      }
+    }
     const rows: Row[] = items.map((item) => {
       const spId = toId(item.id);
       const row: Row = { id: spId, ...mapRow(mapping, item.fields) };
@@ -371,9 +379,13 @@ export async function migrate(
         }
 
         const targetId = ordenTrabajoId ?? compraId;
-        const objectPath = bucket
+        // Supabase Storage keys reject accents/Ñ and many symbols; normalize (keep '/') so the
+        // upload key and the stored storage_path are identical AND valid.
+        const safeKey = (k: string) =>
+          k.normalize('NFKD').replace(/[^a-zA-Z0-9/._-]/g, '_').replace(/_{2,}/g, '_');
+        const objectPath = safeKey(bucket
           ? `${bucket}/${targetId ?? `_unresolved/${folderKey || 'root'}`}/${file.name}`
-          : `_unclassified/${file.parentPath}/${file.name}`;
+          : `_unclassified/${file.parentPath}/${file.name}`);
 
         if (!options.skipFiles && bucket) {
           const buffer = await graph.downloadDriveItemContent(drive.id, file.id);
@@ -436,6 +448,30 @@ export async function migrate(
           if (fallback) rows[i].pais = fallback;
         }
       }
+      // usuario_app is the login: NOT NULL + UNIQUE in the DB, but the legacy source has
+      // ~15 collisions and possibly empty logins. Keep each first occurrence's real login;
+      // give empties/later-dupes a deterministic, id-based value so EVERY user row survives
+      // (preserving SP ids -> FKs stay intact) and the constraint holds. Logged for cleanup.
+      const seenLogin = new Set<string>();
+      for (const row of rows) {
+        let login = (row.usuario_app as string | null) ?? '';
+        if (!login) login = `usuario_sp_${row.id}`;
+        if (seenLogin.has(login)) login = `${login}__${row.id}`;
+        if (login !== row.usuario_app) {
+          console.warn(`  usuarios: login fixup "${row.usuario_app ?? '(empty)'}" -> "${login}" (sp id ${row.id})`);
+        }
+        row.usuario_app = login;
+        seenLogin.add(login);
+      }
+      // perfil is a NOT NULL access-control enum. Only 2 legacy junk rows lack it (a BAJA
+      // null-row and a PENDIENTE duplicate) — default to 'Operador' (baseline) so the row
+      // survives for FK integrity. Both are inactive/pending; logged for cleanup.
+      for (const row of rows) {
+        if (row.perfil == null) {
+          console.warn(`  usuarios: empty perfil -> 'Operador' (sp id ${row.id}, login "${row.usuario_app}")`);
+          row.perfil = 'Operador';
+        }
+      }
     });
     for (const row of usuariosRes.rows) {
       ctx.usuarioIds.add(row.id as number);
@@ -452,6 +488,12 @@ export async function migrate(
       M.perfilesPermisos,
       [],
       base64BeforeInsert(BUCKETS.branding, 'perfiles_permisos', ['imagen_path', 'imagen_no_selected_path']),
+      // perfiles_permisos is a shared "99." list; keep only THIS app's rows (Desktop/Mantenimiento),
+      // dropping the other app's rows (e.g. aplicacion="Hotel") that don't fit our enum.
+      (item) => {
+        const app = mapRow(M.perfilesPermisos, item.fields).aplicacion;
+        return app === 'Desktop' || app === 'Mantenimiento';
+      },
     );
     await loadList('iconosApp', 'iconos_app', M.iconosApp, [], base64BeforeInsert(BUCKETS.branding, 'iconos_app', ['icono_path']));
     await loadList('emailsNotificacion', 'emails_notificacion', M.emailsNotificacion, []);
@@ -467,7 +509,9 @@ export async function migrate(
     await resolveOrdenRevisionPass(otRes);
 
     // ---- 11-12: stock + stock_edificios ---------------------------------
-    const stockRes = await loadList('stock', 'stock', M.stock, M.stockResolutions);
+    const stockRes = await loadList('stock', 'stock', M.stock, M.stockResolutions, (rows) => {
+      for (const row of rows) if (row.cantidad == null) row.cantidad = 0; // NOT NULL DEFAULT 0: empty SP qty -> 0
+    });
     const stockEdificiosRows: Row[] = [];
     for (let i = 0; i < stockRes.items.length; i++) {
       const stockId = stockRes.rows[i].id as number;
@@ -500,8 +544,19 @@ export async function migrate(
     }
 
     // ---- 16-17: purchase details + approvals ------------------------------
-    await loadList('detalleCompras', 'detalle_compras', M.detalleCompras, M.detalleComprasResolutions);
-    await loadList('aprobaciones', 'aprobaciones', M.aprobaciones, M.aprobacionesResolutions);
+    // Rows whose required (NOT NULL) FK didn't resolve are orphans (dirty text-joins) —
+    // skip + log instead of trying to null-insert (which the constraint would reject).
+    const dropNullFk = (col: string) => (rows: Row[]) => {
+      const kept = rows.filter((r) => r[col] != null);
+      const dropped = rows.length - kept.length;
+      if (dropped > 0) {
+        console.warn(`  skipped ${dropped} orphan row(s) with unresolved ${col}`);
+        rows.length = 0;
+        rows.push(...kept);
+      }
+    };
+    await loadList('detalleCompras', 'detalle_compras', M.detalleCompras, M.detalleComprasResolutions, dropNullFk('compra_id'));
+    await loadList('aprobaciones', 'aprobaciones', M.aprobaciones, M.aprobacionesResolutions, dropNullFk('compra_id'));
 
     // ---- 18: bitacoras (needs ordenes_trabajo) -----------------------------
     const bitacorasRes = await loadList('bitacoras', 'bitacoras', M.bitacoras, M.bitacorasResolutions);
@@ -518,7 +573,7 @@ export async function migrate(
       M.fotosBitacoraResolutions,
       base64BeforeInsert(BUCKETS.bitacoras, 'fotos_bitacora', ['foto_path']),
     );
-    await loadList('repuestosOt', 'repuestos_ot', M.repuestosOt, M.repuestosOtResolutions);
+    await loadList('repuestosOt', 'repuestos_ot', M.repuestosOt, M.repuestosOtResolutions, dropNullFk('orden_trabajo_id'));
 
     // ---- 21: ventilaciones ---------------------------------------------------
     await loadList('ventilaciones', 'ventilaciones', M.ventilaciones, M.ventilacionesResolutions);

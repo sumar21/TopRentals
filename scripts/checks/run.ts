@@ -6,6 +6,7 @@ import { createMockAdapter } from '../../services/mock/adapter.ts';
 import type { PerfilPermiso } from '../../services/types.ts';
 import { addDays, formatDate, parseDMY, todayISO } from '../../utils/dates.ts';
 import { canAccessModule } from '../../utils/permissions.ts';
+import { articuloFromDb, perfilPermisoFromDb, unidadFromDb, usuarioFromDb } from '../../services/supabase/rows.ts';
 
 let passed = 0;
 
@@ -103,6 +104,30 @@ async function main() {
     const after = (await api.stock.list()).find((row) => row.id === target!.id);
     assert.equal(after?.cantidad, before - 1);
     assert.equal((await api.stock.movimientos()).length, movimientosBefore + 1);
+  });
+
+  await check('supabase rows: fromDb reconciles schema.sql flags & numeric-as-string', () => {
+    // articulos: numeric-string precio, text corte, activo=false -> 'Inactivo'
+    const art = articuloFromDb({ id: '5', codigo: 'AR-001', nombre: 'Cloro', precio_unitario: '2100.00', corte: '3', activo: false, detalle: null, created_at: 'x', updated_at: null });
+    assert.equal(art.id, 5);
+    assert.equal(art.precio_unitario, 2100);
+    assert.equal(art.corte, 3);
+    assert.equal(art.status, 'Inactivo');
+    // unidades: schema column is `activa`; null requiere_ventilacion -> false
+    const uni = unidadFromDb({ id: 1, activa: true, requiere_ventilacion: null, edificio_id: '2', frecuencia_ventilacion_dias: '90' });
+    assert.equal(uni.status, 'Alta');
+    assert.equal(uni.requiere_ventilacion, false);
+    assert.equal(uni.frecuencia_ventilacion_dias, 90);
+    assert.equal(uni.edificio_id, 2);
+    // usuarios: activo -> ALTA/BAJA (not Activo/Inactivo); dni numeric-string
+    const usr = usuarioFromDb({ id: 1, usuario_app: 'admin', perfil: 'Admin', activo: true, validado: true, es_testing: false, dni: '30111222' });
+    assert.equal(usr.status, 'ALTA');
+    assert.equal(usr.dni, 30111222);
+    // perfiles_permisos: missing `gerencia` column -> fail-closed 'NO'
+    const perm = perfilPermisoFromDb({ id: 1, modulo: 'ABM', admin: 'SI', aplicacion: 'Desktop', activo: true });
+    assert.equal(perm.status, 'Activo');
+    assert.equal(perm.admin, 'SI');
+    assert.equal(perm.gerencia, 'NO');
   });
 
   // utils/formatMoneyInput.ts belongs to the UI/components track — check it opportunistically.
