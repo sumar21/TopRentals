@@ -1,0 +1,40 @@
+name: Catalog sync (SharePoint -> Supabase)
+
+# Keeps the 7 shared "99." catalog mirror tables in Supabase fresh with edits made
+# in the other (Hotel) Power App. Runs scripts/sync/catalog-sync.ts (idempotent,
+# upsert + soft-deactivate; never truncates/deletes).
+#
+# NOTE: GitHub's scheduled runs fire only from the DEFAULT branch (main) and the
+# 5-minute interval is a floor — runs can be delayed under GitHub load.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes (GitHub's minimum; best-effort)
+  workflow_dispatch: {} # manual trigger from the Actions tab
+
+# Never let two syncs overlap (protects against Graph throttling + double work):
+# a new tick queues behind the running one instead of running concurrently.
+concurrency:
+  group: catalog-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+      - run: npm ci
+      - name: Run catalog sync
+        env:
+          MS_TENANT_ID: ${{ secrets.MS_TENANT_ID }}
+          MS_CLIENT_ID: ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+          SP_SITE_URL: ${{ secrets.SP_SITE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node --experimental-strip-types scripts/sync/catalog-sync.ts
