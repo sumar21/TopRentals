@@ -89,7 +89,8 @@ const OrdenesTecnicoView: React.FC = () => {
     try {
       const towers = torresEnZona(edificios, z);
       const rows = await api.ots.list();
-      setOts(rows.filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status)));
+      // PA parity: SortByColumns(Filter(CollectOT,...),"ID",SortOrder.Descending)
+      setOts(rows.filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status)).sort((a, b) => b.id - a.id));
     } catch {
       showToast('No se pudieron cargar las órdenes de trabajo.', 'error');
       setLoadError(true);

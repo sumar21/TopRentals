@@ -96,7 +96,12 @@ const StockView: React.FC = () => {
         const haystack = `${articulo?.codigo ?? ''} ${articulo?.nombre ?? ''} ${edificioNames(r.edificio_ids)}`.toLowerCase();
         return haystack.includes(q);
       })
-      .sort((a, b) => (articulosById.get(a.articulo_id)?.nombre ?? '').localeCompare(articulosById.get(b.articulo_id)?.nombre ?? ''));
+      // PA parity: SortByColumns(Filter(CollectStock,Cantidad_ST>0),"ID",asc,"ConcatArt_ST",asc)
+      .sort(
+        (a, b) =>
+          a.id - b.id ||
+          (articulosById.get(a.articulo_id)?.nombre ?? '').localeCompare(articulosById.get(b.articulo_id)?.nombre ?? ''),
+      );
   }, [rows, search, articulosById, edificiosById]);
 
   const totalItems = visibleRows.length;
@@ -204,7 +209,7 @@ const StockView: React.FC = () => {
                   const low = isLowStock(r);
                   return (
                     <TableRow key={r.id} className={cn(low && 'bg-red-50 hover:bg-red-50/80')}>
-                      <TableCell className="text-muted-foreground">{articulo?.codigo ?? '—'}</TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums">{r.id}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{articulo?.nombre ?? '—'}</span>

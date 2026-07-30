@@ -145,9 +145,12 @@ const OrdenesTrabajoView: React.FC = () => {
 
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return baseFiltered;
-    return baseFiltered.filter((ot) => [ot.status, ot.concat_activo, ot.tipo_trabajo, ot.tipo_tarea, ot.detalle, String(ot.id)]
-      .some((v) => (v ?? '').toString().toLowerCase().includes(q)));
+    const rows = !q
+      ? baseFiltered
+      : baseFiltered.filter((ot) => [ot.status, ot.concat_activo, ot.tipo_trabajo, ot.tipo_tarea, ot.detalle, String(ot.id)]
+          .some((v) => (v ?? '').toString().toLowerCase().includes(q)));
+    // PA parity: SortByColumns(CollectOT,"ID",SortOrder.Descending)
+    return [...rows].sort((a, b) => b.id - a.id);
   }, [baseFiltered, search]);
 
   useEffect(() => { setPage(0); }, [search, appliedFiltros]);

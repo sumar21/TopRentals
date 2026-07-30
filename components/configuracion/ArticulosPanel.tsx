@@ -172,8 +172,10 @@ const ArticulosPanel: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return articulos;
-    return articulos.filter((a) => `${a.codigo ?? ''} ${a.nombre}`.toLowerCase().includes(q));
+    // PA parity: SortByColumns(CollectArticulosABM,"ID",SortOrder.Ascending)
+    const sorted = [...articulos].sort((a, b) => a.id - b.id);
+    if (!q) return sorted;
+    return sorted.filter((a) => `${a.codigo ?? ''} ${a.nombre}`.toLowerCase().includes(q));
   }, [articulos, search]);
 
   const handleToggle = async () => {

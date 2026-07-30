@@ -109,7 +109,13 @@ const VentilacionesView: React.FC = () => {
       if (mesesSel.length > 0) return rel ? mesesSel.includes(mesLabel(rel)) : false;
       // sin filtro de mes: horizonte por defecto (paridad con la PA original)
       return rel ? diasHasta(rel) <= HORIZONTE_DIAS : true;
-    });
+    })
+      // PA parity: SortByColumns(...,"EsIncidente_VE",desc,"Orden_VE",asc,"FechaAsignado_VE",asc)
+      .sort((a, b) => {
+        if (a.es_incidente !== b.es_incidente) return a.es_incidente ? -1 : 1;
+        if ((a.orden ?? 0) !== (b.orden ?? 0)) return (a.orden ?? 0) - (b.orden ?? 0);
+        return (a.fecha_asignado ?? '').localeCompare(b.fecha_asignado ?? '');
+      });
   }, [ventilaciones, search, estadosSel, edificiosSel, mesesSel]);
 
   const activeFilterCount = mesesSel.length + estadosSel.length + edificiosSel.length;

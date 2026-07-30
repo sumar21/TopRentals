@@ -107,7 +107,8 @@ const ComprasView: React.FC = () => {
       .filter((c) => mesFilter.length === 0 || mesFilter.includes(c.fecha.slice(0, 7)))
       .filter((c) => tecnicoFilter.length === 0 || tecnicoFilter.includes(String(c.usuario_id)))
       .filter((c) => !query || c.id_compra.toLowerCase().includes(query) || (c.usuario_compra ?? '').toLowerCase().includes(query))
-      .sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+      // PA parity: SortByColumns(CollectCompras,"ID",SortOrder.Descending)
+      .sort((a, b) => b.id - a.id);
   }, [compras, estadoFilter, mesFilter, tecnicoFilter, q]);
 
   const activeFilterCount = estadoFilter.length + mesFilter.length + tecnicoFilter.length;
@@ -257,7 +258,7 @@ const ComprasView: React.FC = () => {
               <div key={c.id} className="rounded-lg border bg-card p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-sm">{c.id_compra}</p>
+                    <p className="font-medium text-sm tabular-nums">{c.id}</p>
                     <p className="text-xs text-muted-foreground">{c.usuario_compra ?? '—'}</p>
                   </div>
                   <StatusBadge status={c.status} />
@@ -292,7 +293,7 @@ const ComprasView: React.FC = () => {
                 {filtered.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell><StatusBadge status={c.status} /></TableCell>
-                    <TableCell className="text-sm font-medium whitespace-nowrap">{c.id_compra}</TableCell>
+                    <TableCell className="text-sm font-medium whitespace-nowrap tabular-nums">{c.id}</TableCell>
                     <TableCell className="text-sm">{c.usuario_compra ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={c.urgencia ?? ''} /></TableCell>
                     <TableCell className="text-sm">{formatDate(c.fecha)}</TableCell>

@@ -74,7 +74,10 @@ const StockTecnicoView: React.FC = () => {
   );
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const sorted = [...rowsDelGrupo].sort((a, b) => a.id - b.id);
+    // PA parity: SortByColumns(...,"ID",asc,"ConcatArt_ST",asc) — add the article-name tiebreak
+    const sorted = [...rowsDelGrupo].sort(
+      (a, b) => a.id - b.id || (articulosMap.get(a.articulo_id)?.nombre ?? '').localeCompare(articulosMap.get(b.articulo_id)?.nombre ?? ''),
+    );
     if (!q) return sorted;
     return sorted.filter((r) => (articulosMap.get(r.articulo_id)?.nombre ?? '').toLowerCase().includes(q));
   }, [rowsDelGrupo, search, articulosMap]);

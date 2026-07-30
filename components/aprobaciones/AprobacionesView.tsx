@@ -15,7 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
 import { formatDate } from '../../utils/dates';
 import { api } from '../../services/index.ts';
-import type { Aprobacion, Compra, EstadoAprobacion, Perfil } from '../../services/types.ts';
+import type { Aprobacion, EstadoAprobacion, Perfil } from '../../services/types.ts';
 import { compraAprobadaEmail, type CompraLineaEmail } from '../../emails/templates.ts';
 import { resolveRecipients, sendEmail, type RecipientRow } from '../../emails/send.ts';
 import CompraFormModal, { type CompraFormValues } from '../compras/CompraFormModal';
@@ -54,7 +54,6 @@ const AprobacionesView: React.FC = () => {
   const { showToast } = useToast();
 
   const [aprobaciones, setAprobaciones] = useState<Aprobacion[]>([]);
-  const [comprasById, setComprasById] = useState<Map<number, Compra>>(new Map());
   const [usuariosById, setUsuariosById] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -71,10 +70,9 @@ const AprobacionesView: React.FC = () => {
   const load = () => {
     setLoading(true);
     setLoadError(false);
-    return Promise.all([api.aprobaciones.list(), api.compras.list(), api.usuarios.list()])
-      .then(([aps, compras, usuarios]) => {
+    return Promise.all([api.aprobaciones.list(), api.usuarios.list()])
+      .then(([aps, usuarios]) => {
         setAprobaciones(user ? scopeAprobaciones(user.perfil, aps) : []);
-        setComprasById(new Map(compras.map((c) => [c.id, c])));
         setUsuariosById(new Map(usuarios.map((u) => [u.id, u.concat_name])));
       })
       .catch(() => { showToast('No se pudieron cargar las aprobaciones.', 'error'); setLoadError(true); })
@@ -82,7 +80,8 @@ const AprobacionesView: React.FC = () => {
   };
   useEffect(() => { load(); }, [user?.id]);
 
-  const idCompraLabel = (a: Aprobacion) => comprasById.get(a.compra_id)?.id_compra ?? `#${a.compra_id}`;
+  // PA parity: lbl_idCompra_AP renders IDCompra_A — the raw Compras id stamped on the aprobacion (= compra_id).
+  const idCompraLabel = (a: Aprobacion) => `#${a.compra_id}`;
 
   const mesOptions = useMemo(() => {
     const meses = [...new Set(aprobaciones.map((a) => a.fecha.slice(0, 7)))].sort().reverse();
@@ -96,7 +95,7 @@ const AprobacionesView: React.FC = () => {
       .filter((a) => mesFilter.length === 0 || mesFilter.includes(a.fecha.slice(0, 7)))
       .filter((a) => !query || a.status.toLowerCase().includes(query) || idCompraLabel(a).toLowerCase().includes(query))
       .sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
-  }, [aprobaciones, estadoFilter, mesFilter, q, comprasById]);
+  }, [aprobaciones, estadoFilter, mesFilter, q]);
 
   const activeFilterCount = estadoFilter.length + mesFilter.length;
 
