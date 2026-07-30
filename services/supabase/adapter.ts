@@ -226,6 +226,9 @@ export function createSupabaseAdapter(): DataApi {
 
     emailsNotificacion: {
       list: () => selectAll('emails_notificacion', emailNotificacionFromDb),
+      async enviar(to, subject, html) {
+        await invokeSharePointWrite('send-mail', { to, subject, html });
+      },
     },
 
     perfilesPermisos: {

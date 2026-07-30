@@ -224,6 +224,11 @@ export function createMockAdapter(): DataApi {
         await sleep();
         return structuredClone(db.emailsNotificacion);
       },
+      // Mock/dev must NEVER send real email — log and move on.
+      async enviar(to, subject) {
+        await sleep();
+        console.warn('[emails] mock adapter — not sending', { to, subject });
+      },
     },
 
     perfilesPermisos: {

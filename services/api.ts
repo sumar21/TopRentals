@@ -83,6 +83,8 @@ export interface DataApi {
   };
   emailsNotificacion: {
     list(): Promise<EmailNotificacion[]>;
+    /** Sends a notification email (Microsoft Graph Mail.Send on real backends; no-op on mock). */
+    enviar(to: string[], subject: string, html: string): Promise<void>;
   };
   perfilesPermisos: {
     list(): Promise<PerfilPermiso[]>;

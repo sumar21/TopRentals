@@ -108,7 +108,33 @@ export function createGraphClient(env: GraphAuthEnv) {
     });
   }
 
-  return { getAccessToken, resolveSiteId, resolveListId, createItem, updateItem };
+  /** Sends an HTML email as `sender` via Graph Mail.Send (client-credentials, same token as the
+   *  SharePoint calls above — Mail.Send is an application permission already granted to this app).
+   *  Graph replies 202 Accepted with no body, so this can't go through graphFetchJson (which
+   *  assumes a JSON body except on 204). */
+  async function sendMail(sender: string, to: string[], bcc: string[], subject: string, html: string): Promise<void> {
+    const token = await getAccessToken();
+    const url = `${GRAPH_ROOT}/users/${encodeURIComponent(sender)}/sendMail`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          subject,
+          body: { contentType: 'HTML', content: html },
+          toRecipients: to.map((address) => ({ emailAddress: { address } })),
+          bccRecipients: bcc.map((address) => ({ emailAddress: { address } })),
+        },
+        saveToSentItems: false,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new GraphError(`Graph sendMail failed (${res.status} ${res.statusText}): ${body.slice(0, 500)}`, res.status);
+    }
+  }
+
+  return { getAccessToken, resolveSiteId, resolveListId, createItem, updateItem, sendMail };
 }
 
 export type GraphClient = ReturnType<typeof createGraphClient>;

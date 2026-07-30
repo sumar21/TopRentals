@@ -1,8 +1,10 @@
-// SharePoint write-back (Fase 3). Runs server-side because the MS Graph client secret
-// can't reach the browser. `verify_jwt` stays on (Supabase default) — only authenticated
-// app users can invoke this function.
+// Server-side Graph proxy for TopRentals (Fase 3): SharePoint write-back PLUS outbound
+// mail. Runs server-side because the MS Graph client secret can't reach the browser.
+// `verify_jwt` stays on (Supabase default) — only authenticated app users can invoke this
+// function. Kept the name `sharepoint-write` (renaming would change the deploy target
+// already handed to ops) even though it now also sends mail.
 //
-// Body: { action: 'articulo-upsert' | 'unidad-ventilacion', payload: {...} }
+// Body: { action: 'articulo-upsert' | 'unidad-ventilacion' | 'send-mail', payload: {...} }
 // HTTP shape (token -> resolve site -> resolve list -> create/update) is the exact
 // pattern proven against 99.ABM_Articulos — see _shared/sp-graph.ts. Do not invent a
 // different auth or endpoint shape.
@@ -125,6 +127,47 @@ async function handleUnidadVentilacion(rawPayload: unknown): Promise<Response> {
   return jsonResponse({ ok: true });
 }
 
+interface SendMailPayload {
+  to: string[];
+  subject: string;
+  html: string;
+}
+
+function validateSendMail(payload: unknown): SendMailPayload | null {
+  if (!isRecord(payload)) return null;
+  const { to, subject, html } = payload;
+  if (!Array.isArray(to) || !to.every((v) => typeof v === 'string')) return null;
+  if (typeof subject !== 'string') return null;
+  if (typeof html !== 'string') return null;
+  return { to, subject, html };
+}
+
+/** NOTIFICATIONS_BCC is optional, ';' or ',' separated. */
+function bccFromEnv(): string[] {
+  const raw = Deno.env.get('NOTIFICATIONS_BCC');
+  if (!raw) return [];
+  return raw
+    .split(/[;,]/)
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
+
+async function handleSendMail(rawPayload: unknown): Promise<Response> {
+  const payload = validateSendMail(rawPayload);
+  if (!payload) return jsonResponse({ error: 'payload invalido para send-mail' }, 400);
+
+  const bcc = bccFromEnv();
+  if (payload.to.length === 0 && bcc.length === 0) return jsonResponse({ ok: true });
+
+  const graph = createGraphClient({
+    tenantId: requireEnv('MS_TENANT_ID'),
+    clientId: requireEnv('MS_CLIENT_ID'),
+    clientSecret: requireEnv('MS_CLIENT_SECRET'),
+  });
+  await graph.sendMail(requireEnv('MAIL_SENDER'), payload.to, bcc, payload.subject, payload.html);
+  return jsonResponse({ ok: true });
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
@@ -144,6 +187,8 @@ Deno.serve(async (req) => {
         return await handleArticuloUpsert(body.payload);
       case 'unidad-ventilacion':
         return await handleUnidadVentilacion(body.payload);
+      case 'send-mail':
+        return await handleSendMail(body.payload);
       default:
         return jsonResponse({ error: `Accion desconocida: ${body.action}` }, 400);
     }

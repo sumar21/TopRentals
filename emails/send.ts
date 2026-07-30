@@ -1,9 +1,11 @@
-// Email dispatch — STUB for phase 1 (backend undecided).
-// Target design (DESIGN.md §13): a server-side function (Supabase Edge Function or
-// API route) sends via Microsoft Graph POST /users/{MAIL_SENDER}/sendMail with the
-// rendered HTML + CID logo attachment. Recipients resolve from the
-// emails_notificacion table by modulo ('OT' | 'Compra' | 'Aprobaciones'),
-// NOTIFICATIONS_BCC env replaces the old hardcoded dev list.
+// Email dispatch (DESIGN.md §13). Sends go through services/ (see CLAUDE.md
+// "Arquitectura" — UI/callers never talk to a backend directly): the supabase adapter
+// forwards to the sharepoint-write Edge Function, which calls Microsoft Graph
+// POST /users/{MAIL_SENDER}/sendMail; the mock adapter no-ops. Recipients resolve from
+// the emails_notificacion table by modulo ('OT' | 'Compra' | 'Aprobaciones');
+// NOTIFICATIONS_BCC env (read on the Edge Function side) replaces the old hardcoded dev list.
+
+import { api } from '../services/index.ts';
 
 export interface EmailMessage {
   subject: string;
@@ -20,9 +22,6 @@ export function resolveRecipients(modulo: 'OT' | 'Compra' | 'Aprobaciones', rows
   return row ? row.emails.split(';').map((e) => e.trim()).filter(Boolean) : [];
 }
 
-/* ponytail: stub until the backend (SharePoint vs Supabase) is decided — upgrade
-   path is a Graph sendMail call from an Edge Function; nothing in the UI should
-   await delivery. */
 export async function sendEmail(to: string[], message: EmailMessage): Promise<void> {
-  console.warn('[emails] send stub — not wired to a backend yet', { to, subject: message.subject });
+  await api.emailsNotificacion.enviar(to, message.subject, message.html);
 }
