@@ -7,8 +7,14 @@
 -- stock_agregar) are ported verbatim, not "fixed".
 --
 -- Apply: node --env-file=.env scripts/migrate/apply-sql.mjs supabase/rpc.sql
--- No SECURITY DEFINER (same as finalizar_ventilacion) — runs as the calling
--- role, covered by the existing permissive "authenticated" RLS policies.
+--
+-- SECURITY: every function is SECURITY DEFINER with a pinned `search_path = public`.
+-- The high-value RLS hardening (0002_rls_hardening.sql) makes catalogs, usuarios and
+-- the stock/audit tables SELECT-only for `authenticated`, so these mutations MUST run
+-- as the owner (bypassing RLS) to keep writing. DEFINER adds no authorization by itself
+-- (a compromised client can still call any RPC) — the real gain is that arbitrary direct
+-- table writes are blocked, so writes can only happen through this vetted, audited surface.
+-- `search_path` is pinned to close the classic DEFINER search_path hijack.
 
 -- ============================================================================
 -- helper: insertar_detalle_lineas — shared by compras_crear / compras_actualizar
@@ -20,6 +26,8 @@
 CREATE OR REPLACE FUNCTION insertar_detalle_lineas(p_compra_id bigint, p_lineas jsonb)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_linea jsonb;
@@ -75,6 +83,8 @@ CREATE OR REPLACE FUNCTION stock_agregar(
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_stock_id bigint;
@@ -140,6 +150,8 @@ CREATE OR REPLACE FUNCTION stock_salida(
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_articulo_id bigint;
@@ -229,6 +241,8 @@ CREATE OR REPLACE FUNCTION stock_editar(
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_articulo_id bigint;
@@ -277,6 +291,8 @@ $$;
 CREATE OR REPLACE FUNCTION stock_editar_salida(p_salida_id bigint, p_cantidad numeric, p_usuario_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_articulo_id bigint;
@@ -345,6 +361,8 @@ $$;
 CREATE OR REPLACE FUNCTION stock_confirmar_devolucion(p_salida_id bigint, p_usuario_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_articulo_id bigint;
@@ -412,6 +430,8 @@ $$;
 CREATE OR REPLACE FUNCTION compras_crear(p_compra jsonb, p_lineas jsonb)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_id bigint;
@@ -457,6 +477,8 @@ $$;
 CREATE OR REPLACE FUNCTION compras_actualizar(p_id bigint, p_patch jsonb, p_lineas jsonb DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_cantidad_total numeric;
@@ -500,6 +522,8 @@ $$;
 CREATE OR REPLACE FUNCTION compras_enviar_aprobacion(p_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_urgencia text;
@@ -536,6 +560,8 @@ $$;
 CREATE OR REPLACE FUNCTION compras_recibir(p_id bigint, p_lineas jsonb, p_obs_recibir text)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_usuario_id bigint;
@@ -619,6 +645,8 @@ $$;
 CREATE OR REPLACE FUNCTION compras_anular(p_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   UPDATE compras SET status = 'Anulada' WHERE id = p_id;
@@ -636,6 +664,8 @@ $$;
 CREATE OR REPLACE FUNCTION aprobaciones_aprobar(p_id bigint, p_user_aprob_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_compra_id bigint;
@@ -660,6 +690,8 @@ $$;
 CREATE OR REPLACE FUNCTION aprobaciones_rechazar(p_id bigint, p_motivo text, p_user_aprob_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_compra_id bigint;
@@ -687,6 +719,8 @@ $$;
 CREATE OR REPLACE FUNCTION aprobaciones_editar(p_id bigint, p_lineas jsonb, p_header jsonb DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_compra_id bigint;
@@ -737,6 +771,8 @@ CREATE OR REPLACE FUNCTION ot_bitacora_crear(
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_id bigint;
@@ -766,6 +802,8 @@ CREATE OR REPLACE FUNCTION ot_asignar_repuesto(
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_stock_id bigint;
@@ -820,6 +858,8 @@ $$;
 CREATE OR REPLACE FUNCTION ot_registrar_salidas_repuestos(p_ot_id bigint)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   INSERT INTO salidas_stock (
@@ -840,6 +880,8 @@ $$;
 CREATE OR REPLACE FUNCTION ot_cerrar(p_id bigint, p_tipo text)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_previo text;
@@ -863,6 +905,8 @@ $$;
 CREATE OR REPLACE FUNCTION ot_finalizar(p_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_previo text;
@@ -894,6 +938,8 @@ $$;
 CREATE OR REPLACE FUNCTION articulos_actualizar(p_id bigint, p_patch jsonb)
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_precio numeric;
@@ -921,5 +967,155 @@ BEGIN
 
   -- TODO(Fase 3): write-back to 99.ABM_Articulos via Edge Function (SharePoint mirror).
   RETURN p_id;
+END;
+$$;
+
+-- ============================================================================
+-- HIGH-VALUE RLS HARDENING — writes to now-SELECT-only tables (see
+-- 0002_rls_hardening.sql). usuarios lost its raw-UPDATE path (perfil/activo can no
+-- longer be rewritten with direct table SQL), plus the articulos SharePoint mirror
+-- insert and the unidades ventilation flags. Re-exposed here, vetted.
+-- NOTE: these RPCs carry NO per-perfil check — an authenticated caller can still
+-- invoke usuario_actualizar with any perfil. Fully preventing self-promotion is the
+-- separate per-perfil-authz layer (deliberately deferred). DEFINER only narrows the
+-- write surface to this vetted, typed path; it is NOT authorization.
+-- ============================================================================
+
+-- usuarios ABM insert. usuario_app + perfil are NOT NULL (the form always sends them);
+-- every other column is optional and maps to NULL / the table default when the key is absent.
+CREATE OR REPLACE FUNCTION usuario_crear(p_payload jsonb)
+RETURNS bigint
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id bigint;
+BEGIN
+  INSERT INTO usuarios (
+    nombre, apellido, concat_name, usuario_app, dni, fecha_nac, mail, num_cel,
+    edificio_id, edificio_default, pais, perfil, validado, wapp_default, mnt_global,
+    aplicacion, es_testing, activo, legacy_id_usr, updated_at
+  ) VALUES (
+    p_payload->>'nombre', p_payload->>'apellido', p_payload->>'concat_name', p_payload->>'usuario_app',
+    (p_payload->>'dni')::numeric, (p_payload->>'fecha_nac')::date, p_payload->>'mail', p_payload->>'num_cel',
+    (p_payload->>'edificio_id')::bigint, p_payload->>'edificio_default', p_payload->>'pais', (p_payload->>'perfil')::perfil_usuario,
+    (p_payload->>'validado')::boolean, p_payload->>'wapp_default', p_payload->>'mnt_global',
+    p_payload->>'aplicacion', (p_payload->>'es_testing')::boolean, coalesce((p_payload->>'activo')::boolean, true),
+    (p_payload->>'legacy_id_usr')::numeric, now()
+  ) RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$;
+
+-- usuarios ABM update. Partial patch, present-key semantics (mock's Object.assign): only
+-- keys present in p_patch are written; everything else stays as-is.
+CREATE OR REPLACE FUNCTION usuario_actualizar(p_id bigint, p_patch jsonb)
+RETURNS bigint
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE usuarios SET
+    nombre           = CASE WHEN p_patch ? 'nombre'           THEN p_patch->>'nombre'                   ELSE nombre END,
+    apellido         = CASE WHEN p_patch ? 'apellido'         THEN p_patch->>'apellido'                 ELSE apellido END,
+    concat_name      = CASE WHEN p_patch ? 'concat_name'      THEN p_patch->>'concat_name'              ELSE concat_name END,
+    usuario_app      = CASE WHEN p_patch ? 'usuario_app'      THEN p_patch->>'usuario_app'              ELSE usuario_app END,
+    dni              = CASE WHEN p_patch ? 'dni'              THEN (p_patch->>'dni')::numeric           ELSE dni END,
+    fecha_nac        = CASE WHEN p_patch ? 'fecha_nac'        THEN (p_patch->>'fecha_nac')::date        ELSE fecha_nac END,
+    mail             = CASE WHEN p_patch ? 'mail'             THEN p_patch->>'mail'                     ELSE mail END,
+    num_cel          = CASE WHEN p_patch ? 'num_cel'          THEN p_patch->>'num_cel'                  ELSE num_cel END,
+    edificio_id      = CASE WHEN p_patch ? 'edificio_id'      THEN (p_patch->>'edificio_id')::bigint    ELSE edificio_id END,
+    edificio_default = CASE WHEN p_patch ? 'edificio_default' THEN p_patch->>'edificio_default'         ELSE edificio_default END,
+    pais             = CASE WHEN p_patch ? 'pais'             THEN p_patch->>'pais'                     ELSE pais END,
+    perfil           = CASE WHEN p_patch ? 'perfil'           THEN (p_patch->>'perfil')::perfil_usuario ELSE perfil END,
+    validado         = CASE WHEN p_patch ? 'validado'         THEN (p_patch->>'validado')::boolean      ELSE validado END,
+    wapp_default     = CASE WHEN p_patch ? 'wapp_default'     THEN p_patch->>'wapp_default'             ELSE wapp_default END,
+    mnt_global       = CASE WHEN p_patch ? 'mnt_global'       THEN p_patch->>'mnt_global'               ELSE mnt_global END,
+    aplicacion       = CASE WHEN p_patch ? 'aplicacion'       THEN p_patch->>'aplicacion'               ELSE aplicacion END,
+    es_testing       = CASE WHEN p_patch ? 'es_testing'       THEN (p_patch->>'es_testing')::boolean    ELSE es_testing END,
+    activo           = CASE WHEN p_patch ? 'activo'           THEN (p_patch->>'activo')::boolean        ELSE activo END,
+    legacy_id_usr    = CASE WHEN p_patch ? 'legacy_id_usr'    THEN (p_patch->>'legacy_id_usr')::numeric ELSE legacy_id_usr END,
+    updated_at       = now()
+  WHERE id = p_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Usuario % no encontrado.', p_id;
+  END IF;
+  RETURN p_id;
+END;
+$$;
+
+-- usuarios ABM soft-delete: Status_Usr -> 'BAJA' (activo=false), nothing else touched.
+CREATE OR REPLACE FUNCTION usuario_eliminar(p_id bigint)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE usuarios SET activo = false WHERE id = p_id;
+END;
+$$;
+
+-- articulos SharePoint-mirror insert: the app creates the article in SharePoint first
+-- (Edge Function) and inserts the local mirror with the SAME explicit id here. articulos
+-- is a SELECT-only catalog, so this DEFINER RPC is the only in-app path that writes it.
+CREATE OR REPLACE FUNCTION articulo_insert_mirror(
+  p_id bigint, p_codigo text, p_nombre text, p_precio numeric, p_corte text, p_activo boolean, p_detalle text
+)
+RETURNS bigint
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO articulos (id, codigo, nombre, precio_unitario, corte, activo, detalle, updated_at)
+  VALUES (p_id, p_codigo, p_nombre, p_precio, p_corte, p_activo, p_detalle, now());
+  RETURN p_id;
+END;
+$$;
+
+-- unidades is a SELECT-only catalog (SharePoint mirror), but the ventilaciones flow flips
+-- two of its flags. These DEFINER RPCs are the vetted write path; the SharePoint mirror of
+-- the same flags is written separately by the Edge Function.
+CREATE OR REPLACE FUNCTION unidad_set_ventilacion(p_unidad_id bigint, p_requiere boolean)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE unidades SET requiere_ventilacion = p_requiere WHERE id = p_unidad_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION unidad_set_frecuencia(p_unidad_id bigint, p_dias numeric)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE unidades SET frecuencia_ventilacion_dias = p_dias WHERE id = p_unidad_id;
+END;
+$$;
+
+-- ============================================================================
+-- EXECUTE privileges — CRITICAL companion to the SECURITY DEFINER above.
+-- Postgres/Supabase grant EXECUTE to PUBLIC + anon by default. Because every
+-- function here is DEFINER (it bypasses RLS), leaving anon able to call them
+-- would let a holder of the public anon key mutate everything — WIDER than
+-- before this change. Restrict execution to logged-in app users + service_role.
+-- Guarded so the file still applies on plain Postgres (where these roles don't
+-- exist), same stance as schema.sql's `TO authenticated` RLS. Must be last —
+-- it targets ALL FUNCTIONS created above.
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon;
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated, service_role;
+  END IF;
 END;
 $$;

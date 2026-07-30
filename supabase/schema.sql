@@ -547,6 +547,8 @@ CREATE OR REPLACE FUNCTION finalizar_ventilacion(
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_unidad_id bigint;
@@ -593,25 +595,53 @@ COMMENT ON FUNCTION finalizar_ventilacion(bigint, text, text) IS
   '"finalizar ventilacion" flow.';
 
 -- ============================================================================
--- ROW LEVEL SECURITY — placeholder policies only
--- TODO: replace with real per-perfil policies once the backend/auth model is
--- decided (see data_model.md "## Auth"). For now every table is RLS-enabled
--- with a single permissive policy so `anon`/service-role access stops working
--- accidentally, while any authenticated Supabase user can read/write everything.
+-- ROW LEVEL SECURITY — high-value hardening
+-- Authz is still enforced client-side (utils/permissions.ts) and inside the
+-- vetted DEFINER RPCs; RLS is not the per-perfil authorization layer. What RLS
+-- does here is close the direct-write holes with real blast radius:
+--   * READ-ONLY tables: catalogs (shared with the Hotel app + the permission
+--     matrix itself), usuarios (closes the raw-UPDATE path, so perfil/activo
+--     can't be rewritten with direct table SQL), and the stock/audit tables
+--     (protects the append-only trail). authenticated may SELECT only; every
+--     write goes through a DEFINER RPC or the service-role sync (both bypass RLS).
+--     NOTE: the usuarios RPCs carry no per-perfil check, so an authenticated
+--     caller can still reach perfil via usuario_actualizar — real self-promotion
+--     prevention is the separate per-perfil-authz layer (deferred).
+--   * READ-WRITE tables: the operational records (OTs, ventilaciones, compras…).
+--     Left writable by authenticated — locking them adds no real security since
+--     the same client could call the equivalent RPC anyway (see rpc.sql header).
+-- Keep the SELECT-only list in sync with 0002_rls_hardening.sql (the migration
+-- for the already-deployed DB). The `_todo_authenticated_all` name on the
+-- read-write tables is intentionally the SAME as the migration/legacy name so
+-- neither path drifts.
 -- ============================================================================
 DO $$
 DECLARE
   t text;
 BEGIN
+  -- SELECT-only for authenticated (writes only via DEFINER RPC / service-role sync)
   FOR t IN SELECT unnest(ARRAY[
     'edificios', 'articulos', 'frecuencias', 'unidades', 'usuarios',
-    'perfiles_permisos', 'iconos_app', 'emails_notificacion', 'ordenes_trabajo',
-    'bitacoras', 'fotos_bitacora', 'repuestos_ot', 'stock', 'stock_edificios',
-    'movimientos_stock', 'salidas_stock', 'compras', 'detalle_compras',
-    'aprobaciones', 'ventilaciones', 'documentos'
+    'perfiles_permisos', 'iconos_app', 'emails_notificacion',
+    'stock', 'stock_edificios', 'movimientos_stock', 'salidas_stock'
   ])
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I;', t || '_authenticated_read', t);
+    EXECUTE format(
+      'CREATE POLICY %I ON %I FOR SELECT TO authenticated USING (true);',
+      t || '_authenticated_read', t
+    );
+  END LOOP;
+
+  -- Read/write for authenticated (operational records)
+  FOR t IN SELECT unnest(ARRAY[
+    'ordenes_trabajo', 'bitacoras', 'fotos_bitacora', 'repuestos_ot',
+    'compras', 'detalle_compras', 'aprobaciones', 'ventilaciones', 'documentos'
+  ])
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I;', t || '_todo_authenticated_all', t);
     EXECUTE format(
       'CREATE POLICY %I ON %I FOR ALL TO authenticated USING (true) WITH CHECK (true);',
       t || '_todo_authenticated_all', t

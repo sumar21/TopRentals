@@ -140,23 +140,25 @@ export function createSupabaseAdapter(): DataApi {
       list: () => selectAll('usuarios', usuarioFromDb),
       get: (id) => selectOne('usuarios', id, usuarioFromDb),
       async crear(input) {
+        // usuarios is SELECT-only for authenticated → write via the DEFINER RPC (this closes the
+        // raw-UPDATE path to perfil/activo; per-perfil authz still lives client-side). See supabase/rpc.sql.
         const { status, ...rest } = input;
-        const payload = { ...rest, activo: status === 'ALTA', updated_at: new Date().toISOString() };
-        const { data, error } = await getSupabase().from('usuarios').insert(payload).select().single();
+        const payload = { ...rest, activo: status === 'ALTA' };
+        const { data, error } = await getSupabase().rpc('usuario_crear', { p_payload: payload });
         if (error) throw error;
-        return usuarioFromDb(data);
+        return selectOneRequired('usuarios', Number(data), usuarioFromDb);
       },
       async actualizar(id, patch) {
         const { status, ...rest } = patch;
-        const payload: Record<string, unknown> = { ...rest, updated_at: new Date().toISOString() };
-        if (status !== undefined) payload.activo = status === 'ALTA';
-        const { data, error } = await getSupabase().from('usuarios').update(payload).eq('id', id).select().single();
+        const p_patch: Record<string, unknown> = { ...rest };
+        if (status !== undefined) p_patch.activo = status === 'ALTA';
+        const { error } = await getSupabase().rpc('usuario_actualizar', { p_id: id, p_patch });
         if (error) throw error;
-        return usuarioFromDb(data);
+        return selectOneRequired('usuarios', id, usuarioFromDb);
       },
       async eliminar(id) {
         // Soft-delete like the mock: Status_Usr -> 'BAJA' (activo=false), nothing else touched.
-        const { error } = await getSupabase().from('usuarios').update({ activo: false }).eq('id', id);
+        const { error } = await getSupabase().rpc('usuario_eliminar', { p_id: id });
         if (error) throw error;
       },
     },
@@ -180,16 +182,18 @@ export function createSupabaseAdapter(): DataApi {
           status,
           detalle: rest.detalle,
         });
-        const payload = {
-          id: spId,
-          ...rest,
-          corte: corte == null ? null : String(corte), // schema column is text, not numeric
-          activo: status === 'Activo',
-          updated_at: new Date().toISOString(),
-        };
-        const { data, error } = await getSupabase().from('articulos').insert(payload).select().single();
+        // articulos is a SELECT-only catalog → mirror insert via DEFINER RPC (explicit id = SP id).
+        const { error } = await getSupabase().rpc('articulo_insert_mirror', {
+          p_id: spId,
+          p_codigo: rest.codigo ?? null,
+          p_nombre: rest.nombre,
+          p_precio: rest.precio_unitario ?? null,
+          p_corte: corte == null ? null : String(corte), // schema column is text, not numeric
+          p_activo: status === 'Activo',
+          p_detalle: rest.detalle ?? null,
+        });
         if (error) throw error;
-        return articuloFromDb(data);
+        return selectOneRequired<Articulo>('articulos', spId, articuloFromDb);
       },
       async actualizar(id, patch) {
         // SharePoint first: 99.ABM_Articulos always gets the FULL current record (patch merged
@@ -528,7 +532,8 @@ export function createSupabaseAdapter(): DataApi {
         const row = ventilacionFromDb(data);
         if (row.unidad_id != null) {
           // PA parity: creating a schedule flags the unit as under ventilation control.
-          const { error: err2 } = await sb.from('unidades').update({ requiere_ventilacion: true }).eq('id', row.unidad_id);
+          // unidades is a SELECT-only catalog → flip the flag via DEFINER RPC.
+          const { error: err2 } = await sb.rpc('unidad_set_ventilacion', { p_unidad_id: row.unidad_id, p_requiere: true });
           if (err2) throw err2;
           // Mirror the flag to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
           await invokeSharePointWrite('unidad-ventilacion', { unidad_id: row.unidad_id, requiere_ventilacion: true });
@@ -559,10 +564,8 @@ export function createSupabaseAdapter(): DataApi {
         if (error) throw error;
         const row = ventilacionFromDb(data);
         if (frecuencia_dias != null && row.unidad_id != null) {
-          const { error: err2 } = await sb
-            .from('unidades')
-            .update({ frecuencia_ventilacion_dias: frecuencia_dias })
-            .eq('id', row.unidad_id);
+          // unidades is a SELECT-only catalog → update the frequency via DEFINER RPC.
+          const { error: err2 } = await sb.rpc('unidad_set_frecuencia', { p_unidad_id: row.unidad_id, p_dias: frecuencia_dias });
           if (err2) throw err2;
         }
         if (row.unidad_id != null) {
@@ -610,7 +613,8 @@ export function createSupabaseAdapter(): DataApi {
         const { error: err2 } = await sb.from('ventilaciones').update({ estado: 'Eliminada' }).eq('id', id);
         if (err2) throw err2;
         if (row.unidad_id != null) {
-          const { error: err3 } = await sb.from('unidades').update({ requiere_ventilacion: false }).eq('id', row.unidad_id);
+          // unidades is a SELECT-only catalog → flip the flag via DEFINER RPC.
+          const { error: err3 } = await sb.rpc('unidad_set_ventilacion', { p_unidad_id: row.unidad_id, p_requiere: false });
           if (err3) throw err3;
           // Mirror to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
           await invokeSharePointWrite('unidad-ventilacion', { unidad_id: row.unidad_id, requiere_ventilacion: false });
