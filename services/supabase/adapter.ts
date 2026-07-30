@@ -431,24 +431,16 @@ export function createSupabaseAdapter(): DataApi {
         return ordenTrabajoFromDb(data);
       },
       async cerrar(id, tipo) {
-        const { data, error } = await getSupabase()
-          .from('ordenes_trabajo')
-          .update({ status: tipo, fecha_cierre: todayISO() })
-          .eq('id', id)
-          .select()
-          .single();
+        // RPC (no direct update): closing an OT also spills its consumed repuestos into
+        // salidas_stock — multi-table + idempotent, so it must be atomic. See ot_cerrar in rpc.sql.
+        const { error } = await getSupabase().rpc('ot_cerrar', { p_id: id, p_tipo: tipo });
         if (error) throw error;
-        return ordenTrabajoFromDb(data);
+        return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
       },
       async finalizar(id) {
-        const { data, error } = await getSupabase()
-          .from('ordenes_trabajo')
-          .update({ status: 'Cerrada', fecha_cierre: todayISO() })
-          .eq('id', id)
-          .select()
-          .single();
+        const { error } = await getSupabase().rpc('ot_finalizar', { p_id: id });
         if (error) throw error;
-        return ordenTrabajoFromDb(data);
+        return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
       },
       async replicar(id) {
         const sb = getSupabase();

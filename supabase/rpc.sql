@@ -812,6 +812,76 @@ BEGIN
 END;
 $$;
 
+-- NUEVO (no existe en Power Apps): registra cada repuesto consumido de una OT como una
+-- fila del histórico de salidas (salidas_stock). Es record-only — el stock YA se descontó
+-- en ot_asignar_repuesto, así que acá NO se toca stock. stock_id = NULL a propósito → estas
+-- salidas no son editables ni devolvibles (stock_editar_salida / stock_confirmar_devolucion
+-- rechazan un stock_id NULL), que es lo correcto: el débito ocurrió una sola vez.
+CREATE OR REPLACE FUNCTION ot_registrar_salidas_repuestos(p_ot_id bigint)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO salidas_stock (
+    articulo_id, stock_id, concat_articulo, tecnico_id, tipo,
+    fecha_salida, fecha_reingreso, uso, centro_de_costo, cantidad, usuario_id, fecha
+  )
+  SELECT r.articulo_id, NULL, r.repuesto, ot.tecnico_id, 'CONSUMIBLE'::tipo_salida_stock,
+         current_date, NULL, ot.id_univoco, NULL, r.cantidad, r.usuario_id, now()
+  FROM repuestos_ot r
+  JOIN ordenes_trabajo ot ON ot.id = r.orden_trabajo_id
+  WHERE r.orden_trabajo_id = p_ot_id AND r.activo = true;
+END;
+$$;
+
+-- Mirrors mock ots.cerrar(): sets status + fecha_cierre and, on the FIRST close only,
+-- spills the OT's active repuestos into salidas_stock (idempotent — a re-close of an
+-- already-closed/anulada OT does not duplicate the salidas).
+CREATE OR REPLACE FUNCTION ot_cerrar(p_id bigint, p_tipo text)
+RETURNS bigint
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_previo text;
+BEGIN
+  SELECT status::text INTO v_previo FROM ordenes_trabajo WHERE id = p_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Orden de trabajo % no encontrada.', p_id;
+  END IF;
+
+  UPDATE ordenes_trabajo SET status = p_tipo::estado_ot, fecha_cierre = current_date WHERE id = p_id;
+
+  IF v_previo NOT IN ('Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada') THEN
+    PERFORM ot_registrar_salidas_repuestos(p_id);
+  END IF;
+
+  RETURN p_id;
+END;
+$$;
+
+-- Mirrors mock ots.finalizar(): same close flow as ot_cerrar but forces status 'Cerrada'.
+CREATE OR REPLACE FUNCTION ot_finalizar(p_id bigint)
+RETURNS bigint
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_previo text;
+BEGIN
+  SELECT status::text INTO v_previo FROM ordenes_trabajo WHERE id = p_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Orden de trabajo % no encontrada.', p_id;
+  END IF;
+
+  UPDATE ordenes_trabajo SET status = 'Cerrada', fecha_cierre = current_date WHERE id = p_id;
+
+  IF v_previo NOT IN ('Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada') THEN
+    PERFORM ot_registrar_salidas_repuestos(p_id);
+  END IF;
+
+  RETURN p_id;
+END;
+$$;
+
 -- ============================================================================
 -- ARTICULOS — SharePoint-mirrored catalog table (Fase 3 write-back pending)
 -- ============================================================================

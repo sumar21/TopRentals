@@ -108,6 +108,36 @@ async function main() {
     assert.equal((await api.stock.movimientos()).length, movimientosBefore + 1);
   });
 
+  await check('mock adapter: cerrar OT vuelca repuestos al histórico de salidas (idempotente)', async () => {
+    const api = createMockAdapter();
+    const ot = (await api.ots.list()).find((o) => o.status === 'Pendiente' || o.status === 'Asignada');
+    assert.ok(ot, 'seed debe tener una OT abierta');
+    const stock = (await api.stock.list()).find((r) => r.cantidad > 0 && r.edificio_ids.length > 0);
+    assert.ok(stock, 'seed debe tener stock disponible');
+
+    await api.ots.repuestos.asignarRepuesto({
+      orden_trabajo_id: ot!.id,
+      articulo_id: stock!.articulo_id,
+      edificio_id: stock!.edificio_ids[0],
+      cantidad: 1,
+      usuario_id: 1,
+    });
+
+    const salidasBefore = (await api.stock.salidas()).length;
+    await api.ots.finalizar(ot!.id);
+    const salidas = await api.stock.salidas();
+    const nueva = salidas.find((s) => s.uso === ot!.id_univoco && s.tipo === 'CONSUMIBLE');
+    assert.equal(salidas.length, salidasBefore + 1);
+    assert.ok(nueva, 'debe existir una salida CONSUMIBLE referida a la OT');
+    assert.equal(nueva!.stock_id, null); // record-only: no re-decrementa stock ni es devolvible
+    assert.equal(nueva!.articulo_id, stock!.articulo_id);
+    assert.equal(nueva!.cantidad, 1);
+
+    // idempotencia: re-finalizar una OT ya cerrada no duplica las salidas
+    await api.ots.finalizar(ot!.id);
+    assert.equal((await api.stock.salidas()).length, salidasBefore + 1);
+  });
+
   await check('supabase rows: fromDb reconciles schema.sql flags & numeric-as-string', () => {
     // articulos: numeric-string precio, text corte, activo=false -> 'Inactivo'
     const art = articuloFromDb({ id: '5', codigo: 'AR-001', nombre: 'Cloro', precio_unitario: '2100.00', corte: '3', activo: false, detalle: null, created_at: 'x', updated_at: null });

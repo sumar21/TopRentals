@@ -29,6 +29,11 @@ function nextId(rows: { id: number }[]): number {
 const nowIso = () => new Date().toISOString();
 const todayIso = todayISO; // single source of truth — local calendar day (utils/dates.ts)
 
+// Estados en los que una OT ya está cerrada/anulada. Se usa para NO volver a volcar los
+// repuestos al histórico de salidas si cerrar()/finalizar() se llaman sobre una OT que ya
+// estaba cerrada (idempotencia — ver registrarSalidasDeRepuestos).
+const ESTADOS_OT_CERRADA = new Set(['Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada']);
+
 function addDaysIso(dateIso: string, days: number): string {
   const d = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -86,6 +91,34 @@ export function createMockAdapter(): DataApi {
     const row: MovimientoStock = { id: nextId(db.movimientosStock), ...input };
     db.movimientosStock.push(row);
     return row;
+  }
+
+  // NUEVO (no existe en Power Apps): al cerrar/finalizar una OT, cada repuesto consumido
+  // queda registrado en el histórico de salidas (salidas_stock). Es record-only: el stock
+  // YA se descontó al asignar el repuesto (asignarRepuesto), así que acá NO se vuelve a tocar.
+  // stock_id = null a propósito → estas salidas NO son editables ni devolvibles
+  // (editarSalida/confirmarDevolucion rechazan un stock_id null), que es lo correcto: el
+  // débito de stock ocurrió una sola vez.
+  function registrarSalidasDeRepuestos(ot: OrdenTrabajo): void {
+    for (const rep of db.repuestosOT) {
+      if (rep.orden_trabajo_id !== ot.id || rep.status !== 'Activo') continue;
+      db.salidasStock.push({
+        id: nextId(db.salidasStock),
+        articulo_id: rep.articulo_id,
+        stock_id: null,
+        concat_articulo: rep.repuesto,
+        tecnico_id: ot.tecnico_id,
+        tipo: 'CONSUMIBLE',
+        fecha_salida: todayIso(),
+        fecha_reingreso: null,
+        uso: ot.id_univoco,
+        centro_de_costo: null,
+        cantidad: rep.cantidad,
+        usuario_id: rep.usuario_id,
+        fecha: nowIso(),
+        version_app: null,
+      });
+    }
   }
 
   function detalleActivo(compra_id: number) {
@@ -705,16 +738,20 @@ export function createMockAdapter(): DataApi {
         await sleep();
         const row = db.ordenesTrabajo.find((o) => o.id === id);
         if (!row) throw new Error(`Orden de trabajo ${id} no encontrada.`);
+        const yaCerrada = ESTADOS_OT_CERRADA.has(row.status);
         row.status = tipo;
         row.fecha_cierre = todayIso();
+        if (!yaCerrada) registrarSalidasDeRepuestos(row);
         return structuredClone(row);
       },
       async finalizar(id) {
         await sleep();
         const row = db.ordenesTrabajo.find((o) => o.id === id);
         if (!row) throw new Error(`Orden de trabajo ${id} no encontrada.`);
+        const yaCerrada = ESTADOS_OT_CERRADA.has(row.status);
         row.status = 'Cerrada';
         row.fecha_cierre = todayIso();
+        if (!yaCerrada) registrarSalidasDeRepuestos(row);
         return structuredClone(row);
       },
       async replicar(id) {
