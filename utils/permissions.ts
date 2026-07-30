@@ -6,23 +6,31 @@ import type { AplicacionApp, Perfil, PerfilPermiso } from '../services/types.ts'
 type PermisoColumn = Extract<keyof PerfilPermiso, 'admin' | 'operador' | 'tecnico' | 'recepcion' | 'compras' | 'gerencia' | 'jefe_operativo'>;
 
 // 'Supervisor Ventilaciones' has no dedicated column in 99.ABM_ListaPermisosPerfilesV3
-// (see data_model.md open questions) — mapped to jefe_operativo as the closest existing
-// operational-supervisor column.
-// ponytail: this mapping is a best-effort inference, not confirmed business data — revisit
-// once the real per-role LPP cell values are inspected (data_model.md open question).
+// (confirmed by inspecting the live list: the only role columns are Admin/Operador/
+// Recepcion/Tecnico/Compras/JefeOperativo) — mapped to jefe_operativo as the closest
+// existing operational-supervisor column.
+// ponytail: this mapping is a best-effort inference, not confirmed business data.
 const PERFIL_COLUMN: Record<Perfil, PermisoColumn> = {
   Admin: 'admin',
   Operador: 'operador',
   Tecnico: 'tecnico',
   Recepcion: 'recepcion',
   Compras: 'compras',
-  Gerencia: 'gerencia',
+  Gerencia: 'gerencia', // vestigial: Gerencia is resolved by the hardcoded rule below, not this column
   'Supervisor Ventilaciones': 'jefe_operativo',
 };
+
+// Gerencia is NOT data-driven. 99.ABM_ListaPermisosPerfilesV3 has no Gerencia column, and the
+// original Power App never gave it a menu (the desktop sidebar If-chain over Perfil_Usr has no
+// Gerencia branch — it falls through to an empty menu). Gerencia's ONLY function is hardcoded in
+// Screen_Aprobaciones: Perfil_Usr="Gerencia" is the final approver of the compras it filters by
+// Status_AP="Aprobada Supervision". Ported verbatim: Gerencia sees Aprobaciones and nothing else.
+const GERENCIA_MODULES = new Set(['Aprobaciones']);
 
 /** Fail-closed: a role sees a module only if its column is explicitly 'SI'. Admin always sees everything. */
 export function canAccessModule(perfil: Perfil, modulo: string, permisos: PerfilPermiso[]): boolean {
   if (perfil === 'Admin') return true;
+  if (perfil === 'Gerencia') return GERENCIA_MODULES.has(modulo);
   const column = PERFIL_COLUMN[perfil];
   return permisos.some((row) => row.modulo === modulo && row.status === 'Activo' && row[column] === 'SI');
 }

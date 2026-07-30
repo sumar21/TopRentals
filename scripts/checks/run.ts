@@ -66,6 +66,11 @@ async function main() {
     assert.equal(canAccessModule('Compras', 'Compras', permisos), true);
     assert.equal(canAccessModule('Recepcion', 'Compras', permisos), false);
     assert.equal(canAccessModule('Admin', 'ModuloInexistente', permisos), true); // Admin sees everything
+    // Gerencia: hardcoded to Aprobaciones only (PA parity — no LPP column, 2nd-level compras approval).
+    // True even without an Aprobaciones row in permisos, exactly like the PA (which never data-drove it).
+    assert.equal(canAccessModule('Gerencia', 'Aprobaciones', permisos), true);
+    assert.equal(canAccessModule('Gerencia', 'Compras', permisos), false);
+    assert.equal(canAccessModule('Gerencia', 'ABM', permisos), false);
   });
 
   await check('mock adapter: auth.login ok/fail', async () => {
