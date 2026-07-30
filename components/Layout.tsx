@@ -46,10 +46,12 @@ const Layout = () => {
 
   const entries = useMemo<NavEntry[]>(() => {
     if (!user) return [];
-    return permisos
+    const base = permisos
       .filter((row) => canAccessModule(user.perfil, row.modulo, permisos))
       .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
       .map((row) => ({ modulo: row.modulo, route: moduleRoute(row.modulo, 'Desktop') }));
+    // Dashboard is Admin-only and not backed by a perfiles_permisos row — prepend it for Admins.
+    return user.perfil === 'Admin' ? [{ modulo: 'Dashboard', route: '/dashboard' }, ...base] : base;
   }, [user, permisos]);
 
   const activeModule = entries.find((e) => location.pathname.startsWith(e.route))?.modulo ?? 'TopRentals';

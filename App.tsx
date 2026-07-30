@@ -15,6 +15,7 @@ import ComprasView from './components/compras/ComprasView';
 import AprobacionesView from './components/aprobaciones/AprobacionesView';
 import VentilacionesView from './components/ventilaciones/VentilacionesView';
 import ConfiguracionView from './components/configuracion/ConfiguracionView';
+import DashboardView from './components/dashboard/DashboardView';
 import HomeTecnicoView from './components/tecnico/HomeTecnicoView';
 import OrdenesTecnicoView from './components/tecnico/OrdenesTecnicoView';
 import ActivosView from './components/tecnico/ActivosView';
@@ -55,6 +56,13 @@ const RequireModule = ({ modulo, children }: { modulo: string; children: ReactNo
   return <>{children}</>;
 };
 
+/** Admin-only gate — the Dashboard has no perfiles_permisos row; only Admin may reach it. */
+const RequireAdmin = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  if (user && user.perfil !== 'Admin') return <Navigate to="/home" replace />;
+  return <>{children}</>;
+};
+
 /** Technician module: Tecnico + Admin only. */
 const Tecnico = () => {
   const { user } = useAuth();
@@ -85,6 +93,7 @@ const App = () => (
           >
             {/* Back-office */}
             <Route element={<BackOffice />}>
+              <Route path="/dashboard" element={<RequireAdmin><DashboardView /></RequireAdmin>} />
               <Route path="/home" element={<HomeView />} />
               <Route path="/stock" element={<RequireModule modulo="Stock"><StockView /></RequireModule>} />
               <Route path="/salidas-stock" element={<RequireModule modulo="Stock"><SalidasStockView /></RequireModule>} />

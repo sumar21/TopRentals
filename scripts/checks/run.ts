@@ -9,6 +9,7 @@ import { canAccessModule } from '../../utils/permissions.ts';
 import {
   articuloFromDb, compraFromDb, detalleCompraFromDb, perfilPermisoFromDb, stockFromDb, unidadFromDb, usuarioFromDb,
 } from '../../services/supabase/rows.ts';
+import { buildDashboardStats } from '../../utils/dashboardStats.ts';
 
 let passed = 0;
 
@@ -183,6 +184,41 @@ async function main() {
     const detalle = detalleCompraFromDb({ id: '1', compra_id: '1', cantidad: '2', activo: false, fecha: 'x' });
     assert.equal(detalle.status, 'Inactivo');
     assert.equal(detalle.cantidad, 2);
+  });
+
+  await check('dashboard stats: monthly aggregations (intake/consumo/incidencias/resolución/ventilaciones)', () => {
+    const stats = buildDashboardStats('2026-07', {
+      movimientos: [
+        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 5, costo_posterior: 10, fecha: '2026-07-03T10:00:00Z' },
+        { edificio: 'Torre A', cant_anterior: 5, cant_posterior: 2, costo_posterior: 10, fecha: '2026-07-04T10:00:00Z' }, // salida (delta<0) -> excluida
+        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 9, costo_posterior: 10, fecha: '2026-06-03T10:00:00Z' }, // otro mes -> excluida
+      ],
+      salidas: [
+        { articulo_id: 1, concat_articulo: 'Cloro', tipo: 'CONSUMIBLE', fecha_salida: '2026-07-05', cantidad: 3 },
+        { articulo_id: 1, concat_articulo: 'Cloro', tipo: 'CONSUMIBLE', fecha_salida: '2026-07-06', cantidad: 2 },
+        { articulo_id: 2, concat_articulo: 'Lija', tipo: 'DEVOLUCION', fecha_salida: '2026-07-06', cantidad: 9 }, // no es consumo -> excluida
+      ],
+      ots: [
+        { torre: 'Torre A', status: 'Pendiente', fecha_inicio: '2026-07-01', fecha_cierre: null },
+        { torre: 'Torre A', status: 'Cerrada', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-05' }, // 4 días
+        { torre: 'Torre B', status: 'Cerrada V', fecha_inicio: '2026-07-02', fecha_cierre: '2026-07-08' }, // 6 días
+      ],
+      ventilaciones: [
+        { edificio: 'Torre A', estado: 'Realizada', fecha_finalizacion: '2026-07-10T00:00:00Z' },
+        { edificio: 'Torre A', estado: 'Realizada', fecha_finalizacion: '2026-07-12T00:00:00Z' },
+        { edificio: 'Torre B', estado: 'Pendiente', fecha_finalizacion: null }, // no Realizada -> excluida
+      ],
+    } as any);
+
+    assert.equal(stats.ingresoTotal, 5); // solo la entrada +5 del mes
+    assert.equal(stats.ingreso[0].key, 'Torre A');
+    assert.equal(stats.ingreso[0].b, 50); // 5 unidades * $10
+    assert.equal(stats.consumoTotal, 5); // Cloro 3+2; DEVOLUCION excluida
+    assert.equal(stats.consumo[0].key, 'Cloro');
+    assert.equal(stats.incidenciasTotal, 3); // 3 OTs iniciadas en el mes
+    assert.equal(stats.resolProm, 5); // (4 + 6) / 2 cerradas
+    assert.equal(stats.ventTotal, 2); // 2 ventilaciones Realizadas
+    assert.equal(stats.ventilacionesLimpiadas[0].a, 2);
   });
 
   // utils/formatMoneyInput.ts belongs to the UI/components track — check it opportunistically.

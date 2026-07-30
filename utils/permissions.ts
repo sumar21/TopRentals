@@ -36,6 +36,7 @@ export function canAccessModule(perfil: Perfil, modulo: string, permisos: Perfil
 }
 
 const DESKTOP_ROUTES: Record<string, string> = {
+  Dashboard: '/dashboard',
   Home: '/home',
   Stock: '/stock',
   Compras: '/compras',
