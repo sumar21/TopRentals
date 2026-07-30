@@ -2,6 +2,7 @@
 // adapter or backend SDK directly. See CLAUDE.md "Arquitectura".
 import type { DataApi } from './api.ts';
 import { createMockAdapter } from './mock/adapter.ts';
+import { createSupabaseAdapter } from './supabase/adapter.ts';
 
 const backend = import.meta.env.VITE_DATA_BACKEND ?? 'mock';
 
@@ -11,7 +12,7 @@ function selectAdapter(): DataApi {
     case undefined:
       return createMockAdapter();
     case 'supabase':
-      throw new Error('Supabase adapter not implemented yet — set VITE_DATA_BACKEND=mock');
+      return createSupabaseAdapter();
     default:
       throw new Error(`Unknown VITE_DATA_BACKEND "${backend}" — expected "mock" or "supabase".`);
   }

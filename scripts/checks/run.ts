@@ -6,7 +6,9 @@ import { createMockAdapter } from '../../services/mock/adapter.ts';
 import type { PerfilPermiso } from '../../services/types.ts';
 import { addDays, formatDate, parseDMY, todayISO } from '../../utils/dates.ts';
 import { canAccessModule } from '../../utils/permissions.ts';
-import { articuloFromDb, perfilPermisoFromDb, unidadFromDb, usuarioFromDb } from '../../services/supabase/rows.ts';
+import {
+  articuloFromDb, compraFromDb, detalleCompraFromDb, perfilPermisoFromDb, stockFromDb, unidadFromDb, usuarioFromDb,
+} from '../../services/supabase/rows.ts';
 
 let passed = 0;
 
@@ -128,6 +130,24 @@ async function main() {
     assert.equal(perm.status, 'Activo');
     assert.equal(perm.admin, 'SI');
     assert.equal(perm.gerencia, 'NO');
+  });
+
+  await check('supabase rows: operational entity mappers (stock/compras/detalle_compras)', () => {
+    // stock: NOT NULL numeric `cantidad`, nullable precio/condicion_corte, activo -> status
+    const stk = stockFromDb({ id: '10', articulo_id: '5', cantidad: '3', precio_unitario: '99.90', condicion_corte: null, activo: true, usuario_id: null, fecha: 'x' });
+    assert.equal(stk.cantidad, 3);
+    assert.equal(stk.precio_unitario, 99.9);
+    assert.equal(stk.condicion_corte, null);
+    assert.equal(stk.status, 'Activo');
+    // compras: status enum passes through untouched; totals are numeric-strings
+    const compra = compraFromDb({ id: '1', id_compra: '(BUY)-001', fecha: '2026-07-01', cantidad_total: '4', monto_total: '1200.50', status: 'Pendiente', created_at: 'x' });
+    assert.equal(compra.cantidad_total, 4);
+    assert.equal(compra.monto_total, 1200.5);
+    assert.equal(compra.status, 'Pendiente');
+    // detalle_compras: boolean activo -> Activo/Inactivo (schema has no Anulado/No Recibido column yet)
+    const detalle = detalleCompraFromDb({ id: '1', compra_id: '1', cantidad: '2', activo: false, fecha: 'x' });
+    assert.equal(detalle.status, 'Inactivo');
+    assert.equal(detalle.cantidad, 2);
   });
 
   // utils/formatMoneyInput.ts belongs to the UI/components track — check it opportunistically.

@@ -33,7 +33,7 @@ CREATE TYPE perfil_usuario AS ENUM (
 );
 
 CREATE TYPE estado_compra AS ENUM (
-  'Pendiente', 'Aprobacion', 'Aprobada', 'Rechazada', 'Recibida', 'En proceso'
+  'Pendiente', 'Aprobacion', 'Aprobada', 'Rechazada', 'Recibida', 'En proceso', 'Anulada'
 );
 
 CREATE TYPE estado_aprobacion AS ENUM (
