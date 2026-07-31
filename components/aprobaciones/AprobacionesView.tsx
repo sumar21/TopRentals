@@ -73,7 +73,8 @@ const AprobacionesView: React.FC = () => {
     return Promise.all([api.aprobaciones.list(), api.usuarios.list()])
       .then(([aps, usuarios]) => {
         setAprobaciones(user ? scopeAprobaciones(user.perfil, aps) : []);
-        setUsuariosById(new Map(usuarios.map((u) => [u.id, u.concat_name])));
+        // PA's "Usuario" column renders UserGen_AP = the login username, not the full name.
+        setUsuariosById(new Map(usuarios.map((u) => [u.id, u.usuario_app])));
       })
       .catch(() => { showToast('No se pudieron cargar las aprobaciones.', 'error'); setLoadError(true); })
       .finally(() => setLoading(false));

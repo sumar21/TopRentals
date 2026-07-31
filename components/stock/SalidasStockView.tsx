@@ -53,7 +53,12 @@ const SalidasStockView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
-  const [meses, setMeses] = useState<string[]>([]);
+  const [meses, setMeses] = useState<string[]>(() => {
+    // PA seeds the salidas list to current + previous month; the "Mes" filter widens it.
+    const now = new Date();
+    const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return [key(now), key(new Date(now.getFullYear(), now.getMonth() - 1, 1))];
+  });
   const [tipos, setTipos] = useState<string[]>([]);
   const [tecnicoIds, setTecnicoIds] = useState<string[]>([]);
   const [editTarget, setEditTarget] = useState<SalidaStock | null>(null);

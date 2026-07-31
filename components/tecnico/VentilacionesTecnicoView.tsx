@@ -142,12 +142,26 @@ const VentilacionesTecnicoView: React.FC = () => {
     }
   };
 
-  const handleCambiarTorre = () => {
+  const handleCambiarTorre = async () => {
     const ed = edificios.find((e) => String(e.id) === torrePickerValue);
     if (!ed) return;
-    setZonaFilter(zonaKey(ed));
+    const zona = zonaKey(ed);
     setTorrePickerValue('');
     setActiveSheet(null);
+    try {
+      // PA re-queries the whole zone: every technician's Asignada/Programada + unassigned Pendiente,
+      // not just this technician's own jobs (bt_AceptarSelectTorre_VE drops the IDAsignado filter).
+      const rows = await api.ventilaciones.list();
+      const towers = torresEnZona(edificios, zona);
+      setVentilaciones(
+        rows.filter(
+          (v) => towers.includes(v.edificio ?? '') && (v.estado === 'Pendiente' || v.estado === 'Asignada' || v.estado === 'Programada'),
+        ),
+      );
+      setZonaFilter(zona);
+    } catch {
+      showToast('No se pudieron cargar las ventilaciones de la zona.', 'error');
+    }
   };
 
   const handleStageFinalizarFoto = async (file: File | undefined) => {

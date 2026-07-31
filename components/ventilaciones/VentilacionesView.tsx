@@ -21,6 +21,9 @@ import { CrearVentilacionModal, AsignarVentilacionModal } from './VentilacionesM
 
 const HORIZONTE_DIAS = 90;
 const ESTADOS: Ventilacion['estado'][] = ['Pendiente', 'Asignada', 'Programada', 'Realizada'];
+// PA loads the active list as Filter(..., Estado_VE = "Pendiente"|"Asignada"|"Programada").
+// Realizada/Eliminada are never in it by default — the estado chips widen to Realizada on demand.
+const ESTADOS_DEFAULT: string[] = ['Pendiente', 'Asignada', 'Programada'];
 
 /** Admin + 'Supervisor Ventilaciones' — gate ad-hoc del dominio (no encaja en canAccessModule). */
 const puedeGestionar = (perfil: Perfil) => perfil === 'Admin' || perfil === 'Supervisor Ventilaciones';
@@ -101,9 +104,10 @@ const VentilacionesView: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const estadosEfectivos = estadosSel.length > 0 ? estadosSel : ESTADOS_DEFAULT;
     return ventilaciones.filter((v) => {
       if (q && !`${v.edificio ?? ''} ${v.habitacion ?? ''} ${v.estado}`.toLowerCase().includes(q)) return false;
-      if (estadosSel.length > 0 && !estadosSel.includes(v.estado)) return false;
+      if (!estadosEfectivos.includes(v.estado)) return false;
       if (edificiosSel.length > 0 && !edificiosSel.includes(v.edificio ?? '')) return false;
       const rel = fechaRelevante(v);
       if (mesesSel.length > 0) return rel ? mesesSel.includes(mesLabel(rel)) : false;
@@ -204,7 +208,7 @@ const VentilacionesView: React.FC = () => {
                 </div>
                 <p className="text-sm font-medium mt-2">{v.edificio || '-'} · {v.habitacion || '-'}</p>
                 <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                  <p>Última limpieza: {formatDate(v.fecha_ultima) || '-'}</p>
+                  <p>Última limpieza: {formatDate(v.fecha_ultima) || 'Primera Vez'}</p>
                   <p>Próxima/Programada: {formatDate(v.fecha_programada ?? v.proxima_limpieza) || '-'}</p>
                 </div>
               </div>
@@ -239,7 +243,7 @@ const VentilacionesView: React.FC = () => {
                     </TableCell>
                     <TableCell>{v.edificio || '-'}</TableCell>
                     <TableCell>{v.habitacion || '-'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(v.fecha_ultima) || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(v.fecha_ultima) || 'Primera Vez'}</TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(v.fecha_programada ?? v.proxima_limpieza) || '-'}</TableCell>
                     <TableCell className="w-px whitespace-nowrap pr-6">{renderAcciones(v)}</TableCell>
                   </TableRow>

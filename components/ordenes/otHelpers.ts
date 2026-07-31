@@ -5,7 +5,6 @@
 import type { ComboboxOption } from '../ui/UIComponents';
 import type { EstadoOT, OrdenTrabajo, Perfil } from '../../services/types';
 import { FEATURES } from '../../config/features';
-import { todayISO } from '../../utils/dates';
 
 // ---------------------------------------------------------------------------
 // Domain option lists (spec "## statuses" — tipo_trabajo/tipo_tarea share the
@@ -50,10 +49,10 @@ function diffDays(startIso: string, endIso: string): number {
   return Math.round((end - start) / 86400000);
 }
 
-/** "Días reales": fecha_inicio -> fecha_cierre, or -> hoy while todavía abierta. */
+/** "Días reales": fecha_inicio -> fecha_cierre. PA shows "-" until closed, so null while open. */
 export function diasReales(ot: Pick<OrdenTrabajo, 'fecha_inicio' | 'fecha_cierre'>): number | null {
-  if (!ot.fecha_inicio) return null;
-  return diffDays(ot.fecha_inicio, ot.fecha_cierre ?? todayISO());
+  if (!ot.fecha_inicio || !ot.fecha_cierre) return null;
+  return diffDays(ot.fecha_inicio, ot.fecha_cierre);
 }
 
 export function truncate(text: string | null | undefined, max = 42): string {

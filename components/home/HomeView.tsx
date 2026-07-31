@@ -66,7 +66,8 @@ const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColum
     <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
       <p>Inicio: {formatDate(ot.fecha_inicio) || '-'}</p>
       <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
-      <p>{[ot.tipo_trabajo, ot.tipo_tarea].filter(Boolean).join(' · ') || 'Sin tipo de tarea'}</p>
+      <p>{ot.tipo_tarea || 'Sin tipo de tarea'}</p>
+      <p>{ot.tipo_trabajo || '-'}</p>
       <p>Asignador: {asignador}</p>
     </div>
   </button>

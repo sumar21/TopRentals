@@ -90,7 +90,13 @@ const OrdenesTecnicoView: React.FC = () => {
       const towers = torresEnZona(edificios, z);
       const rows = await api.ots.list();
       // PA parity: SortByColumns(Filter(CollectOT,...),"ID",SortOrder.Descending)
-      setOts(rows.filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status)).sort((a, b) => b.id - a.id));
+      setOts(
+        rows
+          .filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status))
+          // PA hides Pendiente OTs scheduled for a future date until their FechaAsignada_IN arrives.
+          .filter((o) => o.status !== 'Pendiente' || !o.fecha_asignada || o.fecha_asignada.slice(0, 10) <= todayISO())
+          .sort((a, b) => b.id - a.id),
+      );
     } catch {
       showToast('No se pudieron cargar las órdenes de trabajo.', 'error');
       setLoadError(true);
