@@ -8,8 +8,8 @@ name: Catalog sync (SharePoint -> Supabase)
 # 5-minute interval is a floor — runs can be delayed under GitHub load.
 
 on:
-  schedule:
-    - cron: "*/5 * * * *" # every 5 minutes (GitHub's minimum; best-effort)
+  # Scheduled runs moved to Vercel Cron (vercel.json -> /api/catalog-sync).
+  # This workflow is kept as a manual break-glass only; the cron trigger is off.
   workflow_dispatch: {} # manual trigger from the Actions tab
 
 # Never let two syncs overlap (protects against Graph throttling + double work):

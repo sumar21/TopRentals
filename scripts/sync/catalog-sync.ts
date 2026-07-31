@@ -29,6 +29,7 @@
 // SharePoint-origin id and a later app-assigned identity id could in theory
 // collide; reconciling the sequence is out of scope for this core sync.
 
+import { pathToFileURL } from 'node:url';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createGraphClient, type SpItem } from '../migrate/src/graph.ts';
 import { mapRow, SP_LISTS, type ListKey, type Mapping } from '../migrate/src/mappings.ts';
@@ -37,7 +38,7 @@ import { ResolutionContext } from '../migrate/src/resolve.ts';
 
 type Row = Record<string, unknown>;
 
-function requireEnv(names: string[]): Record<string, string> {
+export function requireEnv(names: string[]): Record<string, string> {
   const missing = names.filter((name) => !process.env[name]?.trim());
   if (missing.length > 0) {
     throw new Error(`Missing required environment variable(s): ${missing.join(', ')}`);
@@ -253,7 +254,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error('\nCatalog sync failed:', err instanceof Error ? err.message : err);
-  process.exitCode = 1;
-});
+// Run the CLI only when executed directly (node scripts/sync/catalog-sync.ts),
+// NOT when imported — the Vercel cron function (api/catalog-sync.ts) imports syncAll().
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error('\nCatalog sync failed:', err instanceof Error ? err.message : err);
+    process.exitCode = 1;
+  });
+}

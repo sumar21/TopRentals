@@ -1,0 +1,37 @@
+// Vercel Cron entrypoint for the SharePoint -> Supabase catalog sync.
+// Replaces the GitHub Actions schedule: Vercel Cron calls GET /api/catalog-sync
+// on the schedule in vercel.json and this handler runs the same idempotent
+// syncAll() core (scripts/sync/catalog-sync.ts).
+//
+// Env vars (Vercel Project Settings -> Environment Variables, server-side, NO VITE_ prefix):
+//   MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, SP_SITE_URL,
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET
+//
+// Auth: Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET
+// is set on the project. We reject anything else so the endpoint can't be
+// triggered publicly (it holds the service-role key + writes catalogs).
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+import { createGraphClient } from '../scripts/migrate/src/graph.ts';
+import { requireEnv, syncAll } from '../scripts/sync/catalog-sync.ts';
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    const env = requireEnv(['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'SP_SITE_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
+    const graph = createGraphClient({ tenantId: env.MS_TENANT_ID, clientId: env.MS_CLIENT_ID, clientSecret: env.MS_CLIENT_SECRET });
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+
+    const results = await syncAll(graph, supabase, env.SP_SITE_URL);
+    const deactivated = results.reduce((sum, r) => sum + r.deactivated, 0);
+    res.status(200).json({ ok: true, deactivated, results });
+  } catch (err) {
+    console.error('Catalog sync failed:', err instanceof Error ? err.message : err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
