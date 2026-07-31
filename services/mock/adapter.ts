@@ -74,6 +74,11 @@ export function createMockAdapter(): DataApi {
   };
 
   const nombreArticulo = (id: number | null) => db.articulos.find((a) => a.id === id)?.nombre ?? null;
+  // PA stores ConcatArt_* = Concat_AR = `${codigo} - ${nombre}` (distinct from the bare-name Articulo_* field).
+  const concatArticulo = (id: number | null) => {
+    const a = db.articulos.find((a) => a.id === id);
+    return a ? (a.codigo ? `${a.codigo} - ${a.nombre}` : a.nombre) : null;
+  };
   const nombreEdificio = (id: number | null) => db.edificios.find((e) => e.id === id)?.nombre ?? null;
 
   function withEdificios(row: StockRow): StockRowWithEdificios {
@@ -274,7 +279,8 @@ export function createMockAdapter(): DataApi {
     stock: {
       async list() {
         await sleep();
-        return db.stock.map(withEdificios);
+        // PA reads stock as Filter('08.Stock', Status_ST = "Activo") — deactivated rows never appear.
+        return db.stock.filter((s) => s.status === 'Activo').map(withEdificios);
       },
 
       async agregar({ articulo_id, edificio_id, cantidad, precio_unitario, usuario_id }) {
@@ -308,7 +314,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id,
           articulo_raw: String(articulo_id),
-          concat_articulo: nombreArticulo(articulo_id),
+          concat_articulo: concatArticulo(articulo_id),
           articulo: nombreArticulo(articulo_id),
           cant_anterior,
           cant_posterior: row.cantidad,
@@ -340,7 +346,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id: row.articulo_id,
           articulo_raw: String(row.articulo_id),
-          concat_articulo: nombreArticulo(row.articulo_id),
+          concat_articulo: concatArticulo(row.articulo_id),
           articulo: nombreArticulo(row.articulo_id),
           cant_anterior,
           cant_posterior: row.cantidad,
@@ -374,7 +380,7 @@ export function createMockAdapter(): DataApi {
           id: nextId(db.salidasStock),
           articulo_id: row.articulo_id,
           stock_id: row.id, // the row actually debited — credit target for edit/devolución
-          concat_articulo: nombreArticulo(row.articulo_id),
+          concat_articulo: concatArticulo(row.articulo_id),
           tecnico_id,
           tipo,
           fecha_salida: fecha_salida ?? todayIso(),
@@ -404,7 +410,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id: row.articulo_id,
           articulo_raw: String(row.articulo_id),
-          concat_articulo: nombreArticulo(row.articulo_id),
+          concat_articulo: concatArticulo(row.articulo_id),
           articulo: nombreArticulo(row.articulo_id),
           cant_anterior,
           cant_posterior: cantidad,
@@ -443,7 +449,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id: salida.articulo_id,
           articulo_raw: String(salida.articulo_id),
-          concat_articulo: nombreArticulo(salida.articulo_id),
+          concat_articulo: concatArticulo(salida.articulo_id),
           articulo: nombreArticulo(salida.articulo_id),
           cant_anterior,
           cant_posterior: stockRow.cantidad,
@@ -482,7 +488,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id: salida.articulo_id,
           articulo_raw: String(salida.articulo_id),
-          concat_articulo: nombreArticulo(salida.articulo_id),
+          concat_articulo: concatArticulo(salida.articulo_id),
           articulo: nombreArticulo(salida.articulo_id),
           cant_anterior,
           cant_posterior: stockRow.cantidad,
@@ -826,7 +832,7 @@ export function createMockAdapter(): DataApi {
           registrarMovimiento({
             articulo_id,
             articulo_raw: String(articulo_id),
-            concat_articulo: nombreArticulo(articulo_id),
+            concat_articulo: concatArticulo(articulo_id),
             articulo: nombreArticulo(articulo_id),
             cant_anterior,
             cant_posterior: stockRow.cantidad,

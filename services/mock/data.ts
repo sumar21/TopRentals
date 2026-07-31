@@ -335,11 +335,17 @@ articulos.forEach((art, i) => {
 // ---------------------------------------------------------------------------
 // Movimientos de stock (audit) + salidas de stock (every tipo)
 // ---------------------------------------------------------------------------
+/** PA's ConcatArt_* = Concat_AR = `${codigo} - ${nombre}` (distinct from the bare-name field). */
+const concatArt = (id: number): string | null => {
+  const a = articulos.find((x) => x.id === id);
+  return a ? (a.codigo ? `${a.codigo} - ${a.nombre}` : a.nombre) : null;
+};
+
 export const movimientosStock: MovimientoStock[] = stock.slice(0, 6).map((row, i) => ({
   id: i + 1,
   articulo_id: row.articulo_id,
   articulo_raw: String(row.articulo_id),
-  concat_articulo: articulos.find((a2) => a2.id === row.articulo_id)?.nombre ?? null,
+  concat_articulo: concatArt(row.articulo_id),
   articulo: articulos.find((a2) => a2.id === row.articulo_id)?.nombre ?? null,
   cant_anterior: 0,
   cant_posterior: row.cantidad,
@@ -363,12 +369,12 @@ export const movimientosStock: MovimientoStock[] = stock.slice(0, 6).map((row, i
 const stockIdFor = (articuloId: number) => stock.find((s) => s.articulo_id === articuloId)?.id ?? null;
 
 export const salidasStock: SalidaStock[] = [
-  { id: 1, articulo_id: 1, stock_id: stockIdFor(1), concat_articulo: 'Lámpara LED 9W', tecnico_id: 2, tipo: 'ASIGNACION', fecha_salida: '2026-07-18', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Soho', cantidad: 3, usuario_id: 2, fecha: '2026-07-18T10:15:00Z', version_app: 'v20260622_1.3.2' },
-  { id: 2, articulo_id: 7, stock_id: stockIdFor(7), concat_articulo: 'Detergente Multiuso 5L', tecnico_id: 8, tipo: 'CONSUMIBLE', fecha_salida: '2026-07-10', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Nuñez', cantidad: 2, usuario_id: 8, fecha: '2026-07-10T11:00:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 1, articulo_id: 1, stock_id: stockIdFor(1), concat_articulo: concatArt(1), tecnico_id: 2, tipo: 'ASIGNACION', fecha_salida: '2026-07-18', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Soho', cantidad: 3, usuario_id: 2, fecha: '2026-07-18T10:15:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 2, articulo_id: 7, stock_id: stockIdFor(7), concat_articulo: concatArt(7), tecnico_id: 8, tipo: 'CONSUMIBLE', fecha_salida: '2026-07-10', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Nuñez', cantidad: 2, usuario_id: 8, fecha: '2026-07-10T11:00:00Z', version_app: 'v20260622_1.3.2' },
   // Pending DEVOLUCION — exercises confirmarDevolucion in the demo.
-  { id: 3, articulo_id: 2, stock_id: stockIdFor(2), concat_articulo: 'Cable UTP Cat6 (rollo)', tecnico_id: 10, tipo: 'DEVOLUCION', fecha_salida: '2026-07-05', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 1, usuario_id: 10, fecha: '2026-07-05T09:30:00Z', version_app: 'v20260622_1.3.2' },
-  { id: 4, articulo_id: 5, stock_id: stockIdFor(5), concat_articulo: 'Pintura Látex Blanco 20L', tecnico_id: 2, tipo: 'TRASLADO', fecha_salida: '2026-07-08', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Chico', cantidad: 2, usuario_id: 1, fecha: '2026-07-08T09:00:00Z', version_app: 'v20260622_1.3.2' },
-  { id: 5, articulo_id: 9, stock_id: stockIdFor(9), concat_articulo: 'Filtro de Aire Split', tecnico_id: 10, tipo: 'DEVUELTO', fecha_salida: '2026-07-05', fecha_reingreso: '2026-07-06', uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 2, usuario_id: 10, fecha: '2026-07-05T11:00:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 3, articulo_id: 2, stock_id: stockIdFor(2), concat_articulo: concatArt(2), tecnico_id: 10, tipo: 'DEVOLUCION', fecha_salida: '2026-07-05', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 1, usuario_id: 10, fecha: '2026-07-05T09:30:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 4, articulo_id: 5, stock_id: stockIdFor(5), concat_articulo: concatArt(5), tecnico_id: 2, tipo: 'TRASLADO', fecha_salida: '2026-07-08', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Chico', cantidad: 2, usuario_id: 1, fecha: '2026-07-08T09:00:00Z', version_app: 'v20260622_1.3.2' },
+  { id: 5, articulo_id: 9, stock_id: stockIdFor(9), concat_articulo: concatArt(9), tecnico_id: 10, tipo: 'DEVUELTO', fecha_salida: '2026-07-05', fecha_reingreso: '2026-07-06', uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 2, usuario_id: 10, fecha: '2026-07-05T11:00:00Z', version_app: 'v20260622_1.3.2' },
 ];
 
 // ---------------------------------------------------------------------------

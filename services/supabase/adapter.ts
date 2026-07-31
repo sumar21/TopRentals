@@ -243,7 +243,8 @@ export function createSupabaseAdapter(): DataApi {
       async list() {
         const sb = getSupabase();
         const [{ data: stockRows, error: stockErr }, { data: linkRows, error: linkErr }] = await Promise.all([
-          sb.from('stock').select('*'),
+          // PA reads stock as Filter('08.Stock', Status_ST = "Activo") — deactivated rows never appear.
+          sb.from('stock').select('*').eq('activo', true),
           sb.from('stock_edificios').select('*'),
         ]);
         if (stockErr) throw stockErr;

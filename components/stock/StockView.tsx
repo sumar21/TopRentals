@@ -83,6 +83,8 @@ const StockView: React.FC = () => {
   const tecnicos = useMemo(() => usuarios.filter((u) => u.perfil === 'Tecnico' && u.status === 'ALTA'), [usuarios]);
 
   const edificioNames = (ids: number[]) => ids.map((id) => edificiosById.get(id)?.nombre).filter(Boolean).join(', ') || '—';
+  // PA shows the article as ConcatArt_ST = `${codigo} - ${nombre}` (Concat_AR), not the bare name.
+  const artLabel = (a?: Articulo) => (a ? (a.codigo ? `${a.codigo} - ${a.nombre}` : a.nombre) : '—');
   const isLowStock = (r: StockRowWithEdificios) => r.condicion_corte != null && r.cantidad < r.condicion_corte;
 
   // Screen_Stock: Items = Filter(CollectStock, Cantidad_ST>0) — zero-quantity rows are dropped.
@@ -163,8 +165,8 @@ const StockView: React.FC = () => {
                 <div key={r.id} className={cn('rounded-lg border bg-card p-3 shadow-sm space-y-2', low && 'bg-red-50 border-red-200')}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-medium text-sm">{articulo?.nombre ?? '—'}</div>
-                      <div className="text-[11px] text-muted-foreground">{articulo?.codigo ?? '—'} · {edificioNames(r.edificio_ids)}</div>
+                      <div className="font-medium text-sm">{artLabel(articulo)}</div>
+                      <div className="text-[11px] text-muted-foreground">{edificioNames(r.edificio_ids)}</div>
                     </div>
                     {low && <BajoStockBadge />}
                   </div>
@@ -212,7 +214,7 @@ const StockView: React.FC = () => {
                       <TableCell className="text-muted-foreground tabular-nums">{r.id}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{articulo?.nombre ?? '—'}</span>
+                          <span className="font-medium">{artLabel(articulo)}</span>
                           {low && <BajoStockBadge />}
                         </div>
                       </TableCell>

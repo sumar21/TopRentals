@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Plus, Pencil, UserX, UserCheck2, Save, X, Loader2, AlertCircle, Users } from 'lucide-react';
 import { api } from '../../services/index.ts';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Edificio, Perfil, Usuario } from '../../services/types.ts';
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, Badge, cn, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
@@ -194,6 +195,7 @@ const UsuarioFormModal: React.FC<{
 
 const UsuariosPanel: React.FC = () => {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -220,9 +222,11 @@ const UsuariosPanel: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return usuarios;
-    return usuarios.filter((u) => `${u.nombre} ${u.apellido} ${u.perfil} ${u.usuario_app}`.toLowerCase().includes(q));
-  }, [usuarios, search]);
+    // PA hides the Admin account from any non-Admin viewer (Filter(..., UsuarioApp_Usr <> "Admin")).
+    const base = user?.usuario_app === 'Admin' ? usuarios : usuarios.filter((u) => u.usuario_app !== 'Admin');
+    if (!q) return base;
+    return base.filter((u) => `${u.nombre} ${u.apellido} ${u.perfil} ${u.usuario_app}`.toLowerCase().includes(q));
+  }, [usuarios, search, user]);
 
   const handleToggle = async () => {
     if (!toggleTarget) return;

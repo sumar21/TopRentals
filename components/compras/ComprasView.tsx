@@ -106,7 +106,8 @@ const ComprasView: React.FC = () => {
       .filter((c) => estados.includes(c.status))
       .filter((c) => mesFilter.length === 0 || mesFilter.includes(c.fecha.slice(0, 7)))
       .filter((c) => tecnicoFilter.length === 0 || tecnicoFilter.includes(String(c.usuario_id)))
-      .filter((c) => !query || c.id_compra.toLowerCase().includes(query) || (c.usuario_compra ?? '').toLowerCase().includes(query))
+      // PA searches the row ID (the N° shown) + UsuarioCompra_C0 — not the hidden id_compra business code.
+      .filter((c) => !query || String(c.id).includes(query) || (c.usuario_compra ?? '').toLowerCase().includes(query))
       // PA parity: SortByColumns(CollectCompras,"ID",SortOrder.Descending)
       .sort((a, b) => b.id - a.id);
   }, [compras, estadoFilter, mesFilter, tecnicoFilter, q]);

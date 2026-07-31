@@ -79,7 +79,11 @@ const StockTecnicoView: React.FC = () => {
       (a, b) => a.id - b.id || (articulosMap.get(a.articulo_id)?.nombre ?? '').localeCompare(articulosMap.get(b.articulo_id)?.nombre ?? ''),
     );
     if (!q) return sorted;
-    return sorted.filter((r) => (articulosMap.get(r.articulo_id)?.nombre ?? '').toLowerCase().includes(q));
+    // PA matches search against ConcatArt_ST (código + nombre), not just the name.
+    return sorted.filter((r) => {
+      const a = articulosMap.get(r.articulo_id);
+      return `${a?.codigo ?? ''} ${a?.nombre ?? ''}`.toLowerCase().includes(q);
+    });
   }, [rowsDelGrupo, search, articulosMap]);
   const addOptions = useMemo(() => {
     const already = new Set(rowsDelGrupo.map((r) => r.articulo_id));
