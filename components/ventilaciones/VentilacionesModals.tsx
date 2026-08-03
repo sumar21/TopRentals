@@ -69,7 +69,7 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
         edificio: edificio.nombre,
         habitacion: unidad.depto,
         frecuencia_dias: frecuencia.dias,
-        fecha_ultima: fechaInicio,
+        fecha_ultima: null, // PA leaves FechaUltima_VE blank on a new ventilación → the list shows "Primera Vez"
         proxima_limpieza: addDays(fechaInicio, frecuencia.dias),
         fecha_programada: null,
         obs_adelanto: null,

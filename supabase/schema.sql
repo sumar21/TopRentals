@@ -564,23 +564,26 @@ BEGIN
     estado = 'Realizada',
     obs_resuelto = p_obs,
     foto_path = coalesce(p_foto_path, foto_path),
-    fecha_finalizacion = now()
+    fecha_finalizacion = now(),
+    orden = 1  -- PA re-stamps Orden_VE:1 on the closed row (drives the desktop list sort)
   WHERE id = p_id
   RETURNING
-    unidad_id, direccion_edificio, edificio, habitacion, frecuencia_dias, asignado_id
-    INTO v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion, v_frecuencia_dias, v_asignado_id;
+    unidad_id, direccion_edificio, edificio, habitacion, frecuencia_dias
+    INTO v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion, v_frecuencia_dias;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'finalizar_ventilacion: ventilacion % not found', p_id;
   END IF;
 
+  -- Next cycle is always UNASSIGNED (PA leaves IDAsignado_VE blank; the back office re-assigns it)
+  -- and starts at Orden_VE:4 — never carry the just-closed row's asignado_id onto it.
   INSERT INTO ventilaciones (
     estado, unidad_id, direccion_edificio, edificio, habitacion,
-    frecuencia_dias, fecha_ultima, proxima_limpieza, asignado_id
+    frecuencia_dias, fecha_ultima, proxima_limpieza, asignado_id, orden
   )
   VALUES (
     'Pendiente', v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion,
-    v_frecuencia_dias, current_date, current_date + coalesce(v_frecuencia_dias, 0)::int, v_asignado_id
+    v_frecuencia_dias, current_date, current_date + coalesce(v_frecuencia_dias, 0)::int, NULL, 4
   )
   RETURNING id INTO v_new_id;
 
