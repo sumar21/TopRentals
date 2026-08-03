@@ -63,6 +63,25 @@ const VentilacionesTecnicoView: React.FC = () => {
     }
   }, [user, showToast]);
 
+  // Refresh + "Cambiar torre" both re-query the WHOLE zone: every technician's Asignada/Programada +
+  // unassigned Pendiente, not just this tech's own jobs (PA bt_AceptarSelectTorre_VE drops the IDAsignado
+  // filter). Shared so the header refresh reloads the CURRENT view instead of silently collapsing to "mine".
+  const loadZona = useCallback(async (zona: string) => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const rows = await api.ventilaciones.list();
+      const towers = torresEnZona(edificios, zona);
+      setVentilaciones(rows.filter((v) => towers.includes(v.edificio ?? '') && (v.estado === 'Pendiente' || v.estado === 'Asignada' || v.estado === 'Programada')));
+      setZonaFilter(zona);
+    } catch {
+      showToast('No se pudieron cargar las ventilaciones de la zona.', 'error');
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [edificios, showToast]);
+
   useEffect(() => {
     api.edificios.list().then(setEdificios).catch(() => {});
     loadVentilaciones();
@@ -151,23 +170,9 @@ const VentilacionesTecnicoView: React.FC = () => {
   const handleCambiarTorre = async () => {
     const ed = edificios.find((e) => String(e.id) === torrePickerValue);
     if (!ed) return;
-    const zona = zonaKey(ed);
     setTorrePickerValue('');
     setActiveSheet(null);
-    try {
-      // PA re-queries the whole zone: every technician's Asignada/Programada + unassigned Pendiente,
-      // not just this technician's own jobs (bt_AceptarSelectTorre_VE drops the IDAsignado filter).
-      const rows = await api.ventilaciones.list();
-      const towers = torresEnZona(edificios, zona);
-      setVentilaciones(
-        rows.filter(
-          (v) => towers.includes(v.edificio ?? '') && (v.estado === 'Pendiente' || v.estado === 'Asignada' || v.estado === 'Programada'),
-        ),
-      );
-      setZonaFilter(zona);
-    } catch {
-      showToast('No se pudieron cargar las ventilaciones de la zona.', 'error');
-    }
+    await loadZona(zonaKey(ed));
   };
 
   const handleStageFinalizarFoto = async (file: File | undefined) => {
@@ -189,7 +194,7 @@ const VentilacionesTecnicoView: React.FC = () => {
           <h1 className="text-lg font-bold tracking-tight truncate">Ventilaciones</h1>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => loadVentilaciones()} disabled={loading} aria-label="Actualizar" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-50">
+          <button onClick={() => (zonaFilter ? loadZona(zonaFilter) : loadVentilaciones())} disabled={loading} aria-label="Actualizar" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-50">
             <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={openAdelantar} aria-label="Adelantar ventilación" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
@@ -211,7 +216,11 @@ const VentilacionesTecnicoView: React.FC = () => {
       ) : loadError ? (
         <LoadErrorState onRetry={loadVentilaciones} />
       ) : visible.length === 0 ? (
-        <EmptyState icon={Fan} title="Sin ventilaciones asignadas" message="No tenés tareas de ventilación pendientes en este edificio." />
+        search.trim() ? (
+          <EmptyState icon={Search} title="Sin resultados" message={`No hay departamentos que coincidan con "${search.trim()}".`} />
+        ) : (
+          <EmptyState icon={Fan} title="Sin ventilaciones asignadas" message="No tenés tareas de ventilación pendientes en este edificio." />
+        )
       ) : (
         <div className="space-y-2">
           {visible.map((v) => {
