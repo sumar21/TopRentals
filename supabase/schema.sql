@@ -556,7 +556,6 @@ DECLARE
   v_edificio text;
   v_habitacion text;
   v_frecuencia_dias numeric;
-  v_asignado_id bigint;
   v_new_id bigint;
 BEGIN
   UPDATE ventilaciones
