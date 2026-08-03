@@ -974,7 +974,13 @@ BEGIN
     condicion_corte = NULLIF(v_corte, '')::numeric
   WHERE articulo_id = p_id AND activo = true;
 
-  -- TODO(Fase 3): write-back to 99.ABM_Articulos via Edge Function (SharePoint mirror).
+  -- PA cascades Status_AR to the article's stock rows (Status_ST) on activar/desactivar,
+  -- so a discontinued article's stock no longer shows as live inventory.
+  IF p_patch ? 'status' THEN
+    UPDATE stock SET activo = (p_patch->>'status') = 'Activo' WHERE articulo_id = p_id;
+  END IF;
+
+  -- SharePoint write-back to 99.ABM_Articulos is handled by the sharepoint-write Edge Function.
   RETURN p_id;
 END;
 $$;

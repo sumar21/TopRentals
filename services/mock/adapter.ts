@@ -239,6 +239,16 @@ export function createMockAdapter(): DataApi {
         const row = db.articulos.find((a) => a.id === id);
         if (!row) throw new Error(`Articulo ${id} no encontrado.`);
         Object.assign(row, patch, { updated_at: nowIso() });
+        // Match articulos_actualizar RPC + PA: cascade price/corte to active stock rows,
+        // and Status_AR -> Status_ST to every stock row of the article.
+        for (const s of db.stock) {
+          if (s.articulo_id !== id) continue;
+          if (s.status === 'Activo') {
+            s.precio_unitario = row.precio_unitario;
+            s.condicion_corte = row.corte;
+          }
+          if (patch.status) s.status = patch.status;
+        }
         return structuredClone(row);
       },
     },

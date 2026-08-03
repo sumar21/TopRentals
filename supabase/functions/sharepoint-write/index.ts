@@ -83,6 +83,10 @@ async function handleArticuloUpsert(rawPayload: unknown): Promise<Response> {
   const fields: Record<string, unknown> = {
     Codigo_AR: payload.codigo,
     Articulo_AR: payload.nombre,
+    // PA: Concat_AR = txt_Nro_ART & " - " & txt_nombre_ART. Drives SharePoint's own article
+    // search and the per-article document-folder path — the Hotel app relies on it, so it must
+    // never be left blank when this app creates/edits an article.
+    Concat_AR: `${payload.codigo ?? ''} - ${payload.nombre}`,
     PrecioUnitario_AR: payload.precio_unitario == null ? null : String(payload.precio_unitario),
     Corte_AR: payload.corte == null ? null : String(payload.corte),
     Status_AR: payload.status,
