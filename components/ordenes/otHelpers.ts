@@ -30,7 +30,9 @@ export const ESTADO_OT_OPTIONS: ComboboxOption[] = ['Pendiente', 'Asignada', 'Ce
 export const isCompras = (perfil: Perfil) => perfil === 'Compras';
 export const isEstadoAbierto = (status: EstadoOT) => status === 'Pendiente' || status === 'Asignada';
 
-// PA `img_editar_RT.Visible`: editable for any status except Anulada (Cerrada V/F fields are disabled inside the modal, not blocked here).
+// PA `img_edit_OT.Visible` = `Perfil <> "Compras" && Status_OT <> "Anulada"`: the pencil shows for any
+// status except Anulada. PA then locks the modal fields (DisplayMode.Disabled) for Cerrada V/F — mirrored
+// by opening the modal read-only for those states (see openEditar in OrdenesTrabajoView).
 export const canEditar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status !== 'Anulada';
 export const canVerRepuestos = (ot: OrdenTrabajo) => ot.status !== 'Pendiente';
 export const canBitacoras = (perfil: Perfil) => !isCompras(perfil);

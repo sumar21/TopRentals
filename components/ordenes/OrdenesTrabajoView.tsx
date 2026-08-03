@@ -163,7 +163,9 @@ const OrdenesTrabajoView: React.FC = () => {
   const limpiarFiltros = () => { setDraftFiltros(EMPTY_FILTROS); setAppliedFiltros(EMPTY_FILTROS); };
 
   const openVer = (ot: OrdenTrabajo) => setFormModal({ ot, readOnly: true });
-  const openEditar = (ot: OrdenTrabajo) => setFormModal({ ot, readOnly: false });
+  // PA shows the pencil for any non-Anulada OT but locks the fields (DisplayMode.Disabled) for
+  // Cerrada V/F. Mirror it: open read-only for those terminal states, fully editable otherwise.
+  const openEditar = (ot: OrdenTrabajo) => setFormModal({ ot, readOnly: ot.status === 'Cerrada V' || ot.status === 'Cerrada F' });
   const openNueva = () => setFormModal({ ot: null, readOnly: false });
 
   const RowActions = ({ ot }: { ot: OrdenTrabajo }) => {
