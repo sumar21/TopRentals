@@ -18,6 +18,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 import { useToast } from '../ui/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
 import { formatDate } from '../../utils/dates';
 import { api } from '../../services/index.ts';
@@ -64,6 +65,7 @@ const DocumentoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
 
 const ComprasView: React.FC = () => {
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const [compras, setCompras] = useState<Compra[]>([]);
   const [tecnicos, setTecnicos] = useState<Usuario[]>([]);
@@ -148,9 +150,10 @@ const ComprasView: React.FC = () => {
   };
 
   const handleEnviarAprobacion = async () => {
-    if (!enviarTarget) return;
+    if (!enviarTarget || !user) return;
     try {
-      await api.compras.enviarAprobacion(enviarTarget.id);
+      // PA stamps UserGen_AP with the acting user (who submits), not the compra's requester.
+      await api.compras.enviarAprobacion(enviarTarget.id, user.id);
       const detalle = await api.compras.get(enviarTarget.id);
       if (detalle) {
         const lineas: CompraLineaEmail[] = detalle.detalle.filter((d) => d.status === 'Activo')

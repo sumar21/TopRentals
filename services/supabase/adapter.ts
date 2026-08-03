@@ -348,8 +348,8 @@ export function createSupabaseAdapter(): DataApi {
         if (error) throw error;
         return selectCompraConDetalle(Number(data));
       },
-      async enviarAprobacion(id) {
-        const { data, error } = await getSupabase().rpc('compras_enviar_aprobacion', { p_id: id });
+      async enviarAprobacion(id, usuario_gen_id) {
+        const { data, error } = await getSupabase().rpc('compras_enviar_aprobacion', { p_id: id, p_user_gen_id: usuario_gen_id });
         if (error) throw error;
         return selectOneRequired('aprobaciones', Number(data), aprobacionFromDb);
       },

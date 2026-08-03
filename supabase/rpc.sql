@@ -522,7 +522,10 @@ $$;
 
 -- Mirrors mock compras.enviarAprobacion(): Status_C -> 'Aprobacion' + creates
 -- the matching aprobaciones row from the compra's current header values.
-CREATE OR REPLACE FUNCTION compras_enviar_aprobacion(p_id bigint)
+-- p_user_gen_id: PA UserGen_AP = whoever submits the compra for approval (the acting user),
+-- distinct from the compra's requester (usuario_id / Tecnico_AP).
+DROP FUNCTION IF EXISTS compras_enviar_aprobacion(bigint);
+CREATE OR REPLACE FUNCTION compras_enviar_aprobacion(p_id bigint, p_user_gen_id bigint)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -549,7 +552,7 @@ BEGIN
   INSERT INTO aprobaciones (
     compra_id, status, fecha, urgencia, tecnico, obs_compra, user_gen_id, cantidad, monto, hora
   ) VALUES (
-    p_id, 'Pendiente', current_date, v_urgencia, v_usuario_compra, v_observacion, v_usuario_id,
+    p_id, 'Pendiente', current_date, v_urgencia, v_usuario_compra, v_observacion, p_user_gen_id,
     v_cantidad_total, v_monto_total, current_time
   ) RETURNING id INTO v_aprob_id;
 
@@ -593,7 +596,8 @@ BEGIN
     v_detalle_id := (v_linea->>'detalle_id')::bigint;
     v_recibido := (v_linea->>'recibido')::numeric;
 
-    UPDATE detalle_compras SET recibido = v_recibido
+    -- PA recomputes CostoTotal_DC = CostoUnitario_DC * recibido on (partial) receipt.
+    UPDATE detalle_compras SET recibido = v_recibido, costo_total = costo_unitario * v_recibido
     WHERE id = v_detalle_id
     RETURNING articulo_id, edificio_id, articulo, edificio, costo_unitario, cant_min
       INTO v_articulo_id, v_edificio_id, v_articulo, v_edificio, v_costo_unitario, v_cant_min;

@@ -562,7 +562,7 @@ export function createMockAdapter(): DataApi {
         }
         return compraConDetalle(row);
       },
-      async enviarAprobacion(id) {
+      async enviarAprobacion(id, usuario_gen_id) {
         await sleep();
         const row = db.compras.find((c) => c.id === id);
         if (!row) throw new Error(`Compra ${id} no encontrada.`);
@@ -573,11 +573,11 @@ export function createMockAdapter(): DataApi {
           status: 'Pendiente' as const,
           fecha: todayIso(),
           urgencia: row.urgencia,
-          tecnico: row.usuario_compra,
+          tecnico: row.usuario_compra, // PA Tecnico_AP = the requester (UsuarioCompra_C)
           obs_compra: row.observacion,
           fecha_aprobada: null,
           obs_rechazo: null,
-          user_gen_id: row.usuario_id,
+          user_gen_id: usuario_gen_id, // PA UserGen_AP = whoever submits it for approval, not the requester
           user_aprob_id: null,
           cantidad: row.cantidad_total,
           monto: row.monto_total,
@@ -598,6 +598,7 @@ export function createMockAdapter(): DataApi {
           const linea = db.detalleCompras.find((d) => d.id === detalle_id);
           if (!linea) continue;
           linea.recibido = recibido;
+          linea.costo_total = (linea.costo_unitario ?? 0) * recibido; // PA: CostoTotal_DC = CostoUnitario_DC * recibido
           if (linea.articulo_id && linea.edificio_id && recibido > 0) {
             let stockRow = stockRowFor(linea.articulo_id, linea.edificio_id);
             const cant_anterior = stockRow?.cantidad ?? 0;

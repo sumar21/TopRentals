@@ -135,7 +135,7 @@ export interface DataApi {
     crear(input: NewEntity<Compra>, lineas: CompraLineaInput[]): Promise<CompraConDetalle>;
     actualizar(id: number, patch: Partial<NewEntity<Compra>>, lineas?: CompraLineaInput[]): Promise<CompraConDetalle>;
     /** Status_C -> 'Aprobacion' + creates the matching aprobaciones row. */
-    enviarAprobacion(id: number): Promise<Aprobacion>;
+    enviarAprobacion(id: number, usuario_gen_id: number): Promise<Aprobacion>;
     /** Status_C -> 'Recibida'; writes received qty per line + stock intake + movimientos_stock. */
     recibir(id: number, lineas: { detalle_id: number; recibido: number }[], obs_recibir: string): Promise<CompraConDetalle>;
     anular(id: number): Promise<Compra>;
