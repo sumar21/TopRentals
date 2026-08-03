@@ -193,8 +193,9 @@ const OrdenesTecnicoView: React.FC = () => {
   };
 
   const handleFinalizar = async (ot: OrdenTrabajo) => {
+    if (!user) return;
     try {
-      await api.ots.finalizar(ot.id);
+      await api.ots.finalizar(ot.id, user.id); // PA mobile close stamps Tecnico_IN = the closing technician
       const repuestos = await api.ots.repuestos.list(ot.id);
       const emailRows = await api.emailsNotificacion.list();
       const recipients = resolveRecipients('OT', emailRows.map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' })));
@@ -242,7 +243,7 @@ const OrdenesTecnicoView: React.FC = () => {
         torre: torreSel,
         departamento: deptoSel,
         concat_activo: `${torreSel} - ${deptoSel}`,
-        tecnico_id: user.id,
+        tecnico_id: null, // PA does not set Tecnico_IN on a mobile solicitud; it's stamped at close time
         asignador_id: null,
         user_carga_id: user.id,
         fecha_inicio: fecha,

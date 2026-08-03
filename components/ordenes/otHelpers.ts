@@ -30,12 +30,14 @@ export const ESTADO_OT_OPTIONS: ComboboxOption[] = ['Pendiente', 'Asignada', 'Ce
 export const isCompras = (perfil: Perfil) => perfil === 'Compras';
 export const isEstadoAbierto = (status: EstadoOT) => status === 'Pendiente' || status === 'Asignada';
 
-export const canEditar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Pendiente';
+// PA `img_editar_RT.Visible`: editable for any status except Anulada (Cerrada V/F fields are disabled inside the modal, not blocked here).
+export const canEditar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status !== 'Anulada';
 export const canVerRepuestos = (ot: OrdenTrabajo) => ot.status !== 'Pendiente';
 export const canBitacoras = (perfil: Perfil) => !isCompras(perfil);
 export const canAnular = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Asignada';
 export const canReplicar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Cerrada F';
-export const canCerrar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Asignada';
+// PA `img_cerrar_OT.Visible`: the V/F sub-classification step runs on a 'Cerrada' OT (Asignada→[Finalizar]→Cerrada→[Cerrar]→Cerrada V/F).
+export const canCerrar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Cerrada';
 export const canFinalizar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Asignada';
 /** Asignar OT: built complete, but only ever rendered while FEATURES.asignarOTDesktop is false→never (parity with the disabled PA feature). */
 export const canAsignar = (ot: OrdenTrabajo, perfil: Perfil) => FEATURES.asignarOTDesktop && !isCompras(perfil) && ot.status === 'Pendiente';

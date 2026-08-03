@@ -442,8 +442,8 @@ export function createSupabaseAdapter(): DataApi {
         if (error) throw error;
         return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
       },
-      async finalizar(id) {
-        const { error } = await getSupabase().rpc('ot_finalizar', { p_id: id });
+      async finalizar(id, tecnico_id) {
+        const { error } = await getSupabase().rpc('ot_finalizar', { p_id: id, p_tecnico_id: tecnico_id ?? null });
         if (error) throw error;
         return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
       },
@@ -459,9 +459,15 @@ export function createSupabaseAdapter(): DataApi {
             id_univoco: crypto.randomUUID(),
             status: 'Pendiente',
             orden_revision_id: Number(original.id),
+            // PA replicar re-stamps FechaInicio_OT=Today() and leaves asignador + closure notes blank.
+            fecha_inicio: new Date().toISOString().slice(0, 10),
             fecha_cierre: null,
             fecha_asignada: null,
             tecnico_id: null,
+            asignador_id: null,
+            obs_resuelto: null,
+            obs_asignacion: null,
+            obs_cierre: null,
           })
           .select()
           .single();

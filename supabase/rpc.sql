@@ -902,7 +902,8 @@ END;
 $$;
 
 -- Mirrors mock ots.finalizar(): same close flow as ot_cerrar but forces status 'Cerrada'.
-CREATE OR REPLACE FUNCTION ot_finalizar(p_id bigint)
+DROP FUNCTION IF EXISTS ot_finalizar(bigint);
+CREATE OR REPLACE FUNCTION ot_finalizar(p_id bigint, p_tecnico_id bigint DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -916,7 +917,8 @@ BEGIN
     RAISE EXCEPTION 'Orden de trabajo % no encontrada.', p_id;
   END IF;
 
-  UPDATE ordenes_trabajo SET status = 'Cerrada', fecha_cierre = current_date WHERE id = p_id;
+  -- p_tecnico_id: PA's mobile close stamps Tecnico_IN = the closing technician; desktop passes NULL (keep existing).
+  UPDATE ordenes_trabajo SET status = 'Cerrada', fecha_cierre = current_date, tecnico_id = COALESCE(p_tecnico_id, tecnico_id) WHERE id = p_id;
 
   IF v_previo NOT IN ('Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada') THEN
     PERFORM ot_registrar_salidas_repuestos(p_id);

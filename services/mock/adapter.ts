@@ -750,13 +750,14 @@ export function createMockAdapter(): DataApi {
         if (!yaCerrada) registrarSalidasDeRepuestos(row);
         return structuredClone(row);
       },
-      async finalizar(id) {
+      async finalizar(id, tecnico_id) {
         await sleep();
         const row = db.ordenesTrabajo.find((o) => o.id === id);
         if (!row) throw new Error(`Orden de trabajo ${id} no encontrada.`);
         const yaCerrada = ESTADOS_OT_CERRADA.has(row.status);
         row.status = 'Cerrada';
         row.fecha_cierre = todayIso();
+        if (tecnico_id != null) row.tecnico_id = tecnico_id; // PA mobile close stamps Tecnico_IN = closing tech
         if (!yaCerrada) registrarSalidasDeRepuestos(row);
         return structuredClone(row);
       },
@@ -771,9 +772,15 @@ export function createMockAdapter(): DataApi {
           id_univoco: `(OT)-TR-${String(newId).padStart(3, '0')}${todayIso().replace(/-/g, '')}${new Date().toISOString().slice(11, 19).replace(/:/g, '')}`,
           status: 'Pendiente',
           orden_revision_id: original.id,
+          // PA replicar builds from Defaults(): re-stamp FechaInicio_OT=Today(), leave Asignador + closure notes blank.
+          fecha_inicio: todayIso(),
           fecha_cierre: null,
           fecha_asignada: null,
           tecnico_id: null,
+          asignador_id: null,
+          obs_resuelto: null,
+          obs_asignacion: null,
+          obs_cierre: null,
           created_at: nowIso(),
         };
         db.ordenesTrabajo.push(row);

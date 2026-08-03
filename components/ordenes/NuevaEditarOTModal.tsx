@@ -10,6 +10,7 @@ import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
+import { todayISO } from '../../utils/dates';
 import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
 import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TRABAJO_TAREA_OPTIONS } from './otHelpers';
 
@@ -118,11 +119,12 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
         departamento: unidad?.depto ?? null,
         concat_activo: unidad ? `${unidad.torre ?? ''} - ${unidad.depto ?? ''}` : null,
         tecnico_id: ot?.tecnico_id ?? null,
-        asignador_id: ot?.asignador_id ?? null,
+        // PA create stamps Asignador_OT + FechaAsignada_IN (status is 'Asignada' from the start); edit keeps them.
+        asignador_id: ot ? ot.asignador_id : user.id,
         user_carga_id: ot?.user_carga_id ?? user.id,
         fecha_inicio: fechaInicio,
         fecha_cierre: ot?.fecha_cierre ?? null,
-        fecha_asignada: ot?.fecha_asignada ?? null,
+        fecha_asignada: ot ? ot.fecha_asignada : todayISO(),
         dias_estimado: Number(diasEstimado),
         personas_requeridas: Number(personasRequeridas),
         detalle,
