@@ -406,6 +406,9 @@ export function createMockAdapter(): DataApi {
         row.cantidad = cantidad;
         row.precio_unitario = precio_unitario;
         row.condicion_corte = condicion_corte;
+        // Screen_Stock parity: Editar Stock keeps the article master price in sync (like Agregar).
+        const artEdit = db.articulos.find((a) => a.id === row.articulo_id);
+        if (artEdit) artEdit.precio_unitario = precio_unitario;
         const edificio_id = db.stockEdificios.find((se) => se.stock_id === row.id)?.edificio_id ?? null;
         registrarMovimiento({
           articulo_id: row.articulo_id,

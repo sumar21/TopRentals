@@ -36,8 +36,10 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
   // Article combobox excludes articles already stocked in the selected building (react_mapping).
   const articuloOptions = useMemo(() => {
     if (!edificioId) return [];
+    // PA excludes an article only if it has stock with Value(Cantidad_ST) > 0 at the building;
+    // a row depleted to 0 must stay available to re-stock.
     const yaStockeados = new Set(
-      rows.filter((r) => r.edificio_ids.includes(Number(edificioId))).map((r) => r.articulo_id),
+      rows.filter((r) => r.edificio_ids.includes(Number(edificioId)) && r.cantidad > 0).map((r) => r.articulo_id),
     );
     return articulos
       .filter((a) => a.status === 'Activo' && !yaStockeados.has(a.id))

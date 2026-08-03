@@ -264,6 +264,9 @@ BEGIN
   UPDATE stock SET cantidad = p_cantidad, precio_unitario = p_precio_unitario, condicion_corte = p_condicion_corte
   WHERE id = p_stock_id;
 
+  -- Screen_Stock parity: Editar Stock also keeps the article master price in sync (PA Patch to 99.ABM_Articulos).
+  UPDATE articulos SET precio_unitario = p_precio_unitario WHERE id = v_articulo_id;
+
   SELECT edificio_id INTO v_edificio_id FROM stock_edificios WHERE stock_id = p_stock_id LIMIT 1;
   SELECT nombre INTO v_articulo_nombre FROM articulos WHERE id = v_articulo_id;
   IF v_edificio_id IS NOT NULL THEN
