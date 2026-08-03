@@ -2,7 +2,7 @@
 // docs/analysis/mobile_Screen_Ventilaciones.md react_mapping.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader2, Trash2, Fan } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader2, RefreshCw, Search, Trash2, Fan } from 'lucide-react';
 import { Button, Input } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -28,6 +28,7 @@ const VentilacionesTecnicoView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [zonaFilter, setZonaFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [selectedVent, setSelectedVent] = useState<Ventilacion | null>(null);
@@ -70,10 +71,15 @@ const VentilacionesTecnicoView: React.FC = () => {
 
   const zonaOptions = useMemo(() => edificioOptions(edificios.filter((e) => e.status === 'Activo'), zonaKey), [edificios]);
   const visible = useMemo(() => {
-    if (!zonaFilter) return ventilaciones;
-    const towers = torresEnZona(edificios, zonaFilter);
-    return ventilaciones.filter((v) => towers.includes(v.edificio ?? ''));
-  }, [ventilaciones, zonaFilter, edificios]);
+    const q = search.trim().toLowerCase();
+    let rows = ventilaciones;
+    if (zonaFilter) {
+      const towers = torresEnZona(edificios, zonaFilter);
+      rows = rows.filter((v) => towers.includes(v.edificio ?? ''));
+    }
+    if (q) rows = rows.filter((v) => `${v.edificio ?? ''} ${v.habitacion ?? ''}`.toLowerCase().includes(q));
+    return rows;
+  }, [ventilaciones, zonaFilter, edificios, search]);
   const adelantarVentOptions = useMemo(() => {
     if (!adelantarZona) return [];
     const towers = torresEnZona(edificios, adelantarZona);
@@ -183,6 +189,9 @@ const VentilacionesTecnicoView: React.FC = () => {
           <h1 className="text-lg font-bold tracking-tight truncate">Ventilaciones</h1>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => loadVentilaciones()} disabled={loading} aria-label="Actualizar" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-50">
+            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
           <button onClick={openAdelantar} aria-label="Adelantar ventilación" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
             <FastForward className="h-5 w-5" />
           </button>
@@ -190,6 +199,11 @@ const VentilacionesTecnicoView: React.FC = () => {
             <ArrowLeftRight className="h-5 w-5" />
           </button>
         </div>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <Input placeholder="Buscar departamento…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-10" />
       </div>
 
       {loading ? (
