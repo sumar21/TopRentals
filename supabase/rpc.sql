@@ -597,7 +597,7 @@ BEGIN
     v_recibido := (v_linea->>'recibido')::numeric;
 
     -- PA recomputes CostoTotal_DC = CostoUnitario_DC * recibido on (partial) receipt.
-    UPDATE detalle_compras SET recibido = v_recibido, costo_total = costo_unitario * v_recibido
+    UPDATE detalle_compras SET recibido = v_recibido, costo_total = COALESCE(costo_unitario, 0) * v_recibido
     WHERE id = v_detalle_id
     RETURNING articulo_id, edificio_id, articulo, edificio, costo_unitario, cant_min
       INTO v_articulo_id, v_edificio_id, v_articulo, v_edificio, v_costo_unitario, v_cant_min;
