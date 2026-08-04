@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import type { Articulo, Edificio, OrdenTrabajo, Usuario } from '../../services/types';
+import { articuloLabel } from '../../utils/articulos';
 import type { StockRowWithEdificios } from '../../services/api';
 import { todayISO } from '../../utils/dates';
 
@@ -58,7 +59,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
   }, [isOpen]);
 
   const tecnicoOptions = useMemo(() => tecnicos.map((t) => ({ label: t.concat_name, value: String(t.id) })), [tecnicos]);
-  const articuloOptions = useMemo(() => articulos.map((a) => ({ label: a.nombre, value: String(a.id) })), [articulos]);
+  const articuloOptions = useMemo(() => articulos.map((a) => ({ label: articuloLabel(a), value: String(a.id) })), [articulos]);
   const disponible = useMemo(() => {
     if (!articuloId || edificioId == null) return 0;
     const row = stock.find((s) => s.articulo_id === Number(articuloId) && s.edificio_ids.includes(edificioId));

@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Articulo, Edificio } from '../../services/types.ts';
+import { articuloLabel } from '../../utils/articulos';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import { BottomSheet, edificioIdsEnGrupoStock, edificioOptions, grupoStockKey } from './shared';
 
@@ -87,7 +88,7 @@ const StockTecnicoView: React.FC = () => {
   }, [rowsDelGrupo, search, articulosMap]);
   const addOptions = useMemo(() => {
     const already = new Set(rowsDelGrupo.map((r) => r.articulo_id));
-    return articulos.filter((a) => a.status === 'Activo' && !already.has(a.id)).map((a) => ({ value: String(a.id), label: a.nombre }));
+    return articulos.filter((a) => a.status === 'Activo' && !already.has(a.id)).map((a) => ({ value: String(a.id), label: articuloLabel(a) }));
   }, [articulos, rowsDelGrupo]);
 
   const handlePickBuilding = () => {

@@ -14,6 +14,7 @@ import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/index.ts';
 import type { Articulo, Edificio, Usuario } from '../../services/types.ts';
+import { articuloLabel } from '../../utils/articulos';
 import type { CompraLineaInput } from '../../services/api.ts';
 
 export interface CompraFormValues {
@@ -134,7 +135,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   }, [usuarios, user, solicitanteId]);
 
   const edificioOptions = useMemo(() => edificios.map((e) => ({ value: String(e.id), label: e.nombre })), [edificios]);
-  const articuloOptions = useMemo(() => articulos.map((a) => ({ value: String(a.id), label: a.nombre })), [articulos]);
+  const articuloOptions = useMemo(() => articulos.map((a) => ({ value: String(a.id), label: articuloLabel(a) })), [articulos]);
 
   const total = useMemo(() => cart.reduce((sum, l) => sum + l.cantidad * parseMoney(l.costo), 0), [cart]);
 
@@ -153,7 +154,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
     const art = articulos.find((a) => String(a.id) === nuevoArticuloId);
     const cantidad = parseInt(nuevaCantidad, 10);
     if (!art || !Number.isFinite(cantidad) || cantidad <= 0) return;
-    setCart((prev) => [...prev, { key: nextLineKey(), articulo_id: art.id, articulo_nombre: art.nombre, cantidad, costo: nuevoCosto || maskFromNumber(art.precio_unitario ?? 0) }]);
+    setCart((prev) => [...prev, { key: nextLineKey(), articulo_id: art.id, articulo_nombre: articuloLabel(art), cantidad, costo: nuevoCosto || maskFromNumber(art.precio_unitario ?? 0) }]);
     setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto('');
   };
 

@@ -10,6 +10,7 @@ import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
 import { api } from '../../services/index.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { Articulo, Edificio } from '../../services/types.ts';
+import { articuloLabel } from '../../utils/articulos';
 
 interface AgregarStockModalProps {
   isOpen: boolean;
@@ -43,7 +44,7 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
     );
     return articulos
       .filter((a) => a.status === 'Activo' && !yaStockeados.has(a.id))
-      .map((a) => ({ label: a.codigo ? `${a.codigo} — ${a.nombre}` : a.nombre, value: String(a.id) }));
+      .map((a) => ({ label: articuloLabel(a), value: String(a.id) }));
   }, [edificioId, articulos, rows]);
 
   const edificioOptions = edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: String(e.id) }));

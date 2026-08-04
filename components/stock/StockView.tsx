@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx';
 import { api } from '../../services/index.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { Articulo, Edificio, Usuario } from '../../services/types.ts';
+import { articuloLabel } from '../../utils/articulos';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
 import { AgregarStockModal } from './AgregarStockModal';
 import { SalidaStockModal } from './SalidaStockModal';
@@ -84,7 +85,7 @@ const StockView: React.FC = () => {
 
   const edificioNames = (ids: number[]) => ids.map((id) => edificiosById.get(id)?.nombre).filter(Boolean).join(', ') || '—';
   // PA shows the article as ConcatArt_ST = `${codigo} - ${nombre}` (Concat_AR), not the bare name.
-  const artLabel = (a?: Articulo) => (a ? (a.codigo ? `${a.codigo} - ${a.nombre}` : a.nombre) : '—');
+  const artLabel = (a?: Articulo) => (a ? articuloLabel(a) : '—');
   const isLowStock = (r: StockRowWithEdificios) => r.condicion_corte != null && r.cantidad < r.condicion_corte;
 
   // Screen_Stock: Items = Filter(CollectStock, Cantidad_ST>0) — zero-quantity rows are dropped.
