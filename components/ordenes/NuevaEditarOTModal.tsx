@@ -12,7 +12,7 @@ import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import { todayISO } from '../../utils/dates';
 import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
-import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TRABAJO_TAREA_OPTIONS } from './otHelpers';
+import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TAREA_OPTIONS, TIPO_TRABAJO_OPTIONS } from './otHelpers';
 
 interface StagedPhoto { id: string; file: File; url: string; }
 
@@ -204,11 +204,11 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de trabajo *</label>
-              <Select value={tipoTrabajo} onChange={setTipoTrabajo} options={TIPO_TRABAJO_TAREA_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
+              <Select value={tipoTrabajo} onChange={setTipoTrabajo} options={TIPO_TRABAJO_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de tarea *</label>
-              <Select value={tipoTarea} onChange={setTipoTarea} options={TIPO_TRABAJO_TAREA_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
+              <Select value={tipoTarea} onChange={setTipoTarea} options={TIPO_TAREA_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Días estimados *</label>

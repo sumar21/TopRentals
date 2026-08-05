@@ -7,12 +7,17 @@ import type { EstadoOT, OrdenTrabajo, Perfil } from '../../services/types';
 import { FEATURES } from '../../config/features';
 
 // ---------------------------------------------------------------------------
-// Domain option lists (spec "## statuses" — tipo_trabajo/tipo_tarea share the
-// same 8-value catalog; there is no separate list documented for each).
+// Domain option lists. The create form (PA Group_NuevaOT) uses two DISTINCT
+// catalogs, verified in Screen_OrdenesTrabajo.pa.yaml: cmbox_tipoTrabajo_OT and
+// cmbox_tipoTarea_OT. They are NOT the same 8-value list.
 // ---------------------------------------------------------------------------
-export const TIPO_TRABAJO_TAREA_OPTIONS: ComboboxOption[] = [
-  'Correctivo', 'Preventivo', 'Chequeo', 'Mejora', 'Pintura', 'Electrico', 'Ventilacion', 'Otros',
-].map((v) => ({ label: v, value: v }));
+export const TIPO_TRABAJO_OPTIONS: ComboboxOption[] = ['Correctivo', 'Preventivo', 'Chequeo'].map((v) => ({ label: v, value: v }));
+export const TIPO_TAREA_OPTIONS: ComboboxOption[] = ['Pintura', 'Electrico', 'Ventilacion', 'Otros'].map((v) => ({ label: v, value: v }));
+
+// Filter combos (PA Group_Filtros_OT), copied 1:1 including PA's own quirk: the
+// trabajo filter offers "Mejora" (not "Chequeo" like the create form). The tarea
+// filter is identical to the create form, so it reuses TIPO_TAREA_OPTIONS.
+export const TIPO_TRABAJO_FILTRO_OPTIONS: ComboboxOption[] = ['Correctivo', 'Preventivo', 'Mejora'].map((v) => ({ label: v, value: v }));
 
 export const PRIORIDAD_OPTIONS: ComboboxOption[] = ['Alta', 'Media', 'Baja'].map((v) => ({ label: v, value: v }));
 

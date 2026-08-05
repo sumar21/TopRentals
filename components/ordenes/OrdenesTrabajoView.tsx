@@ -23,7 +23,7 @@ import { resolveRecipients, sendEmail } from '../../emails/send';
 import { FEATURES } from '../../config/features';
 import {
   canAnular, canAsignar, canBitacoras, canCerrar, canEditar, canFinalizar, canReplicar, canVerRepuestos,
-  diasReales, ESTADO_OT_OPTIONS, isVisibleByDefault, monthKey, rollingMonths, TIPO_TRABAJO_TAREA_OPTIONS, truncate,
+  diasReales, ESTADO_OT_OPTIONS, isVisibleByDefault, monthKey, rollingMonths, TIPO_TAREA_OPTIONS, TIPO_TRABAJO_FILTRO_OPTIONS, truncate,
 } from './otHelpers';
 import NuevaEditarOTModal from './NuevaEditarOTModal';
 import BitacorasModal from './BitacorasModal';
@@ -248,11 +248,11 @@ const OrdenesTrabajoView: React.FC = () => {
             </div>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de trabajo</label>
-              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTrabajo} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTrabajo: v }))} placeholder="Todos" searchPlaceholder="Buscar tipo…" className="w-full" />
+              <MultiCombobox options={TIPO_TRABAJO_FILTRO_OPTIONS} value={draftFiltros.tiposTrabajo} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTrabajo: v }))} placeholder="Todos" searchPlaceholder="Buscar tipo…" className="w-full" />
             </div>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de tarea</label>
-              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTarea} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTarea: v }))} placeholder="Todas" searchPlaceholder="Buscar tarea…" className="w-full" />
+              <MultiCombobox options={TIPO_TAREA_OPTIONS} value={draftFiltros.tiposTarea} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTarea: v }))} placeholder="Todas" searchPlaceholder="Buscar tarea…" className="w-full" />
             </div>
             <Button size="sm" className="w-full" onClick={aplicarFiltros}>Filtrar</Button>
           </FilterPopover>
