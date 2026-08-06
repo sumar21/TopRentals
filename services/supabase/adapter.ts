@@ -45,10 +45,24 @@ const ALIAS_DOMAIN = 'users.toprentals.internal';
 const aliasFor = (usuarioApp: string) =>
   `${usuarioApp.normalize('NFKD').toLowerCase().replace(/[^a-z0-9._-]/g, '')}@${ALIAS_DOMAIN}`;
 
+// PostgREST caps a single response at db-max-rows (1000 on Supabase), so a bare
+// .select('*') silently returns only the first 1000 rows ordered by id — which, for
+// ordenes_trabajo (4140 rows), drops every recent/open OT and leaves the board empty.
+// Paginate in 1000-row batches to return the full set, matching the mock adapter.
+// ponytail: this fetches every row client-side (the app filters in memory). Fine at
+// current volumes; if a table grows large, push the filter server-side instead.
+const PAGE_ROWS = 1000;
 async function selectAll<T>(table: string, mapper: (row: any) => T): Promise<T[]> {
-  const { data, error } = await getSupabase().from(table).select('*');
-  if (error) throw error;
-  return (data ?? []).map(mapper);
+  const sb = getSupabase();
+  const rows: any[] = [];
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await sb.from(table).select('*').order('id', { ascending: true }).range(from, from + PAGE_ROWS - 1);
+    if (error) throw error;
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < PAGE_ROWS) break;
+  }
+  return rows.map(mapper);
 }
 
 async function selectOne<T>(table: string, id: number, mapper: (row: any) => T): Promise<T | null> {
