@@ -2,7 +2,7 @@
 // but kept dependency-free: no 'node:assert' / 'process' so this file still passes `tsc -b`,
 // which type-checks the whole components/ tree without @types/node in scope).
 // Run with: node --experimental-strip-types components/home/otBoard.check.ts
-import type { OrdenTrabajo } from '../../services/types.ts';
+import type { OrdenTrabajo, Prioridad } from '../../services/types.ts';
 import { bucketOf, matchesSearch } from './otBoard.ts';
 
 function assertEqual<T>(actual: T, expected: T, message: string): void {
@@ -65,15 +65,19 @@ check('bucketOf: Pendiente ignores priority fields', () => {
   assertEqual(bucketOf(baseOt({ status: 'Pendiente', tipo_prioridad: 'Alta' })), 'pendiente', 'set tipo_prioridad');
 });
 
-check('bucketOf: Asignada splits by tipo_prioridad, not prioridad', () => {
-  assertEqual(bucketOf(baseOt({ status: 'Asignada', prioridad: 'Baja', tipo_prioridad: 'Alta' })), 'alta', 'prioridad must not drive the bucket');
-  assertEqual(bucketOf(baseOt({ status: 'Asignada', tipo_prioridad: 'media' })), 'media', 'case-insensitive');
-  assertEqual(bucketOf(baseOt({ status: 'Asignada', tipo_prioridad: null })), null, 'unrecognized -> off board');
+check('bucketOf: Asignada splits by prioridad, not tipo_prioridad (occupancy)', () => {
+  assertEqual(bucketOf(baseOt({ status: 'Asignada', prioridad: 'Alta', tipo_prioridad: 'Ocupada' })), 'alta', 'prioridad drives the bucket; occupancy is ignored');
+  assertEqual(bucketOf(baseOt({ status: 'Asignada', prioridad: 'Media' })), 'media', 'media');
+  assertEqual(bucketOf(baseOt({ status: 'Asignada', prioridad: 'Baja' })), 'baja', 'baja');
+  // Live SP data has Asignada rows with no priority (RequiereParada_OT null) -> off board,
+  // exactly like PA (its board only ever shows Alta/Media/Baja). The type claims non-null,
+  // but the migrated data disagrees, so cover the real case explicitly.
+  assertEqual(bucketOf(baseOt({ status: 'Asignada', prioridad: null as unknown as Prioridad })), null, 'null priority -> off board');
 });
 
 check('bucketOf: closed/cancelled statuses never appear on the board', () => {
   for (const status of ['Cerrada', 'Cerrada F', 'Cerrada V', 'Anulada'] as const) {
-    assertEqual(bucketOf(baseOt({ status, tipo_prioridad: 'Alta' })), null, status);
+    assertEqual(bucketOf(baseOt({ status, prioridad: 'Alta' })), null, status);
   }
 });
 
