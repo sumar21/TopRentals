@@ -42,24 +42,44 @@ const { rows: users } = await pgc.query(
   'select id, usuario_app, mail, auth_user_id from usuarios where activo = true order by id',
 );
 
-let created = 0, alreadyLinked = 0, noPwd = 0, failed = 0;
+// Re-run safety: a data re-migration truncates `usuarios` (auth_user_id -> NULL) but does
+// NOT touch the auth schema, so the auth.users rows from a prior run survive. On a re-sync
+// we must RELINK (and refresh the password from SharePoint) the existing auth user instead
+// of createUser'ing again — which would collide on the email and fail. Map email -> auth id
+// once so the loop can tell "new user" from "already exists, just relink".
+const authIdByEmail = new Map<string, string>();
+for (let page = 1; ; page++) {
+  const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+  if (error) throw error;
+  for (const au of data.users) if (au.email) authIdByEmail.set(au.email, au.id);
+  if (data.users.length < 1000) break;
+}
+
+let created = 0, relinked = 0, alreadyLinked = 0, noPwd = 0, failed = 0;
 let sampleUser: { usuario_app: string; password: string } | null = null;
 for (const u of users) {
   if (u.auth_user_id) { alreadyLinked++; continue; }
   const password = pwdBySpId.get(Number(u.id));
   if (!password) { noPwd++; continue; }
-  const { data, error } = await admin.auth.admin.createUser({
-    email: aliasFor(u.usuario_app),
-    password,
-    email_confirm: true,
-    user_metadata: { usuario_app: u.usuario_app, usuario_id: u.id, real_mail: u.mail ?? null },
-  });
-  if (error || !data?.user) { failed++; console.warn(`  createUser failed for "${u.usuario_app}": ${error?.message}`); continue; }
-  await pgc.query('update usuarios set auth_user_id = $1 where id = $2', [data.user.id, u.id]);
-  created++;
+  const email = aliasFor(u.usuario_app);
+  const meta = { usuario_app: u.usuario_app, usuario_id: u.id, real_mail: u.mail ?? null };
+  const existingId = authIdByEmail.get(email);
+  let authUserId: string;
+  if (existingId) {
+    const { error } = await admin.auth.admin.updateUserById(existingId, { password, user_metadata: meta });
+    if (error) { failed++; console.warn(`  updateUser failed for "${u.usuario_app}": ${error.message}`); continue; }
+    authUserId = existingId;
+    relinked++;
+  } else {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: meta });
+    if (error || !data?.user) { failed++; console.warn(`  createUser failed for "${u.usuario_app}": ${error?.message}`); continue; }
+    authUserId = data.user.id;
+    created++;
+  }
+  await pgc.query('update usuarios set auth_user_id = $1 where id = $2', [authUserId, u.id]);
   if (!sampleUser) sampleUser = { usuario_app: u.usuario_app, password };
 }
-console.log(`\nauth provisioning: created=${created}  alreadyLinked=${alreadyLinked}  noPassword=${noPwd}  failed=${failed}`);
+console.log(`\nauth provisioning: created=${created}  relinked=${relinked}  alreadyLinked=${alreadyLinked}  noPassword=${noPwd}  failed=${failed}`);
 
 // 3. Smoke-test a real login end-to-end with the anon key (never prints the password).
 if (sampleUser) {
