@@ -208,7 +208,7 @@ const ArticulosPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:flex-1 md:min-h-0">
       {/* En pantallas grandes (≥1024, lg) el toolbar sube a la misma fila que los tabs (que viven
           en ConfiguracionView), para no dejar un header alto de dos filas. En mobile y tablet queda
           debajo (no entran juntos: a 768px el sidebar + los tabs no dejan lugar para search + botón
@@ -248,8 +248,8 @@ const ArticulosPanel: React.FC = () => {
               </div>
             ))}
           </div>
-          <Card className="hidden md:block border shadow-sm">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Código</TableHead>

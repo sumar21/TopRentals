@@ -264,7 +264,7 @@ const UsuariosPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:flex-1 md:min-h-0">
       {/* En pantallas grandes (≥1024, lg) el toolbar sube a la fila de los tabs (ConfiguracionView);
           en mobile y tablet queda debajo (a 768px el sidebar + los tabs no dejan lugar para search +
           botón en la misma fila). */}
@@ -303,8 +303,8 @@ const UsuariosPanel: React.FC = () => {
               </div>
             ))}
           </div>
-          <Card className="hidden md:block border shadow-sm">
-            <Table className="min-w-[1100px]">
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table className="min-w-[1100px]" wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
