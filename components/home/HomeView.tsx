@@ -103,14 +103,14 @@ const HomeView: React.FC = () => {
     return map;
   }, [usuarios]);
 
-  const load = async (isRefresh: boolean) => {
+  const load = async (isRefresh: boolean, silent = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
     setLoadError(false);
     try {
       const [otRows, userRows] = await Promise.all([api.ots.list(), api.usuarios.list()]);
       setOts(otRows);
       setUsuarios(userRows);
-      if (isRefresh) showToast('Tablero actualizado.', 'success');
+      if (isRefresh && !silent) showToast('Tablero actualizado.', 'success');
     } catch {
       showToast('No se pudo cargar el tablero de OTs.', 'error');
       setLoadError(true);
@@ -123,6 +123,9 @@ const HomeView: React.FC = () => {
     load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Live updates: silent refetch whenever an OT changes (no toast, no full-page spinner).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => api.realtime.subscribe(['ots'], () => { void load(true, true); }), []);
 
   const board = useMemo(() => {
     const buckets: Record<BoardColumn, OrdenTrabajo[]> = { pendiente: [], alta: [], media: [], baja: [] };

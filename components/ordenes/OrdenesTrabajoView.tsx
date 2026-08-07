@@ -83,6 +83,8 @@ const OrdenesTrabajoView: React.FC = () => {
   };
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
+  // Live updates: silent refetch whenever an OT changes in the backend.
+  useEffect(() => api.realtime.subscribe(['ots'], () => { void load(); }), []);
 
   const handleRefresh = () => { setRefreshing(true); load().finally(() => setRefreshing(false)); };
 

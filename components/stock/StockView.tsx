@@ -69,6 +69,8 @@ const StockView: React.FC = () => {
     setLoading(true);
     load().finally(() => setLoading(false));
   }, []);
+  // Live updates: silent refetch whenever stock changes in the backend.
+  useEffect(() => api.realtime.subscribe(['stock'], () => { void load(); }), []);
 
   const refresh = async () => {
     setLoading(true);

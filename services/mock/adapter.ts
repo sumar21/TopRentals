@@ -1002,6 +1002,13 @@ export function createMockAdapter(): DataApi {
         );
       },
     },
+
+    // No live backend to push from — subscriptions are a no-op (manual reload only).
+    realtime: {
+      subscribe() {
+        return () => {};
+      },
+    },
   };
 
   return api;

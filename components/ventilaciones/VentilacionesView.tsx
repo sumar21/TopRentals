@@ -70,8 +70,8 @@ const VentilacionesView: React.FC = () => {
   const [asignarTarget, setAsignarTarget] = useState<Ventilacion | null>(null);
   const [eliminarTarget, setEliminarTarget] = useState<Ventilacion | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const [ventRows, edRows, uniRows, freqRows, userRows] = await Promise.all([
@@ -123,6 +123,9 @@ const VentilacionesView: React.FC = () => {
   }, [ventilaciones, search, estadosSel, edificiosSel, mesesSel]);
 
   const activeFilterCount = mesesSel.length + estadosSel.length + edificiosSel.length;
+
+  // Live updates: silent refetch whenever a ventilación changes in the backend.
+  useEffect(() => api.realtime.subscribe(['ventilaciones'], () => { void load(true); }), []);
 
   const handleEliminar = async () => {
     if (!eliminarTarget) return;

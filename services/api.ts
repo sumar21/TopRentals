@@ -40,6 +40,20 @@ export interface CompraLineaInput {
   costo_unitario: number;
 }
 
+/** Domain topics for live change subscriptions (see `DataApi.realtime.subscribe`). */
+export type RealtimeTopic =
+  | 'ots'
+  | 'stock'
+  | 'movimientos'
+  | 'salidas'
+  | 'compras'
+  | 'aprobaciones'
+  | 'ventilaciones'
+  | 'articulos'
+  | 'usuarios'
+  | 'edificios'
+  | 'unidades';
+
 /** Quick-access entry for the login demo panel — only meaningful on the mock backend. */
 export interface DemoUser {
   usuario_app: string;
@@ -197,5 +211,13 @@ export interface DataApi {
 
   documentos: {
     list(filter: { orden_trabajo_id?: number; compra_id?: number }): Promise<Documento[]>;
+  };
+
+  /** Live change notifications (Supabase Realtime). On backends without realtime
+   *  (mock) `subscribe` is a no-op that returns an unsubscribe function. */
+  realtime: {
+    /** Invoke `onChange` (debounced) whenever any of the given topics changes in the
+     *  backend. Returns an unsubscribe function — call it on unmount. */
+    subscribe(topics: RealtimeTopic[], onChange: () => void): () => void;
   };
 }

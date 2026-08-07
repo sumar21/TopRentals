@@ -67,8 +67,8 @@ const AprobacionesView: React.FC = () => {
   const [rechazarTarget, setRechazarTarget] = useState<Aprobacion | null>(null);
   const [aprobarTarget, setAprobarTarget] = useState<Aprobacion | null>(null);
 
-  const load = () => {
-    setLoading(true);
+  const load = (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     return Promise.all([api.aprobaciones.list(), api.usuarios.list()])
       .then(([aps, usuarios]) => {
@@ -80,6 +80,8 @@ const AprobacionesView: React.FC = () => {
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [user?.id]);
+  // Live updates: silent refetch whenever an aprobación changes in the backend.
+  useEffect(() => api.realtime.subscribe(['aprobaciones'], () => { void load(true); }), []);
 
   // PA parity: lbl_idCompra_AP renders IDCompra_A — the raw Compras id stamped on the aprobacion (= compra_id).
   const idCompraLabel = (a: Aprobacion) => `#${a.compra_id}`;

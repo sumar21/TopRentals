@@ -85,8 +85,8 @@ const ComprasView: React.FC = () => {
   const [enviarTarget, setEnviarTarget] = useState<Compra | null>(null);
   const [anularTarget, setAnularTarget] = useState<Compra | null>(null);
 
-  const load = () => {
-    setLoading(true);
+  const load = (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     return Promise.all([api.compras.list(), api.usuarios.list()])
       .then(([c, u]) => { setCompras(c); setTecnicos(u.filter((x) => x.perfil === 'Tecnico')); })
@@ -94,6 +94,8 @@ const ComprasView: React.FC = () => {
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
+  // Live updates: silent refetch whenever a compra changes in the backend.
+  useEffect(() => api.realtime.subscribe(['compras'], () => { void load(true); }), []);
 
   const mesOptions = useMemo(() => {
     const meses = [...new Set(compras.map((c) => c.fecha.slice(0, 7)))].sort().reverse();

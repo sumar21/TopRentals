@@ -13,7 +13,7 @@
 //   - services/types.ts field names match column names exactly EXCEPT where a domain
 //     status enum is folded into a boolean flag on that table (see schema notes in
 //     rows.ts) — those methods translate the enum<->boolean at the edge, inline below.
-import type { CompraConDetalle, DataApi, StockRowWithEdificios } from '../api.ts';
+import type { CompraConDetalle, DataApi, RealtimeTopic, StockRowWithEdificios } from '../api.ts';
 import type { Articulo, Compra } from '../types.ts';
 import {
   aprobacionFromDb,
@@ -37,6 +37,24 @@ import {
 } from './rows.ts';
 import { getSupabase } from './client.ts';
 import { todayISO } from '../../utils/dates.ts';
+
+// Domain topic -> Postgres table for Realtime subscriptions. The tables must also be in
+// the `supabase_realtime` publication (supabase/migrations/0003_realtime_publication.sql).
+const REALTIME_TABLES: Record<RealtimeTopic, string> = {
+  ots: 'ordenes_trabajo',
+  stock: 'stock',
+  movimientos: 'movimientos_stock',
+  salidas: 'salidas_stock',
+  compras: 'compras',
+  aprobaciones: 'aprobaciones',
+  ventilaciones: 'ventilaciones',
+  articulos: 'articulos',
+  usuarios: 'usuarios',
+  edificios: 'edificios',
+  unidades: 'unidades',
+};
+// Monotonic so parallel subscriptions (several mounted views) never share a channel name.
+let realtimeChannelSeq = 0;
 
 // auth.users has no real mailbox for most usuarios, so login goes through a synthetic
 // email alias built from usuario_app. MUST match scripts/migrate/provision-auth.ts's
@@ -661,6 +679,23 @@ export function createSupabaseAdapter(): DataApi {
         const { data, error } = await q;
         if (error) throw error;
         return (data ?? []).map(documentoFromDb);
+      },
+    },
+
+    realtime: {
+      subscribe(topics, onChange) {
+        const sb = getSupabase();
+        const tables = [...new Set(topics.map((t) => REALTIME_TABLES[t]).filter(Boolean))];
+        if (tables.length === 0) return () => {};
+        // A single write often emits several row events; coalesce them into one refetch.
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const fire = () => { if (timer) clearTimeout(timer); timer = setTimeout(onChange, 250); };
+        const channel = sb.channel(`rt-${realtimeChannelSeq++}`);
+        for (const table of tables) {
+          channel.on('postgres_changes', { event: '*', schema: 'public', table }, fire);
+        }
+        channel.subscribe();
+        return () => { if (timer) clearTimeout(timer); void sb.removeChannel(channel); };
       },
     },
   };

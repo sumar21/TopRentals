@@ -76,6 +76,8 @@ const SalidasStockView: React.FC = () => {
   };
 
   useEffect(() => { load(); }, []);
+  // Live updates: silent refetch whenever a stock exit changes in the backend.
+  useEffect(() => api.realtime.subscribe(['salidas'], () => { void reload(); }), []);
 
   const confirmarDevolucion = async () => {
     if (!devolucionTarget || !user) return;
