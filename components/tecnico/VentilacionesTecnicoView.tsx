@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader2, RefreshCw, Search, Trash2, Fan } from 'lucide-react';
 import { Button, Input } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
@@ -270,7 +271,7 @@ const VentilacionesTecnicoView: React.FC = () => {
       >
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
-          <Input type="date" value={programarFecha} onChange={(e) => setProgramarFecha(e.target.value)} className="h-10" />
+          <DatePicker value={programarFecha} onChange={setProgramarFecha} className="h-10" />
         </div>
       </BottomSheet>
 

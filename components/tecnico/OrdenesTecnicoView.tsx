@@ -6,6 +6,7 @@ import {
   ArrowLeft, MoreVertical, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle,
 } from 'lucide-react';
 import { Button, Input, Badge, cn } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
@@ -496,7 +497,7 @@ const OrdenesTecnicoView: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
-            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-10" />
+            <DatePicker value={fecha} onChange={setFecha} className="h-10" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre</label>

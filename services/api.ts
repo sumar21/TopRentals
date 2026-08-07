@@ -159,7 +159,7 @@ export interface DataApi {
     crear(input: NewEntity<OrdenTrabajo>): Promise<OrdenTrabajo>;
     actualizar(id: number, patch: Partial<NewEntity<OrdenTrabajo>>): Promise<OrdenTrabajo>;
     anular(id: number): Promise<OrdenTrabajo>;
-    cerrar(id: number, tipo: Extract<EstadoOT, 'Cerrada V' | 'Cerrada F'>): Promise<OrdenTrabajo>;
+    cerrar(id: number, tipo: Extract<EstadoOT, 'Cerrada V' | 'Cerrada F'>, opts?: { fecha_cierre?: string; obs_cierre?: string | null }): Promise<OrdenTrabajo>;
     finalizar(id: number, tecnico_id?: number): Promise<OrdenTrabajo>;
     /** Clones a closed OT into a new linked 'Pendiente' one (orden_revision_id = source id). */
     replicar(id: number): Promise<OrdenTrabajo>;

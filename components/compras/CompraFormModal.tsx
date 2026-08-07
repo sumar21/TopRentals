@@ -247,8 +247,8 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
 
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">Artículos</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_100px_140px_auto] gap-2 items-end p-3 bg-secondary/20 rounded-lg border border-border/50">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_100px_140px_auto] gap-2 items-end p-3 bg-secondary/20 rounded-lg border border-border/50">
+                  <div className="min-w-0">
                     <label className="text-[11px] text-muted-foreground mb-1 block">Artículo</label>
                     <Combobox options={articuloOptions} value={nuevoArticuloId} onChange={handleSelectArticulo} placeholder="Buscar artículo…" searchPlaceholder="Buscar…" />
                   </div>
@@ -269,8 +269,10 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   <p className="text-xs text-muted-foreground text-center py-4">Todavía no agregaste artículos.</p>
                 ) : (
                   <>
-                    {/* Mobile: cart rows as cards (line-items table doesn't fit at 375px). */}
-                    <div className="sm:hidden space-y-2">
+                    {/* Mobile: cart rows as cards (line-items table doesn't fit at 375px).
+                        Bounded height so the cart scrolls internally instead of pushing the
+                        add-line row + footer out of view when many items are added. */}
+                    <div className="sm:hidden space-y-2 max-h-[280px] overflow-y-auto">
                       {cart.map((l) => (
                         <div key={l.key} className="rounded-lg border bg-card p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
@@ -293,9 +295,10 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                         </div>
                       ))}
                     </div>
-                    {/* Tablet/desktop: full table. */}
+                    {/* Tablet/desktop: full table — bounded so the cart scrolls internally
+                        (sticky header via the kit Table) instead of growing the whole dialog. */}
                     <div className="hidden sm:block">
-                      <Table>
+                      <Table wrapperClassName="max-h-[280px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead>Artículo</TableHead>

@@ -4,12 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Save, X } from 'lucide-react';
 import { Button, useModalAnimation } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { backdropClose } from '../ui/backdropClose';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import type { EstadoOT, OrdenTrabajo } from '../../services/types';
-import { formatDate, todayISO } from '../../utils/dates';
+import { todayISO } from '../../utils/dates';
 
 const TIPO_CIERRE_OPTIONS = [{ label: 'Cerrada V', value: 'Cerrada V' }, { label: 'Cerrada F', value: 'Cerrada F' }];
 
@@ -24,12 +25,16 @@ const CerrarOTModal: React.FC<CerrarOTModalProps> = ({ isOpen, onClose, ot, onSa
   const { visible, overlayClass, modalClass } = useModalAnimation(isOpen);
   const { showToast } = useToast();
   const [tipoCierre, setTipoCierre] = useState<Extract<EstadoOT, 'Cerrada V' | 'Cerrada F'>>('Cerrada V');
+  const [fecha, setFecha] = useState(todayISO());
+  const [obs, setObs] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
     setTipoCierre('Cerrada V');
+    setFecha(todayISO());
+    setObs('');
     setError('');
   }, [isOpen]);
 
@@ -38,7 +43,7 @@ const CerrarOTModal: React.FC<CerrarOTModalProps> = ({ isOpen, onClose, ot, onSa
     setSaving(true);
     setError('');
     try {
-      const saved = await api.ots.cerrar(ot.id, tipoCierre);
+      const saved = await api.ots.cerrar(ot.id, tipoCierre, { fecha_cierre: fecha, obs_cierre: obs.trim() || null });
       showToast(`Orden de trabajo cerrada (${tipoCierre}).`, 'success');
       onSaved(saved);
       onClose();
@@ -77,17 +82,24 @@ const CerrarOTModal: React.FC<CerrarOTModalProps> = ({ isOpen, onClose, ot, onSa
             <Select value={tipoCierre} onChange={(v) => setTipoCierre(v as typeof tipoCierre)} options={TIPO_CIERRE_OPTIONS} />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de cierre</label>
-            {/* ponytail: DataApi.ots.cerrar() no acepta una fecha — el mock/adapter siempre
-               usa la fecha de hoy. Se muestra solo informativo en vez de un Input editable
-               que no tendría efecto (evita un campo engañoso). */}
-            <div className="flex h-10 items-center px-3 rounded-md border border-input bg-muted text-sm font-medium text-muted-foreground">{formatDate(todayISO())}</div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de cierre *</label>
+            <DatePicker value={fecha} onChange={setFecha} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Observaciones</label>
+            <textarea
+              value={obs}
+              onChange={(e) => setObs(e.target.value)}
+              rows={3}
+              placeholder="Observaciones del cierre…"
+              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            />
           </div>
         </div>
 
         <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving} className="min-w-[140px] w-full sm:w-auto gap-2">
+          <Button onClick={handleSave} disabled={saving || !fecha} className="min-w-[140px] w-full sm:w-auto gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar
           </Button>
         </div>

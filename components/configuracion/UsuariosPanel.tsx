@@ -11,6 +11,7 @@ import { api } from '../../services/index.ts';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Edificio, Perfil, Usuario } from '../../services/types.ts';
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, Badge, cn, useModalAnimation } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -169,7 +170,7 @@ const UsuarioFormModal: React.FC<{
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento</label>
-              <Input type="date" value={form.fechaNac} onChange={(e) => setForm((f) => ({ ...f, fechaNac: e.target.value }))} />
+              <DatePicker value={form.fechaNac} onChange={(v) => setForm((f) => ({ ...f, fechaNac: v }))} />
             </div>
             <div className="sm:col-span-3">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>

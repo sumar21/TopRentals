@@ -754,13 +754,14 @@ export function createMockAdapter(): DataApi {
         row.status = 'Anulada';
         return structuredClone(row);
       },
-      async cerrar(id, tipo) {
+      async cerrar(id, tipo, opts) {
         await sleep();
         const row = db.ordenesTrabajo.find((o) => o.id === id);
         if (!row) throw new Error(`Orden de trabajo ${id} no encontrada.`);
         const yaCerrada = ESTADOS_OT_CERRADA.has(row.status);
         row.status = tipo;
-        row.fecha_cierre = todayIso();
+        row.fecha_cierre = opts?.fecha_cierre ?? todayIso();
+        if (opts?.obs_cierre !== undefined) row.obs_cierre = opts.obs_cierre;
         if (!yaCerrada) registrarSalidasDeRepuestos(row);
         return structuredClone(row);
       },

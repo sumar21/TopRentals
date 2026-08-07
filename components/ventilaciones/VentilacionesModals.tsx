@@ -4,7 +4,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Save, X, Loader2, AlertCircle, FileImage } from 'lucide-react';
-import { Button, Input, useModalAnimation } from '../ui/UIComponents';
+import { Button, useModalAnimation } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
@@ -130,7 +131,7 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima fecha<span className="text-destructive ml-0.5">*</span></label>
-              <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+              <DatePicker value={fechaInicio} onChange={setFechaInicio} />
             </div>
           </div>
         </div>
@@ -231,7 +232,7 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima limpieza<span className="text-destructive ml-0.5">*</span></label>
-              <Input type="date" value={fecha} min={todayISO()} onChange={(e) => setFecha(e.target.value)} />
+              <DatePicker value={fecha} min={todayISO()} onChange={setFecha} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico<span className="text-destructive ml-0.5">*</span></label>

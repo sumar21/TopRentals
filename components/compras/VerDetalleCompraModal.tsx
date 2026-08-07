@@ -40,7 +40,7 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
 
   return createPortal(
     <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
-      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+      <div className={`${modalClass} bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Detalle de compra</h2>

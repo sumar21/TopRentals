@@ -6,7 +6,7 @@ import {
   Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, RefreshCw, Search,
   UserCog,
 } from 'lucide-react';
-import { Badge, Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
+import { Badge, Button, Card, cn, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
 import { FilterPopover } from '../ui/FilterPopover';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
@@ -32,6 +32,17 @@ import CerrarOTModal from './CerrarOTModal';
 import AsignarOTModal from './AsignarOTModal';
 
 const PAGE_SIZE = 30;
+
+// Excel-style frozen leading columns (Estado · ID · ID F · Acciones). Fixed widths
+// so the cumulative `left` offsets line up; the trailing columns scroll underneath.
+const FZ_TH = 'sticky z-20 bg-muted'; // header wins the top-left corner (opaque over scrolling cells)
+const FZ_TD = 'sticky z-[5] bg-card group-hover:bg-muted/50'; // opaque so scrolled cells don't bleed through
+const FZ_COL = {
+  estado: 'left-0 w-[112px] min-w-[112px] max-w-[112px]',
+  id: 'left-[112px] w-[64px] min-w-[64px] max-w-[64px]',
+  idf: 'left-[176px] w-[72px] min-w-[72px] max-w-[72px]',
+  acc: 'left-[248px] w-[280px] min-w-[280px] max-w-[280px] border-r border-border',
+};
 
 interface OtFiltros { meses: string[]; estados: string[]; edificios: string[]; tiposTrabajo: string[]; tiposTarea: string[]; }
 const EMPTY_FILTROS: OtFiltros = { meses: [], estados: [], edificios: [], tiposTrabajo: [], tiposTarea: [] };
@@ -219,7 +230,7 @@ const OrdenesTrabajoView: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Órdenes de Trabajo</h1>
@@ -304,18 +315,18 @@ const OrdenesTrabajoView: React.FC = () => {
 
           {/* DESKTOP: tabla ancha con scroll horizontal — columnas 1:1 con gal_incidentes (PA).
               min-w fuerza el ancho natural para que el contenedor del kit haga scroll en vez de clippear. */}
-          <Card className="hidden md:block border shadow-sm">
-            <Table className="min-w-[1500px]">
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table className="min-w-[1500px]" wrapperClassName="h-full">
               {/* Orden exacto de gal_incidentes (PA), por coordenada X del .msapp:
                   Estado · ID · ID F · Acciones · Detalle · Torre · Departamento · Prioridad ·
                   Requiere parada de equipo · F. inicio · Tipo trabajo · Tipo tarea · F. asignada ·
                   Días est. · F. cierre · Días reales · Tipo */}
               <TableHeader>
                 <TableRow>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead className="whitespace-nowrap">ID F</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.estado)}>Estado</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.id)}>ID</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.idf, 'whitespace-nowrap')}>ID F</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.acc)}>Acciones</TableHead>
                   <TableHead>Detalle</TableHead>
                   <TableHead>Torre</TableHead>
                   <TableHead>Departamento</TableHead>
@@ -333,11 +344,11 @@ const OrdenesTrabajoView: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {visible.map((ot) => (
-                  <TableRow key={ot.id}>
-                    <TableCell><StatusBadge status={ot.status} /></TableCell>
-                    <TableCell className="whitespace-nowrap font-medium">#{ot.id}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap"><RowActions ot={ot} /></TableCell>
+                  <TableRow key={ot.id} className="group">
+                    <TableCell className={cn(FZ_TD, FZ_COL.estado)}><StatusBadge status={ot.status} /></TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.id, 'whitespace-nowrap font-medium')}>#{ot.id}</TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.idf, 'whitespace-nowrap text-muted-foreground')}>{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.acc, 'whitespace-nowrap')}><RowActions ot={ot} /></TableCell>
                     <TableCell className="max-w-[240px] truncate" title={ot.detalle ?? ''}>{truncate(ot.detalle)}</TableCell>
                     <TableCell className="whitespace-nowrap font-medium">{ot.torre ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap">{ot.departamento ?? '—'}</TableCell>

@@ -7,6 +7,7 @@ import { Loader2, PackageMinus, X } from 'lucide-react';
 import { Button, cn, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { backdropClose } from '../ui/backdropClose';
 import { todayISO } from '../../utils/dates';
 import { api } from '../../services/index.ts';
@@ -119,7 +120,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
-              <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              <DatePicker value={fecha} onChange={setFecha} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico Responsable</label>

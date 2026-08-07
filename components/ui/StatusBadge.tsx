@@ -13,7 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
 
   // ── TopRentals domain statuses (semantic palette, DESIGN.md §1.4 / rule 11) ──
   // OT workflow
-  'asignada': 'bg-indigo-100 text-indigo-700',
+  'asignada': 'bg-amber-100 text-amber-700',
   'cerrada': 'bg-emerald-100 text-emerald-700',
   'cerrada v': 'bg-blue-100 text-blue-700',
   'cerrada f': 'bg-violet-100 text-violet-700',

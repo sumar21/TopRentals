@@ -2,7 +2,7 @@
 // Page skeleton per DESIGN.md §4.4 (header + toolbar + loader + mobile cards / desktop table).
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowRightLeft, Package, Pencil, Plus, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Package, Pencil, Plus, Search } from 'lucide-react';
 import { Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn } from '../ui/UIComponents';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -113,7 +113,7 @@ const StockView: React.FC = () => {
   const handleMutationError = (message: string) => showToast(message, 'error');
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Stock</h1>
@@ -124,9 +124,6 @@ const StockView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar artículo o edificio…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={refresh} disabled={loading} aria-label="Actualizar">
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          </Button>
           <Button
             variant="secondary"
             className="h-9 px-3 text-sm gap-1.5 shrink-0"
@@ -192,8 +189,8 @@ const StockView: React.FC = () => {
           </div>
 
           {/* DESKTOP */}
-          <Card className="hidden md:block border shadow-sm overflow-hidden">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>N°</TableHead>
@@ -243,8 +240,9 @@ const StockView: React.FC = () => {
             </Table>
           </Card>
 
-          {/* Totales — DESIGN.md §7.3 "barra de N columnas" */}
-          <div className="grid grid-cols-2 gap-px border rounded-lg overflow-hidden bg-border">
+          {/* Totales — DESIGN.md §7.3 "barra de N columnas" — pinned below the internally
+              scrolling table so the running totals stay visible without scrolling to the end. */}
+          <div className="grid grid-cols-2 gap-px border rounded-lg overflow-hidden bg-border shrink-0">
             <div className="bg-muted/30 px-4 py-2.5">
               <div className="text-[10px] uppercase text-muted-foreground">Ítems</div>
               <div className="text-sm font-bold tabular-nums">{totalItems}</div>

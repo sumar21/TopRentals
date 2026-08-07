@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Paperclip, Save, Upload, X } from 'lucide-react';
 import { Button, Input, useModalAnimation } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
@@ -178,7 +179,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha Incidente *</label>
-              <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} disabled={readOnly} />
+              <DatePicker value={fechaInicio} onChange={setFechaInicio} disabled={readOnly} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre *</label>
