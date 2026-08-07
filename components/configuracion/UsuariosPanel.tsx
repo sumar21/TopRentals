@@ -205,21 +205,21 @@ const UsuariosPanel: React.FC = () => {
   const [formTarget, setFormTarget] = useState<Usuario | 'new' | null>(null);
   const [toggleTarget, setToggleTarget] = useState<Usuario | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    setLoadError(false);
+  const load = async (silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       const [userRows, edRows] = await Promise.all([api.usuarios.list(), api.edificios.list()]);
       setUsuarios(userRows);
       setEdificios(edRows);
     } catch {
-      showToast('No se pudieron cargar los usuarios.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar los usuarios.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
   useEffect(() => { load(); }, []);
+  // Realtime: silent refetch when usuarios change.
+  useEffect(() => api.realtime.subscribe(['usuarios'], () => { void load(true); }), []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

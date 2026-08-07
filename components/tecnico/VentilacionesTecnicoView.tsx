@@ -49,37 +49,33 @@ const VentilacionesTecnicoView: React.FC = () => {
 
   const [torrePickerValue, setTorrePickerValue] = useState('');
 
-  const loadVentilaciones = useCallback(async () => {
+  const loadVentilaciones = useCallback(async (silent = false) => {
     if (!user) return;
-    setLoading(true);
-    setLoadError(false);
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       const rows = await api.ventilaciones.list();
       setVentilaciones(rows.filter((v) => v.asignado_id === user.id && (v.estado === 'Asignada' || v.estado === 'Programada')));
     } catch {
-      showToast('No se pudieron cargar las ventilaciones.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar las ventilaciones.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [user, showToast]);
 
   // Refresh + "Cambiar torre" both re-query the WHOLE zone: every technician's Asignada/Programada +
   // unassigned Pendiente, not just this tech's own jobs (PA bt_AceptarSelectTorre_VE drops the IDAsignado
   // filter). Shared so the header refresh reloads the CURRENT view instead of silently collapsing to "mine".
-  const loadZona = useCallback(async (zona: string) => {
-    setLoading(true);
-    setLoadError(false);
+  const loadZona = useCallback(async (zona: string, silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       const rows = await api.ventilaciones.list();
       const towers = torresEnZona(edificios, zona);
       setVentilaciones(rows.filter((v) => towers.includes(v.edificio ?? '') && (v.estado === 'Pendiente' || v.estado === 'Asignada' || v.estado === 'Programada')));
       setZonaFilter(zona);
     } catch {
-      showToast('No se pudieron cargar las ventilaciones de la zona.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar las ventilaciones de la zona.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [edificios, showToast]);
 
@@ -88,6 +84,11 @@ const VentilacionesTecnicoView: React.FC = () => {
     loadVentilaciones();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Realtime: silent refetch of whichever view is active (zone or my-jobs) on ventilacion changes.
+  useEffect(() => api.realtime.subscribe(['ventilaciones'], () => {
+    void (zonaFilter ? loadZona(zonaFilter, true) : loadVentilaciones(true));
+  }), [zonaFilter, loadZona, loadVentilaciones]);
 
   const zonaOptions = useMemo(() => edificioOptions(edificios.filter((e) => e.status === 'Activo'), zonaKey), [edificios]);
   const visible = useMemo(() => {

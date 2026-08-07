@@ -4,7 +4,7 @@
 // this file is presentation only. Everything reads from the existing services (no new backend),
 // per CLAUDE.md "la UI habla SOLO con services/". Charts use recharts per DESIGN.md §10;
 // the brand navy drives the primary series, a light navy→gold ramp colours the pie slices.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, ClipboardList, Clock, Fan, PackageMinus, PackagePlus } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard } from '../ui/UIComponents';
@@ -53,19 +53,24 @@ const DashboardView: React.FC = () => {
   const [loadError, setLoadError] = useState(false);
   const [mes, setMes] = useState<string>(todayISO().slice(0, 7));
 
-  useEffect(() => {
-    setLoading(true);
-    setLoadError(false);
-    Promise.all([api.stock.movimientos(), api.stock.salidas(), api.ots.list(), api.ventilaciones.list()])
-      .then(([mov, sal, o, v]) => {
-        setMovimientos(mov);
-        setSalidas(sal);
-        setOts(o);
-        setVentilaciones(v);
-      })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
+  const load = useCallback(async (silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
+    try {
+      const [mov, sal, o, v] = await Promise.all([api.stock.movimientos(), api.stock.salidas(), api.ots.list(), api.ventilaciones.list()]);
+      setMovimientos(mov);
+      setSalidas(sal);
+      setOts(o);
+      setVentilaciones(v);
+    } catch {
+      if (!silent) setLoadError(true);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
+  // Realtime: silent refetch when any source table changes — no loader flash.
+  useEffect(() => api.realtime.subscribe(['movimientos', 'salidas', 'ots', 'ventilaciones'], () => { void load(true); }), [load]);
 
   const mesOptions = useMemo(() => {
     const set = new Set<string>([todayISO().slice(0, 7)]);

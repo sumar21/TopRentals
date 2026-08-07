@@ -84,9 +84,8 @@ const OrdenesTecnicoView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadOts = useCallback(async (z: string) => {
-    setLoading(true);
-    setLoadError(false);
+  const loadOts = useCallback(async (z: string, silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       const towers = torresEnZona(edificios, z);
       const rows = await api.ots.list();
@@ -99,10 +98,9 @@ const OrdenesTecnicoView: React.FC = () => {
           .sort((a, b) => b.id - a.id),
       );
     } catch {
-      showToast('No se pudieron cargar las órdenes de trabajo.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar las órdenes de trabajo.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [edificios, showToast]);
 
@@ -110,6 +108,12 @@ const OrdenesTecnicoView: React.FC = () => {
     if (!zona || edificios.length === 0) { setLoading(false); return; }
     loadOts(zona);
   }, [zona, edificios, loadOts]);
+
+  // Realtime: silent refetch of the current zone's OTs when they change back-office side.
+  useEffect(() => {
+    if (!zona) return;
+    return api.realtime.subscribe(['ots'], () => { void loadOts(zona, true); });
+  }, [zona, loadOts]);
 
   useEffect(() => {
     if (!menuOpen) return;

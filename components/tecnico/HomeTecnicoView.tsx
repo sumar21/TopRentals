@@ -68,6 +68,10 @@ const HomeTecnicoView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Realtime: a back-office assignment pushes the new OT to the technician's carousel
+  // without a manual refresh. loadOts doesn't touch the loader, so the update is silent.
+  useEffect(() => api.realtime.subscribe(['ots'], () => { void loadOts().catch(() => {}); }), [loadOts]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadOts().catch(() => {});

@@ -49,19 +49,21 @@ const StockTecnicoView: React.FC = () => {
   const [editCantidad, setEditCantidad] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
-  const load = () => {
-    setLoading(true);
-    setLoadError(false);
+  const load = (silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     return Promise.all([api.edificios.list(), api.articulos.list(), api.stock.list()])
       .then(([eds, arts, stock]) => { setEdificios(eds); setArticulos(arts); setStockAll(stock); })
-      .catch(() => { showToast('No se pudo cargar el stock.', 'error'); setLoadError(true); })
-      .finally(() => setLoading(false));
+      .catch(() => { if (!silent) { showToast('No se pudo cargar el stock.', 'error'); setLoadError(true); } })
+      .finally(() => { if (!silent) setLoading(false); });
   };
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Realtime: silent refetch when stock changes (a salida/ingreso elsewhere).
+  useEffect(() => api.realtime.subscribe(['stock'], () => { void load(true); }), []);
 
   const buildingOptions = useMemo(() => edificioOptions(edificios.filter((e) => e.status === 'Activo'), grupoStockKey), [edificios]);
   const edificioIds = useMemo(

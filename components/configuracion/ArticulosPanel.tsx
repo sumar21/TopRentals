@@ -156,19 +156,19 @@ const ArticulosPanel: React.FC = () => {
   const [formTarget, setFormTarget] = useState<Articulo | 'new' | null>(null);
   const [toggleTarget, setToggleTarget] = useState<Articulo | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    setLoadError(false);
+  const load = async (silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       setArticulos(await api.articulos.list());
     } catch {
-      showToast('No se pudieron cargar los artículos.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar los artículos.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
   useEffect(() => { load(); }, []);
+  // Realtime: catalog edits (this app or the shared SharePoint one) refetch silently.
+  useEffect(() => api.realtime.subscribe(['articulos'], () => { void load(true); }), []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
