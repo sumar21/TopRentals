@@ -118,13 +118,13 @@ const DashboardView: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <ChartCard title="Ingreso de stock por edificio" subtitle="Unidades ingresadas" empty={data.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={data.ingreso} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid {...GRID} vertical={false} />
-                    <XAxis dataKey="key" tick={X_TICK} axisLine={false} tickLine={false} interval={0} angle={-25} textAnchor="end" height={64} />
-                    <YAxis tick={Y_TICK} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+                <ResponsiveContainer width="100%" height={Math.max(200, data.ingreso.length * 38)}>
+                  <BarChart data={data.ingreso} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                    <CartesianGrid {...GRID} horizontal={false} />
+                    <XAxis type="number" tick={X_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="key" tick={Y_TICK} axisLine={false} tickLine={false} width={150} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={((v: number, _n: string, p: any) => [`${num(v)} u · ${money(p?.payload?.b ?? 0)}`, 'Ingreso']) as any} />
-                    <Bar dataKey="a" name="Unidades" fill={BRAND} radius={[4, 4, 0, 0]} maxBarSize={44} />
+                    <Bar dataKey="a" name="Unidades" fill={BRAND} radius={[0, 4, 4, 0]} maxBarSize={22} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -154,25 +154,25 @@ const DashboardView: React.FC = () => {
               </ChartCard>
 
               <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={data.resolucion} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid {...GRID} vertical={false} />
-                    <XAxis dataKey="key" tick={X_TICK} axisLine={false} tickLine={false} interval={0} angle={-25} textAnchor="end" height={64} />
-                    <YAxis tick={Y_TICK} axisLine={false} tickLine={false} width={40} />
+                <ResponsiveContainer width="100%" height={Math.max(200, data.resolucion.length * 38)}>
+                  <BarChart data={data.resolucion} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                    <CartesianGrid {...GRID} horizontal={false} />
+                    <XAxis type="number" tick={X_TICK} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="key" tick={Y_TICK} axisLine={false} tickLine={false} width={150} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={((v: number) => [`${v.toFixed(1)} días`, 'Promedio']) as any} />
-                    <Bar dataKey="b" name="Días" fill="#5b7c94" radius={[4, 4, 0, 0]} maxBarSize={44} />
+                    <Bar dataKey="b" name="Días" fill="#5b7c94" radius={[0, 4, 4, 0]} maxBarSize={22} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
 
               <ChartCard title="Ventilaciones limpiadas por edificio" subtitle="Limpiezas del mes" empty={data.ventilacionesLimpiadas.length === 0} emptyMsg="No se limpiaron aires este mes.">
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={data.ventilacionesLimpiadas} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid {...GRID} vertical={false} />
-                    <XAxis dataKey="key" tick={X_TICK} axisLine={false} tickLine={false} interval={0} angle={-25} textAnchor="end" height={64} />
-                    <YAxis tick={Y_TICK} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+                <ResponsiveContainer width="100%" height={Math.max(200, data.ventilacionesLimpiadas.length * 38)}>
+                  <BarChart data={data.ventilacionesLimpiadas} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                    <CartesianGrid {...GRID} horizontal={false} />
+                    <XAxis type="number" tick={X_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="key" tick={Y_TICK} axisLine={false} tickLine={false} width={150} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={((v: number) => [num(v), 'Limpiezas']) as any} />
-                    <Bar dataKey="a" name="Limpiezas" fill="#7ea3b8" radius={[4, 4, 0, 0]} maxBarSize={44} />
+                    <Bar dataKey="a" name="Limpiezas" fill="#7ea3b8" radius={[0, 4, 4, 0]} maxBarSize={22} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>

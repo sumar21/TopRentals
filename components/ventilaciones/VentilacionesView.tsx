@@ -156,7 +156,7 @@ const VentilacionesView: React.FC = () => {
   const canCreate = user && puedeGestionar(user.perfil);
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Ventilaciones</h1>
@@ -216,8 +216,8 @@ const VentilacionesView: React.FC = () => {
           </div>
 
           {/* DESKTOP */}
-          <Card className="hidden md:block border shadow-sm">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Estado</TableHead>
