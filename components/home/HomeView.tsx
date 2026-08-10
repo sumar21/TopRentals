@@ -157,14 +157,14 @@ const HomeView: React.FC = () => {
   const mobileList = mobileTab === 'todas' ? [...board.pendiente, ...board.alta, ...board.media, ...board.baja] : board[mobileTab as BoardColumn] ?? [];
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
           <p className="text-sm text-muted-foreground mt-1">Tablero de Órdenes de Trabajo en curso.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap lg:justify-end">
-          <div className="relative flex-1 sm:w-64 sm:flex-none min-w-[7rem]">
+          <div className="relative flex-1 sm:w-80 lg:w-96 sm:flex-none min-w-[7rem]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
               value={search}
@@ -193,7 +193,7 @@ const HomeView: React.FC = () => {
       ) : loadError ? (
         <LoadErrorState onRetry={() => load(false)} />
       ) : (
-        <div className={`transition-opacity duration-300 ${refreshing ? 'opacity-60' : ''}`}>
+        <div className={`transition-opacity duration-300 md:flex-1 md:min-h-0 md:flex md:flex-col ${refreshing ? 'opacity-60' : ''}`}>
           {/* MOBILE: single list gated by a segmented Tabs filter */}
           <div className="md:hidden flex flex-col gap-3">
             <Tabs value={mobileTab} onValueChange={(v: string) => setMobileTab(v as (typeof MOBILE_TABS)[number]['key'])}>
@@ -213,18 +213,18 @@ const HomeView: React.FC = () => {
           </div>
 
           {/* DESKTOP: grupos (paridad PA) — pendientes vs asignadas, para no repetir "Asignada" por columna */}
-          <div className="hidden md:block space-y-3">
+          <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 space-y-3">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <h2 className="text-sm font-bold tracking-tight text-foreground">Asignaciones de tarea pendientes</h2>
               <h2 className="text-sm font-bold tracking-tight text-foreground lg:col-span-3">Tareas Asignadas · Sin Resolver</h2>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:flex-1 md:min-h-0">
               {COLUMN_DEFS.map(({ key, title }) => {
                 const items = board[key];
                 return (
-                  <div key={key} className="flex flex-col gap-2 min-w-0">
+                  <div key={key} className="flex flex-col gap-2 min-w-0 min-h-0">
                     <ColumnHeader title={title} count={items.length} column={key} />
-                    <Card className="border shadow-sm p-2 flex flex-col gap-2 min-h-[10rem] max-h-[70vh] overflow-y-auto">
+                    <Card className="border shadow-sm p-2 flex flex-col gap-2 min-h-[10rem] md:h-full overflow-y-auto">
                       {items.length === 0 ? <ColumnEmpty label={title.toLowerCase()} /> : items.map(renderCard)}
                     </Card>
                   </div>

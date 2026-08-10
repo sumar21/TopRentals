@@ -36,7 +36,7 @@ const PAGE_SIZE = 30;
 // Excel-style frozen leading columns (Estado · ID · ID F · Acciones). Fixed widths
 // so the cumulative `left` offsets line up; the trailing columns scroll underneath.
 const FZ_TH = 'sticky z-20 bg-muted'; // header wins the top-left corner (opaque over scrolling cells)
-const FZ_TD = 'sticky z-[5] bg-card group-hover:bg-muted/50'; // opaque so scrolled cells don't bleed through
+const FZ_TD = 'sticky z-[5] bg-card group-hover:bg-muted'; // fully opaque (incl. hover) so scrolled cells never bleed through
 const FZ_COL = {
   estado: 'left-0 w-[112px] min-w-[112px] max-w-[112px]',
   id: 'left-[112px] w-[64px] min-w-[64px] max-w-[64px]',
