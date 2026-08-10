@@ -451,7 +451,7 @@ CREATE TABLE ventilaciones (
   version_asignado text,
   fecha_finalizacion timestamptz,
   version_resuelto text,
-  es_incidente boolean, -- was EsIncidente_VE 'SI'/'NO'
+  es_incidente boolean DEFAULT false, -- was EsIncidente_VE 'SI'/'NO'
   orden numeric,
   -- Deviation from data_model.md: the doc doesn't give ventilaciones a photo
   -- column, but finalizar_ventilacion() (below) takes p_foto_path and needs
@@ -574,15 +574,16 @@ BEGIN
     RAISE EXCEPTION 'finalizar_ventilacion: ventilacion % not found', p_id;
   END IF;
 
-  -- Next cycle is always UNASSIGNED (PA leaves IDAsignado_VE blank; the back office re-assigns it)
-  -- and starts at Orden_VE:4 — never carry the just-closed row's asignado_id onto it.
+  -- Next cycle is always UNASSIGNED (PA leaves IDAsignado_VE blank; the back office re-assigns it),
+  -- starts at Orden_VE:4, es_incidente = false, and proxima_limpieza = today + frecuencia_dias
+  -- (fallback 90 days when the unit has no frequency, matching the mock — NOT 0/today).
   INSERT INTO ventilaciones (
     estado, unidad_id, direccion_edificio, edificio, habitacion,
-    frecuencia_dias, fecha_ultima, proxima_limpieza, asignado_id, orden
+    frecuencia_dias, fecha_ultima, proxima_limpieza, asignado_id, es_incidente, orden
   )
   VALUES (
     'Pendiente', v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion,
-    v_frecuencia_dias, current_date, current_date + coalesce(v_frecuencia_dias, 0)::int, NULL, 4
+    v_frecuencia_dias, current_date, current_date + coalesce(v_frecuencia_dias, 90)::int, NULL, false, 4
   )
   RETURNING id INTO v_new_id;
 
