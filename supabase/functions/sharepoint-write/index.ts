@@ -17,8 +17,20 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
 
+// CORS: the app calls this from the browser via supabase.functions.invoke, so every response —
+// including the preflight OPTIONS and the error paths — must carry these headers, or the browser
+// blocks the response and supabase-js surfaces it as "Failed to send a request to the Edge Function".
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+  });
 }
 
 function requireEnv(name: string): string {
@@ -28,8 +40,13 @@ function requireEnv(name: string): string {
 }
 
 function graphErrorResponse(err: unknown): Response {
-  if (err instanceof GraphError) return jsonResponse({ error: err.message }, 502);
-  return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+  const message = err instanceof Error ? err.message : String(err);
+  // Log the full Graph/Azure error — the HTTP body alone isn't captured in Supabase's function
+  // logs, so without this line a 502/500 is opaque. This is what tells us the REAL status: 403
+  // (permission) vs 400 (bad request/field) vs a sender-mailbox problem vs a token failure.
+  console.error('[sharepoint-write] Graph call failed:', message);
+  if (err instanceof GraphError) return jsonResponse({ error: message }, 502);
+  return jsonResponse({ error: message }, 500);
 }
 
 /** Resolves the Graph client + site + list id needed to write to `displayName`. Fresh per call — no
@@ -173,6 +190,9 @@ async function handleSendMail(rawPayload: unknown): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
+  // CORS preflight — the browser sends OPTIONS before the real POST; answer it with the CORS
+  // headers (204, no body). Without this the preflight got a 405 and the POST was never sent.
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
 
   let body: unknown;
