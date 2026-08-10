@@ -22,6 +22,21 @@ export function resolveRecipients(modulo: 'OT' | 'Compra' | 'Aprobaciones', rows
   return row ? row.emails.split(';').map((e) => e.trim()).filter(Boolean) : [];
 }
 
+// TEMP (testing only): route EVERY notification to a single inbox instead of the ABM recipient
+// list, so test runs never email real recipients. Set back to `null` to use the table again.
+// NOTE: the Edge Function also BCCs the NOTIFICATIONS_BCC secret on every send — point that secret
+// at this same address (or clear it) to fully avoid real recipients while testing.
+const TEST_EMAIL_OVERRIDE: string | null = 'facurombo@gmail.com';
+
 export async function sendEmail(to: string[], message: EmailMessage): Promise<void> {
-  await api.emailsNotificacion.enviar(to, message.subject, message.html);
+  const recipients = TEST_EMAIL_OVERRIDE ? [TEST_EMAIL_OVERRIDE] : to;
+  // Notifications are fire-and-forget: a delivery failure (Edge Function / Graph Mail.Send down or
+  // not granted) must NEVER break the business operation that triggered it — e.g. confirming a
+  // reception has already committed its stock intake, so throwing here would report a false failure
+  // AND hide that the reception succeeded. Swallow and log; never propagate to the caller.
+  try {
+    await api.emailsNotificacion.enviar(recipients, message.subject, message.html);
+  } catch (err) {
+    console.warn('[email] notification send failed; the triggering operation already succeeded.', err);
+  }
 }
