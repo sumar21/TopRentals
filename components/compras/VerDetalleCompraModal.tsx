@@ -94,10 +94,10 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Artículo</TableHead>
+                      <TableHead>Edificio</TableHead>
                       <TableHead className="text-right">Cantidad</TableHead>
                       {showRecibido && <TableHead className="text-right">Recibido</TableHead>}
-                      <TableHead>Edificio</TableHead>
-                      <TableHead>Artículo</TableHead>
                       <TableHead className="text-right whitespace-nowrap">Costo unit.</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                     </TableRow>
@@ -105,10 +105,10 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                   <TableBody>
                     {lineas.map((d) => (
                       <TableRow key={d.id}>
+                        <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
+                        <TableCell className="text-sm">{d.edificio ?? '—'}</TableCell>
                         <TableCell className="text-right tabular-nums">{d.cantidad}</TableCell>
                         {showRecibido && <TableCell className="text-right tabular-nums">{d.recibido ?? '—'}</TableCell>}
-                        <TableCell className="text-sm">{d.edificio ?? '—'}</TableCell>
-                        <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
                         <TableCell className="text-right tabular-nums whitespace-nowrap">$ {maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium whitespace-nowrap">$ {maskFromNumber(d.costo_total ?? 0)}</TableCell>
                       </TableRow>

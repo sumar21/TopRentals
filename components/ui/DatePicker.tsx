@@ -87,7 +87,14 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const monthLabel = new Date(view.y, view.m, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const monthName = new Date(view.y, view.m, 1).toLocaleDateString('es-AR', { month: 'long' });
+  // Year jump (birthdates etc. — no more month-by-month): now+5 down to now-100, always incl. the view year.
+  const years = useMemo(() => {
+    const now = new Date().getFullYear();
+    const arr: number[] = [];
+    for (let y = Math.max(now + 5, view.y); y >= Math.min(now - 100, view.y); y--) arr.push(y);
+    return arr;
+  }, [view.y]);
   const cells = useMemo(() => {
     const lead = (new Date(view.y, view.m, 1).getDay() + 6) % 7; // Monday-first
     const days = new Date(view.y, view.m + 1, 0).getDate();
@@ -109,9 +116,19 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     <div ref={popupRef} style={{ position: 'absolute', top: coords.top, left: coords.left, width: coords.width }}
       className="z-[95] rounded-md border bg-popover p-3 text-popover-foreground shadow-lg animate-in fade-in zoom-in-95 duration-100"
       onMouseDown={(e) => e.stopPropagation()}>
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-1">
         <button type="button" onClick={() => step(-1)} aria-label="Mes anterior" className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"><ChevronLeft className="h-4 w-4" /></button>
-        <span className="text-sm font-medium capitalize">{monthLabel}</span>
+        <div className="flex items-center gap-1">
+          <span className="text-sm font-medium capitalize">{monthName}</span>
+          <select
+            value={view.y}
+            onChange={(e) => setView((v) => ({ ...v, y: Number(e.target.value) }))}
+            onMouseDown={(e) => e.stopPropagation()}
+            aria-label="Año"
+            className="cursor-pointer rounded-md bg-transparent px-1 py-0.5 text-sm font-medium outline-none transition-colors hover:bg-accent focus:ring-2 focus:ring-ring">
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
         <button type="button" onClick={() => step(1)} aria-label="Mes siguiente" className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"><ChevronRight className="h-4 w-4" /></button>
       </div>
       <div className="grid grid-cols-7 gap-0.5">

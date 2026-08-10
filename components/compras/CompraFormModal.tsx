@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/index.ts';
 import type { Articulo, Edificio, Usuario } from '../../services/types.ts';
 import { articuloLabel } from '../../utils/articulos';
+import ConfirmModal from '../ConfirmModal';
 import type { CompraLineaInput } from '../../services/api.ts';
 
 export interface CompraFormValues {
@@ -64,6 +65,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [edificios, setEdificios] = useState<Edificio[]>([]);
@@ -347,11 +349,22 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
 
         <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row flex-wrap justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit} className="min-w-[140px] w-full sm:w-auto gap-2">
+          <Button onClick={() => setConfirmOpen(true)} disabled={!canSubmit} className="min-w-[140px] w-full sm:w-auto gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar
           </Button>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleSubmit}
+        title="Confirmar compra"
+        description="¿Confirmás guardar esta solicitud de compra?"
+        confirmText="Confirmar"
+        cancelText="Volver"
+        icon={<Save className="h-6 w-6" />}
+      />
     </div>,
     document.body,
   );
