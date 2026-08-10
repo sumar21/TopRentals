@@ -104,6 +104,25 @@ async function invokeSharePointWrite<T = unknown>(action: string, payload: Recor
   return data as T;
 }
 
+/** Best-effort SharePoint mirror of a unit's ventilation flags (`requiere_ventilacion`/frecuencia on
+ *  `99.ABM_TipoUnidades`). Postgres is what THIS app reads, and the RPC already committed the row +
+ *  unit flag atomically — so a mirror outage (Edge Function not deployed / MS secrets unset) must
+ *  NEVER fail the user operation. The mirror keeps the shared ABM list in step for the OTHER
+ *  (non-migrated) Power App, which reads that flag; on failure that copy is stale until the write is
+ *  retried or the Edge Function is deployed (logged so the outage is visible — no auto-reconcile,
+ *  since the catalog sync runs SharePoint→Postgres and would overwrite the local value). */
+async function mirrorUnidadVentilacion(payload: {
+  unidad_id: number;
+  requiere_ventilacion: boolean;
+  frecuencia_dias?: number;
+}): Promise<void> {
+  try {
+    await invokeSharePointWrite('unidad-ventilacion', payload);
+  } catch (err) {
+    console.warn('[ventilaciones] SharePoint mirror to 99.ABM_TipoUnidades failed; Postgres is authoritative, the shared ABM copy is stale until retried/deployed.', err);
+  }
+}
+
 async function selectStockWithEdificios(id: number): Promise<StockRowWithEdificios> {
   const sb = getSupabase();
   const [{ data: stockRow, error: err1 }, { data: linkRows, error: err2 }] = await Promise.all([
@@ -576,16 +595,19 @@ export function createSupabaseAdapter(): DataApi {
       list: () => selectAll('ventilaciones', ventilacionFromDb),
       async crear(input) {
         const sb = getSupabase();
-        const { data, error } = await sb.from('ventilaciones').insert(input).select().single();
+        // Atomic: the schedule row + the unit's requiere_ventilacion flag are written in one
+        // DEFINER RPC (one transaction), so a failure can't leave the unit unflagged and invite
+        // a duplicate-cycle retry. The SharePoint mirror runs after the commit — if it throws
+        // the DB is already consistent (and the unit is already flagged, so no duplicate).
+        const { data: newId, error } = await sb.rpc('ventilacion_crear', { p_payload: input });
         if (error) throw error;
+        const { data, error: err1 } = await sb.from('ventilaciones').select('*').eq('id', Number(newId)).single();
+        if (err1) throw err1;
         const row = ventilacionFromDb(data);
         if (row.unidad_id != null) {
-          // PA parity: creating a schedule flags the unit as under ventilation control.
-          // unidades is a SELECT-only catalog → flip the flag via DEFINER RPC.
-          const { error: err2 } = await sb.rpc('unidad_set_ventilacion', { p_unidad_id: row.unidad_id, p_requiere: true });
-          if (err2) throw err2;
-          // Mirror the flag to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
-          await invokeSharePointWrite('unidad-ventilacion', { unidad_id: row.unidad_id, requiere_ventilacion: true });
+          // Best-effort mirror: DB is the source of truth for the unit flag; a mirror outage must
+          // not fail the create (row + flag are already committed atomically by ventilacion_crear).
+          await mirrorUnidadVentilacion({ unidad_id: row.unidad_id, requiere_ventilacion: true });
         }
         return row;
       },
@@ -618,8 +640,8 @@ export function createSupabaseAdapter(): DataApi {
           if (err2) throw err2;
         }
         if (row.unidad_id != null) {
-          // Mirror to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
-          await invokeSharePointWrite('unidad-ventilacion', {
+          // Best-effort mirror: DB is the source of truth; a mirror outage must not fail asignar.
+          await mirrorUnidadVentilacion({
             unidad_id: row.unidad_id,
             requiere_ventilacion: true,
             ...(frecuencia_dias != null ? { frecuencia_dias } : {}),
@@ -655,18 +677,14 @@ export function createSupabaseAdapter(): DataApi {
         return ventilacionFromDb(data);
       },
       async eliminar(id) {
-        const sb = getSupabase();
-        const { data: row, error: err1 } = await sb.from('ventilaciones').select('id, unidad_id').eq('id', id).maybeSingle();
-        if (err1) throw err1;
-        if (!row) return; // mock parity: silent no-op if not found
-        const { error: err2 } = await sb.from('ventilaciones').update({ estado: 'Eliminada' }).eq('id', id);
-        if (err2) throw err2;
-        if (row.unidad_id != null) {
-          // unidades is a SELECT-only catalog → flip the flag via DEFINER RPC.
-          const { error: err3 } = await sb.rpc('unidad_set_ventilacion', { p_unidad_id: row.unidad_id, p_requiere: false });
-          if (err3) throw err3;
-          // Mirror to SharePoint (unidad_id === the unit's SharePoint id, ids are preserved).
-          await invokeSharePointWrite('unidad-ventilacion', { unidad_id: row.unidad_id, requiere_ventilacion: false });
+        // Atomic: mark 'Eliminada' + clear the unit flag in one DEFINER RPC (one transaction),
+        // so a failure can't leave the unit permanently locked. Returns the unit id (or null:
+        // not found / no unit) for the post-commit SharePoint mirror.
+        const { data: unidadId, error } = await getSupabase().rpc('ventilacion_eliminar', { p_id: id });
+        if (error) throw error;
+        if (unidadId != null) {
+          // Best-effort mirror: DB is the source of truth; a mirror outage must not fail eliminar.
+          await mirrorUnidadVentilacion({ unidad_id: Number(unidadId), requiere_ventilacion: false });
         }
       },
     },
