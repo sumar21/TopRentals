@@ -98,7 +98,19 @@ async function selectOneRequired<T>(table: string, id: number, mapper: (row: any
 
 /** Server-side SharePoint write-back (Fase 3, supabase/functions/sharepoint-write) — the MS
  *  Graph client secret can't reach the browser, so every SharePoint write goes through here. */
+// TEMP (testing only): skip real writes to the shared 99.* ABM SharePoint lists (articulos,
+// unidades), so test runs don't modify data the OTHER (non-migrated) Power App reads. Postgres is
+// still written (the app works fully) — only the SharePoint mirror is skipped. Email ('send-mail')
+// is NOT skipped. Set to false to write SharePoint for real again.
+const SKIP_SHAREPOINT_WRITES = true;
+
 async function invokeSharePointWrite<T = unknown>(action: string, payload: Record<string, unknown>): Promise<T> {
+  if (SKIP_SHAREPOINT_WRITES && action !== 'send-mail') {
+    console.warn(`[testing] SharePoint write '${action}' skipped (SKIP_SHAREPOINT_WRITES); Postgres is still written.`);
+    // Return the shape each caller expects: articulo-upsert needs an id for the local mirror insert
+    // (synthesize a test id that won't collide with real, small SharePoint ids); others just need ok.
+    return (action === 'articulo-upsert' ? { id: Date.now() } : { ok: true }) as T;
+  }
   const { data, error } = await getSupabase().functions.invoke('sharepoint-write', { body: { action, payload } });
   if (error) throw error;
   return data as T;
