@@ -145,9 +145,9 @@ const StockTecnicoView: React.FC = () => {
 
   if (!grupo) {
     return (
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 p-4 md:p-6">
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold tracking-tight">Stock</h1>
@@ -162,11 +162,11 @@ const StockTecnicoView: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Edificio: {edificioNombre}</h1>
@@ -193,7 +193,7 @@ const StockTecnicoView: React.FC = () => {
       ) : filteredRows.length === 0 ? (
         <EmptyState icon={Package} title="Sin stock" message="No hay artículos con stock disponible en este edificio." />
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filteredRows.map((row) => (
             <div key={row.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 shadow-sm">
               <span className="inline-flex items-center justify-center min-w-[2.25rem] h-7 px-2 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold shrink-0">{row.cantidad}</span>

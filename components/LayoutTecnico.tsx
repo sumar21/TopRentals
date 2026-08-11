@@ -1,15 +1,111 @@
-// Technician module shell — mobile-first: phone-width column centered on larger
-// screens. Views own their headers/back buttons (mirrors the Power Apps mobile app).
-import { Outlet } from 'react-router-dom';
+// Technician module shell — responsive (DESIGN.md §4.5). Desktop gets a persistent
+// sidebar + wide content (mirrors the back-office Layout); mobile keeps the phone-first
+// hub-and-spoke where each view owns its own header/back button. <TooltipHost/> once here.
+import { useMemo, useState } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import { cn } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
+import ConfirmModal from './ConfirmModal';
+import { useAuth } from '../contexts/AuthContext';
+import { canAccessModule, moduleRoute } from '../utils/permissions';
+import { moduleIcon, moduleLabel } from '../config/moduleIcons';
 
-const LayoutTecnico = () => (
-  <div className="min-h-dvh bg-secondary/30">
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background shadow-sm md:border-x">
-      <Outlet />
+interface TecnicoNav { modulo: string; route: string; label: string }
+
+// Nicer sidebar labels for the mantenimiento module keys (moduleLabel is the fallback).
+const TECNICO_LABELS: Record<string, string> = {
+  Home: 'Inicio',
+  OT: 'Órdenes de Trabajo',
+  Stock: 'Stock',
+  Ventilaciones: 'Ventilaciones',
+  Activos: 'Activos',
+};
+
+const LayoutTecnico = () => {
+  const { user, permisos, logout } = useAuth();
+  const navigate = useNavigate();
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  // Only mantenimiento modules the user can access — the `/tecnico` route filter drops
+  // back-office modules that leak in for Admin (who passes canAccessModule for everything).
+  const entries = useMemo<TecnicoNav[]>(() => {
+    if (!user) return [];
+    const seen = new Set<string>();
+    const mods: TecnicoNav[] = [];
+    for (const row of [...permisos].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))) {
+      if (!canAccessModule(user.perfil, row.modulo, permisos)) continue;
+      const route = moduleRoute(row.modulo, 'Mantenimiento');
+      if (!route.startsWith('/tecnico') || seen.has(route)) continue;
+      seen.add(route);
+      mods.push({ modulo: row.modulo, route, label: TECNICO_LABELS[row.modulo] ?? moduleLabel(row.modulo) });
+    }
+    return [{ modulo: 'Home', route: '/tecnico', label: 'Inicio' }, ...mods];
+  }, [user, permisos]);
+
+  const doLogout = () => { logout(); navigate('/login', { replace: true }); };
+
+  return (
+    <div className="min-h-dvh bg-secondary/30 md:flex md:h-screen md:bg-background">
+      {/* Desktop sidebar — hidden on mobile; each view owns its own mobile header/nav. */}
+      <aside className="hidden w-60 shrink-0 flex-col border-r bg-card md:flex">
+        <div className="flex h-16 items-center gap-2 border-b px-4">
+          <img src="/logo.png" alt="TopRentals" className="h-8 w-8 shrink-0 rounded-md" />
+          <span className="truncate text-sm font-bold tracking-tight">TopRentals</span>
+        </div>
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+          {entries.map((entry) => {
+            const Icon = moduleIcon(entry.modulo);
+            return (
+              <NavLink
+                key={entry.route}
+                to={entry.route}
+                end={entry.route === '/tecnico'}
+                className={({ isActive }) =>
+                  cn(
+                    'group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-all',
+                    isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                  )
+                }
+              >
+                <Icon className="mr-3 h-4 w-4 shrink-0" />
+                <span className="truncate">{entry.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+        <div className="border-t p-3">
+          {user && <p className="truncate px-3 pb-2 text-xs text-muted-foreground">{user.nombre} {user.apellido}</p>}
+          <button
+            onClick={() => setConfirmLogout(true)}
+            className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-red-50"
+          >
+            <LogOut className="mr-3 h-4 w-4 shrink-0" /> Cerrar sesión
+          </button>
+        </div>
+      </aside>
+
+      {/* Content: mobile keeps the phone column (white); desktop uses the remaining width. */}
+      <main className="md:flex-1 md:overflow-y-auto md:bg-secondary/30">
+        <div className="mx-auto w-full max-w-md bg-background md:max-w-6xl md:bg-transparent">
+          <Outlet />
+        </div>
+      </main>
+
+      <TooltipHost />
+      <ConfirmModal
+        isOpen={confirmLogout}
+        onClose={() => setConfirmLogout(false)}
+        onConfirm={doLogout}
+        title="Cerrar sesión"
+        description="¿Estás seguro de que querés salir de la aplicación?"
+        confirmText="Cerrar sesión"
+        cancelText="Cancelar"
+        variant="danger"
+        icon={<LogOut className="h-6 w-6" />}
+      />
     </div>
-    <TooltipHost />
-  </div>
-);
+  );
+};
 
 export default LayoutTecnico;

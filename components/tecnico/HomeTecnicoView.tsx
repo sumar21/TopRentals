@@ -134,7 +134,7 @@ const HomeTecnicoView: React.FC = () => {
   const stockOptions = edificioOptions(edificios.filter((e) => e.status === 'Activo'), grupoStockKey);
 
   return (
-    <div className="flex flex-col gap-6 p-4">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -192,7 +192,7 @@ const HomeTecnicoView: React.FC = () => {
       )}
 
       {/* Grid de módulos */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {tiles.map((tile) => {
           const Icon = moduleIcon(tile.modulo);
           return (

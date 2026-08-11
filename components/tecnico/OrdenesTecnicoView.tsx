@@ -301,11 +301,11 @@ const OrdenesTecnicoView: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Órdenes de Trabajo</h1>
@@ -339,7 +339,7 @@ const OrdenesTecnicoView: React.FC = () => {
       ) : ots.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="No hay órdenes pendientes, asignadas o programadas en este edificio." />
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ots.map((ot) => (
             <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
               <div className="flex items-start justify-between gap-2">
