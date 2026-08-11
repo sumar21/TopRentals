@@ -38,13 +38,13 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
   const [tipo, setTipo] = useState<TipoSalidaStock | ''>('');
   const [tecnicoId, setTecnicoId] = useState('');
   const [cantidad, setCantidad] = useState('');
-  const [edificioId, setEdificioId] = useState('');
-  const [centroCosto, setCentroCosto] = useState('');
-  const [edificioDestinoId, setEdificioDestinoId] = useState('');
+  const [edificioId, setEdificioId] = useState('');            // origin row to debit (shown only when the stock pools >1 building)
+  const [edificioCcId, setEdificioCcId] = useState('');        // single building field: cost center, or (TRASLADO) the destination — mirrors PA's one "Centro de Costo/Edificio" field
   const [fecha, setFecha] = useState(todayISO());
   const [saving, setSaving] = useState(false);
 
-  const reset = () => { setTipo(''); setTecnicoId(''); setCantidad(''); setEdificioId(''); setCentroCosto(''); setEdificioDestinoId(''); setFecha(todayISO()); };
+  const esTraslado = tipo === 'TRASLADO';
+  const reset = () => { setTipo(''); setTecnicoId(''); setCantidad(''); setEdificioId(''); setEdificioCcId(''); setFecha(todayISO()); };
   const close = () => { if (!saving) { reset(); onClose(); } };
 
   const edificiosDelRow = useMemo(
@@ -57,22 +57,23 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
     if (isOpen && edificiosDelRow.length === 1 && !edificioId) setEdificioId(String(edificiosDelRow[0].id));
   }, [isOpen, edificiosDelRow, edificioId]);
 
-  const centroCostoOptions = edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: e.nombre }));
-  const destinoOptions = edificios
-    .filter((e) => e.status === 'Activo' && String(e.id) !== edificioId)
+  // Single building field (PA parity): destination for a TRASLADO (exclude the origin), otherwise the cost center (any active building).
+  const edificioCcOptions = edificios
+    .filter((e) => e.status === 'Activo' && (!esTraslado || String(e.id) !== edificioId))
     .map((e) => ({ label: e.nombre, value: String(e.id) }));
   const tecnicoOptions = tecnicos.map((t) => ({ label: t.concat_name, value: String(t.id) }));
 
   const disponible = row?.cantidad ?? 0;
   const cantidadNum = Number(cantidad);
   const cantidadValida = cantidadNum > 0 && cantidadNum <= disponible;
-  const valid = Boolean(tipo) && Boolean(tecnicoId) && cantidadValida && Boolean(edificioId) && Boolean(centroCosto)
-    && (tipo !== 'TRASLADO' || Boolean(edificioDestinoId));
+  const valid = Boolean(tipo) && Boolean(tecnicoId) && cantidadValida && Boolean(edificioId) && Boolean(edificioCcId)
+    && (!esTraslado || edificioCcId !== edificioId); // a traslado can't target its own origin
 
   const handleSave = async () => {
     if (!valid || !row || !tipo) return;
     setSaving(true);
     try {
+      const ccBuilding = edificios.find((e) => String(e.id) === edificioCcId);
       await api.stock.salida({
         stock_id: row.id,
         edificio_id: Number(edificioId),
@@ -80,10 +81,10 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
         cantidad: cantidadNum,
         tecnico_id: Number(tecnicoId),
         uso: 'Consumo Diario',
-        centro_de_costo: centroCosto,
+        centro_de_costo: ccBuilding?.nombre ?? null,
         usuario_id: usuarioId,
         fecha_salida: fecha,
-        ...(tipo === 'TRASLADO' ? { edificio_destino_id: Number(edificioDestinoId) } : {}),
+        ...(esTraslado ? { edificio_destino_id: Number(edificioCcId) } : {}),
       });
       onSaved();
       reset();
@@ -145,33 +146,23 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
             </div>
           </div>
 
-          {/* Fila 3 (PA): Uso (fijo) · Torre (centro de costo) */}
+          {/* Fila 3 (PA): Uso (fijo) · Torre / Edificio destino — un solo campo de edificio, como PA */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Uso</label>
               <div className="flex h-10 items-center px-3 rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">Consumo Diario</div>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre</label>
-              <Select value={centroCosto} onChange={setCentroCosto} options={centroCostoOptions} placeholder="Elegí una torre" />
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">{esTraslado ? 'Edificio destino' : 'Torre'}</label>
+              <Select value={edificioCcId} onChange={setEdificioCcId} options={edificioCcOptions} placeholder={esTraslado ? 'Elegí el edificio destino' : 'Elegí una torre'} />
             </div>
           </div>
 
-          {/* Extra: picker de origen solo si el row agrupa varios edificios; destino solo en TRASLADO */}
-          {(edificiosDelRow.length > 1 || tipo === 'TRASLADO') && (
-            <div className={cn('grid grid-cols-1 gap-4', edificiosDelRow.length > 1 && tipo === 'TRASLADO' ? 'sm:grid-cols-2' : '')}>
-              {edificiosDelRow.length > 1 && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio (origen del stock)</label>
-                  <Select value={edificioId} onChange={setEdificioId} options={edificioOptions} placeholder="Elegí un edificio" />
-                </div>
-              )}
-              {tipo === 'TRASLADO' && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio destino</label>
-                  <Select value={edificioDestinoId} onChange={setEdificioDestinoId} options={destinoOptions} placeholder="Elegí el edificio destino" />
-                </div>
-              )}
+          {/* Origen a debitar: solo cuando el stock se agrupa en más de un edificio */}
+          {edificiosDelRow.length > 1 && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio (origen del stock)</label>
+              <Select value={edificioId} onChange={setEdificioId} options={edificioOptions} placeholder="Elegí un edificio" />
             </div>
           )}
         </div>
