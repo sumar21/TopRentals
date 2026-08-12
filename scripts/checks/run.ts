@@ -93,6 +93,20 @@ async function main() {
     assert.equal(siguiente.proxima_limpieza, addDays(todayISO(), siguiente.frecuencia_dias ?? 0));
   });
 
+  await check('mock adapter: edificios apareados (grupo_stock) comparten un pool', async () => {
+    const api = createMockAdapter();
+    const art = (await api.articulos.list())[0];
+    assert.ok(art, 'seed debe tener artículos');
+    // Palermo Hollywood (id 3) y Dorrego (id 4) comparten grupo_stock 'Hollywood-Dorrego'.
+    const first = await api.stock.agregar({ articulo_id: art.id, edificio_id: 3, cantidad: 7, precio_unitario: 100, usuario_id: 1 });
+    const second = await api.stock.agregar({ articulo_id: art.id, edificio_id: 4, cantidad: 5, precio_unitario: 100, usuario_id: 1 });
+    assert.equal(second.id, first.id); // misma fila de pool, no una segunda
+    assert.equal(second.cantidad, first.cantidad + 5); // el ingreso a Dorrego suma a la fila compartida
+    // Palermo Chico (id 1, grupo_stock null) es standalone → NO comparte pool con ellos
+    const solo = await api.stock.agregar({ articulo_id: art.id, edificio_id: 1, cantidad: 3, precio_unitario: 100, usuario_id: 1 });
+    assert.notEqual(solo.id, first.id);
+  });
+
   await check('mock adapter: salida de stock decrementa y audita', async () => {
     const api = createMockAdapter();
     const target = (await api.stock.list()).find((row) => row.cantidad > 0 && row.edificio_ids.length > 0);

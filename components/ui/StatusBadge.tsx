@@ -39,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
   // NOTE: user active-state ALTA/BAJA must use <Badge>, not StatusBadge (key collision).
   'alta': 'bg-red-100 text-red-700',
   'media': 'bg-amber-100 text-amber-700',
-  'baja': 'bg-blue-100 text-blue-700',
+  'baja': 'bg-slate-100 text-slate-700',
 };
 export const statusColor = (status: string): string =>
   STATUS_COLORS[String(status || '').trim().toLowerCase()] || 'bg-slate-100 text-slate-600';

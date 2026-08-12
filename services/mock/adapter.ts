@@ -85,9 +85,20 @@ export function createMockAdapter(): DataApi {
     return { ...row, edificio_ids: db.stockEdificios.filter((se) => se.stock_id === row.id).map((se) => se.edificio_id) };
   }
 
+  // Buildings that share a stock pool. PA merged paired buildings (grupo_stock: Hollywood↔Dorrego,
+  // Hub↔Nuñez, Admin↔Admin 2) into ONE shared stock pool; a null grupo_stock is its own standalone pool.
+  function edificiosDelPool(edificio_id: number): number[] {
+    const e = db.edificios.find((x) => x.id === edificio_id);
+    if (!e || e.grupo_stock == null) return [edificio_id];
+    return db.edificios.filter((x) => x.grupo_stock === e.grupo_stock).map((x) => x.id);
+  }
+
+  // Pool-aware: resolves the stock row for the whole pool the building belongs to, so paired buildings
+  // draw from / credit the same row (agregar/salida/recibir/asignarRepuesto all route through here).
   function stockRowFor(articulo_id: number, edificio_id: number): StockRow | undefined {
+    const pool = edificiosDelPool(edificio_id);
     return db.stock.find(
-      (s) => s.articulo_id === articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && se.edificio_id === edificio_id),
+      (s) => s.articulo_id === articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && pool.includes(se.edificio_id)),
     );
   }
 
