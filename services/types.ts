@@ -366,3 +366,13 @@ export interface Documento {
   content_type: string | null;
   created_at: string;
 }
+
+/** Upload input for documentos.crear: the file bytes + where it belongs. */
+export interface DocumentoCrearInput {
+  file: Blob;
+  nombre: string;
+  carpeta: 'Ordenes' | 'Compras' | 'Bitacoras';
+  orden_trabajo_id?: number | null;
+  compra_id?: number | null;
+  content_type?: string | null;
+}

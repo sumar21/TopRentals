@@ -1027,6 +1027,24 @@ export function createMockAdapter(): DataApi {
           ),
         );
       },
+      async crear(input) {
+        await sleep();
+        // Mock has no real bucket — record the metadata row only (the storage_path is where the
+        // supabase adapter would have uploaded the bytes). Enough to exercise the list/attach flow.
+        const owner = input.orden_trabajo_id ?? input.compra_id ?? 0;
+        const doc = {
+          id: nextId(db.documentos),
+          nombre: input.nombre,
+          storage_path: `${input.carpeta.toLowerCase()}/${owner}/${input.nombre}`,
+          carpeta: input.carpeta,
+          orden_trabajo_id: input.orden_trabajo_id ?? null,
+          compra_id: input.compra_id ?? null,
+          content_type: input.content_type ?? input.file.type ?? null,
+          created_at: nowIso(),
+        };
+        db.documentos.push(doc);
+        return structuredClone(doc);
+      },
     },
 
     // No live backend to push from — subscriptions are a no-op (manual reload only).

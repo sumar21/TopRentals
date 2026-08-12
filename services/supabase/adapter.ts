@@ -705,6 +705,26 @@ export function createSupabaseAdapter(): DataApi {
         if (error) throw error;
         return (data ?? []).map(documentoFromDb);
       },
+      async crear(input) {
+        const sb = getSupabase();
+        const owner = input.orden_trabajo_id ?? input.compra_id ?? 0;
+        const contentType = input.content_type ?? input.file.type ?? undefined;
+        const path = `${input.carpeta.toLowerCase()}/${owner}/${Date.now()}-${input.nombre}`;
+        // Upload the bytes to the private `documentos` bucket, then record the metadata row via a DEFINER
+        // RPC — documentos is SELECT-only under RLS like every other table, so writes go through the RPC surface.
+        const { error: upErr } = await sb.storage.from('documentos').upload(path, input.file, { contentType, upsert: false });
+        if (upErr) throw upErr;
+        const { data, error } = await sb.rpc('documento_crear', {
+          p_nombre: input.nombre,
+          p_storage_path: path,
+          p_carpeta: input.carpeta,
+          p_orden_trabajo_id: input.orden_trabajo_id ?? null,
+          p_compra_id: input.compra_id ?? null,
+          p_content_type: contentType ?? null,
+        });
+        if (error) throw error;
+        return selectOneRequired('documentos', Number(data), documentoFromDb);
+      },
     },
 
     realtime: {

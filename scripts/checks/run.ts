@@ -105,6 +105,20 @@ async function main() {
     assert.equal(unidad!.requiere_ventilacion, true);
   });
 
+  await check('mock adapter: documentos.crear persiste metadata y aparece en list', async () => {
+    const api = createMockAdapter();
+    const ot = (await api.ots.list())[0];
+    assert.ok(ot, 'seed debe tener OTs');
+    const before = (await api.documentos.list({ orden_trabajo_id: ot.id })).length;
+    const blob = new Blob(['x'], { type: 'image/jpeg' });
+    const doc = await api.documentos.crear({ file: blob, nombre: 'foto.jpg', carpeta: 'Ordenes', orden_trabajo_id: ot.id });
+    assert.equal(doc.orden_trabajo_id, ot.id);
+    assert.equal(doc.content_type, 'image/jpeg');
+    const after = await api.documentos.list({ orden_trabajo_id: ot.id });
+    assert.equal(after.length, before + 1);
+    assert.ok(after.some((d) => d.id === doc.id));
+  });
+
   await check('mock adapter: edificios apareados (grupo_stock) comparten un pool', async () => {
     const api = createMockAdapter();
     const art = (await api.articulos.list())[0];

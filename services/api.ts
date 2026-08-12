@@ -12,6 +12,7 @@ import type {
   Compra,
   DetalleCompra,
   Documento,
+  DocumentoCrearInput,
   Edificio,
   EmailNotificacion,
   EstadoOT,
@@ -211,6 +212,9 @@ export interface DataApi {
 
   documentos: {
     list(filter: { orden_trabajo_id?: number; compra_id?: number }): Promise<Documento[]>;
+    /** Upload a file to Storage + record its metadata row. Wires the OT-create photos and the
+     *  compra-receipt PDF the PA persisted (were staged client-side only). */
+    crear(input: DocumentoCrearInput): Promise<Documento>;
   };
 
   /** Live change notifications (Supabase Realtime). On backends without realtime
