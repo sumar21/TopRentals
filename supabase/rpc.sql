@@ -662,6 +662,7 @@ BEGIN
         VALUES (v_articulo_id, v_recibido, v_costo_unitario, v_cant_min, true, v_usuario_id, now(), 'Desktop')
         RETURNING id INTO v_stock_id;
         INSERT INTO stock_edificios (stock_id, edificio_id) VALUES (v_stock_id, v_edificio_id);
+        UPDATE stock SET id_univoco = '(STK)-' || lpad(v_stock_id::text, 3, '0') WHERE id = v_stock_id; -- parity: stamp id_univoco like stock_agregar / the mock
       END IF;
 
       INSERT INTO movimientos_stock (
