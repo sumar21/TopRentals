@@ -76,11 +76,8 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
     setFotos([]);
   }, [isOpen, ot, edificios, unidades]);
 
-  // Staged photos are client-side only for now — never uploaded/persisted.
-  // ponytail: real Storage backend for OT attachments (SharePoint 'Documentos' vs
-  // Supabase Storage) isn't decided yet; services/api.ts has no write endpoint for
-  // Documento rows. Upgrade path: add `ots.adjuntos.subir()` once the backend lands,
-  // then swap this staged-only list for a real upload here.
+  // Staged photos are uploaded to Storage on create (handleSubmit → api.documentos.crear,
+  // carpeta 'Ordenes', attached to the new OT). This effect just revokes the preview object URLs.
   useEffect(() => () => fotos.forEach((f) => URL.revokeObjectURL(f.url)), [fotos]);
 
   const edificioOptions = useMemo(() => edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: String(e.id) })), [edificios]);
@@ -142,6 +139,14 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
       };
       const saved = ot ? await api.ots.actualizar(ot.id, payload) : await api.ots.crear(payload);
       showToast(ot ? 'Orden de trabajo actualizada.' : 'Orden de trabajo creada.', 'success');
+      // Persist staged photos to Storage (only on create). Best-effort: a failed upload never undoes the OT.
+      if (!ot && fotos.length) {
+        const results = await Promise.allSettled(
+          fotos.map((f) => api.documentos.crear({ file: f.file, nombre: f.file.name, carpeta: 'Ordenes', orden_trabajo_id: saved.id })),
+        );
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        if (failed) showToast(`${failed} foto(s) no se pudieron subir.`, 'error');
+      }
       onSaved(saved);
       onClose();
     } catch (e) {

@@ -236,7 +236,7 @@ const OrdenesTecnicoView: React.FC = () => {
     setSavingSolicitud(true);
     try {
       const unidad = unidades.find((u) => u.torre === torreSel && u.depto === deptoSel);
-      await api.ots.crear({
+      const creada = await api.ots.crear({
         id_univoco: '', // overwritten by the adapter; the API requires the field on input regardless
         status: 'Asignada',
         tipo: 'SOLICITUD OT',
@@ -267,9 +267,15 @@ const OrdenesTecnicoView: React.FC = () => {
         version_app: null,
         hora: new Date().toTimeString().slice(0, 5),
       });
-      // ponytail: staged photos are compressed + previewed client-side, but the DataApi
-      // has no documentos.crear yet — nothing to attach them to. Upgrade path: add
-      // documentos.crear(orden_trabajo_id, storage_path) and upload `staged` here.
+      // Persist staged photos to Storage (best-effort — the solicitud is created regardless).
+      if (staged.length) {
+        await Promise.allSettled(
+          staged.map(async (p, i) => {
+            const blob = await (await fetch(p.dataUrl)).blob();
+            return api.documentos.crear({ file: blob, nombre: `foto-${i + 1}.jpg`, carpeta: 'Ordenes', orden_trabajo_id: creada.id, content_type: blob.type });
+          }),
+        );
+      }
       showToast('Solicitud creada correctamente.', 'success');
       setActiveSheet(null);
       if (zona) loadOts(zona);

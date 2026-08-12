@@ -78,6 +78,15 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
     try {
       const lineas = lines.map((l) => ({ detalle_id: l.detalle_id, recibido: l.noRecibido ? 0 : Math.max(0, parseInt(l.recibidoInput, 10) || 0) }));
       const updated = await api.compras.recibir(compra.id, lineas, obs);
+      // Persist the receipt file to Storage (best-effort — never undoes the recepción).
+      if (comprobante) {
+        try {
+          const blob = await (await fetch(comprobante.dataUrl)).blob();
+          await api.documentos.crear({ file: blob, nombre: comprobante.name, carpeta: 'Compras', compra_id: compra.id, content_type: blob.type });
+        } catch {
+          showToast('Compra recibida, pero el comprobante no se pudo subir.', 'error');
+        }
+      }
       const emailLineas: CompraRecibidaLinea[] = updated.detalle
         .filter((d) => d.status === 'Activo')
         .map((d) => ({ edificio: d.edificio ?? '', articulo: d.articulo ?? '', cantidad: d.cantidad, costo_unitario: d.costo_unitario ?? 0, costo_total: d.costo_total ?? 0, recibido: d.recibido }));
@@ -203,9 +212,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                     <span className="text-xs text-muted-foreground">Arrastrá o hacé click para adjuntar</span>
                   </label>
                 )}
-                {/* ponytail: staged client-side only — no Storage backend yet. Upgrade path: upload
-                    to a bucket on submit and persist the resulting path via services/documentos. */}
-                <p className="text-[11px] text-muted-foreground/70 mt-1">El comprobante se adjunta cuando el backend de almacenamiento esté definido.</p>
+                <p className="text-[11px] text-muted-foreground/70 mt-1">El comprobante se sube al confirmar la recepción.</p>
               </div>
             </>
           )}
