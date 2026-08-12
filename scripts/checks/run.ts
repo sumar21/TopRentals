@@ -128,6 +128,28 @@ async function main() {
     assert.equal((await api.stock.movimientos()).length, movimientosBefore + 1);
   });
 
+  await check('mock adapter: editar cantidad de un TRASLADO rebalancea origen y destino', async () => {
+    const api = createMockAdapter();
+    const art = (await api.articulos.list())[0];
+    // Palermo Chico (1) y Palermo Soho (2): grupo_stock null → pools distintos (no se mergean).
+    const origen = await api.stock.agregar({ articulo_id: art.id, edificio_id: 1, cantidad: 10, precio_unitario: 100, usuario_id: 1 });
+    const origenBase = origen.cantidad; // post-agregar (seed pudo tener stock previo) → asserts relativos
+    const listaAntes = await api.stock.list();
+    const destinoAntes = listaAntes.find((r) => r.articulo_id === art.id && r.edificio_ids.includes(2))?.cantidad ?? 0;
+    const salida = await api.stock.salida({
+      stock_id: origen.id, edificio_id: 1, tipo: 'TRASLADO', cantidad: 4,
+      tecnico_id: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Soho', usuario_id: 1, edificio_destino_id: 2,
+    });
+    const trasSalida = await api.stock.list();
+    assert.equal(trasSalida.find((r) => r.id === origen.id)!.cantidad, origenBase - 4);
+    assert.equal(trasSalida.find((r) => r.articulo_id === art.id && r.edificio_ids.includes(2))!.cantidad, destinoAntes + 4);
+    // editar el traslado a 1 (delta = 4-1 = 3): origen +3, destino -3 → ambos rebalanceados
+    await api.stock.editarSalida({ salida_id: salida.id, cantidad: 1, usuario_id: 1 });
+    const trasEdit = await api.stock.list();
+    assert.equal(trasEdit.find((r) => r.id === origen.id)!.cantidad, origenBase - 1); // (base-4) + 3
+    assert.equal(trasEdit.find((r) => r.articulo_id === art.id && r.edificio_ids.includes(2))!.cantidad, destinoAntes + 1); // (antes+4) - 3
+  });
+
   await check('mock adapter: cerrar OT vuelca repuestos al histórico de salidas (idempotente)', async () => {
     const api = createMockAdapter();
     const ot = (await api.ots.list()).find((o) => o.status === 'Pendiente' || o.status === 'Asignada');

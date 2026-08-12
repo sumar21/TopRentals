@@ -262,6 +262,9 @@ export interface SalidaStock {
   /** Stock row actually debited — the ONLY safe target to credit back on edit/devolución.
    *  Null on legacy rows migrated from SharePoint (no such column there). */
   stock_id: number | null;
+  /** For a TRASLADO: the destination building whose stock was credited, so editing the salida's
+   *  quantity can rebalance BOTH buildings (PA parity, 4-patch edit). Null for non-traslado / legacy rows. */
+  edificio_destino_id: number | null;
   concat_articulo: string | null;
   tecnico_id: number | null;
   tipo: TipoSalidaStock;

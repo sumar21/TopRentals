@@ -229,6 +229,7 @@ export const salidaStockFromDb = (r: Row): SalidaStock => ({
   id: Number(r.id),
   articulo_id: r.articulo_id == null ? null : Number(r.articulo_id),
   stock_id: r.stock_id == null ? null : Number(r.stock_id),
+  edificio_destino_id: r.edificio_destino_id == null ? null : Number(r.edificio_destino_id),
   concat_articulo: r.concat_articulo ?? null,
   tecnico_id: r.tecnico_id == null ? null : Number(r.tecnico_id),
   tipo: r.tipo,

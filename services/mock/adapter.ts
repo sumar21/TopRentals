@@ -122,6 +122,7 @@ export function createMockAdapter(): DataApi {
         id: nextId(db.salidasStock),
         articulo_id: rep.articulo_id,
         stock_id: null,
+        edificio_destino_id: null,
         concat_articulo: rep.repuesto,
         tecnico_id: ot.tecnico_id,
         tipo: 'CONSUMIBLE',
@@ -401,6 +402,7 @@ export function createMockAdapter(): DataApi {
           id: nextId(db.salidasStock),
           articulo_id: row.articulo_id,
           stock_id: row.id, // the row actually debited — credit target for edit/devolución
+          edificio_destino_id: tipo === 'TRASLADO' ? (edificio_destino_id ?? null) : null, // credited row, for edit rebalance
           concat_articulo: concatArticulo(row.articulo_id),
           tecnico_id,
           tipo,
@@ -467,8 +469,17 @@ export function createMockAdapter(): DataApi {
         const edificio = db.edificios.find((e) => db.stockEdificios.some((se) => se.stock_id === stockRow.id && se.edificio_id === e.id)) ?? null;
         const delta = salida.cantidad - cantidad; // positive delta returns stock to the shelf
         if (delta < 0 && stockRow.cantidad < -delta) throw new Error('Cantidad insuficiente.');
+        // TRASLADO parity: the destination building was credited at salida time — resolve + validate it
+        // BEFORE mutating anything, so both sides rebalance by the inverse delta or neither does.
+        const destino = salida.tipo === 'TRASLADO' && salida.edificio_destino_id != null
+          ? stockRowFor(salida.articulo_id ?? -1, salida.edificio_destino_id)
+          : undefined;
+        if (destino && delta > 0 && destino.cantidad < delta) {
+          throw new Error('El edificio destino ya no tiene el stock trasladado — no se puede reducir la cantidad.');
+        }
         const cant_anterior = stockRow.cantidad;
         stockRow.cantidad += delta;
+        if (destino) destino.cantidad -= delta; // rebalance the destination by the inverse delta
         salida.cantidad = cantidad;
         registrarMovimiento({
           articulo_id: salida.articulo_id,
