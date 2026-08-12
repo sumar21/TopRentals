@@ -25,16 +25,21 @@ qué dice el kit, qué hace TopRentals, dónde vive el cambio real y por qué.
 - **Kit**: el catálogo de charts (§4.6 y §10 de `docs/DESIGN.md`) recomienda **donut/pie con
   label central** para proporciones (`docs/DESIGN.md:1771`) y colorear series con multi-tint
   `shade(i)` / `<Cell fill={shade(i)} />` (`docs/DESIGN.md:1768`).
-- **TopRentals**: los dashboards siguen el método de la skill `dataviz`:
-  - Barras horizontales **ordenadas de mayor a menor** para comparar magnitudes.
-  - **Un solo hue de marca por serie** — nada de multi-tint `shade(i)` sobre categorías nominales
-    (es un anti-patrón de dataviz: double-encodea largo de barra como color).
-  - Labels de valor **directos**, grid hairline.
-  - **Nunca pie/donut para comparar magnitudes** (usar barra); el pie queda solo para
-    part-to-whole a golpe de vista, ≤ 6 segmentos.
-  - Validar la paleta antes de shipear.
-- **Dónde vive el override**: `components/dashboard/DashboardView.tsx` (componente `MagnitudeBar`)
-  es el ejemplar; la regla está en `CLAUDE.md` (sección Diseño / UI).
+- **TopRentals**: los dashboards siguen el método de la skill `dataviz`. El **trabajo elige la forma**:
+  - **Magnitud** (comparar valores, ej. días promedio de resolución) → **barra horizontal ordenada**,
+    single hue navy. Nada de multi-tint `shade(i)` sobre categorías nominales (anti-patrón: double-encodea
+    largo de barra como color).
+  - **Part-to-whole** (share por edificio/torre/artículo) → **donut** agrupado a **top-5 + "Otros"**
+    (≤ 6 gajos), con la **paleta categórica validada de `dataviz`** — multi-hue *distinto* (blue/orange/
+    aqua/yellow/magenta + gris "Otros"), que NO es lo mismo que el multi-tint `shade(i)` prohibido.
+    Total al centro, % directos + leyenda (identidad nunca solo por color; releva el WARN de contraste),
+    `paddingAngle` = gap de superficie. **Los promedios NO son part-to-whole** (no suman a un total) →
+    barra, nunca torta.
+  - **Cambio en el tiempo** → **línea** (una serie navy, crosshair al hover).
+  - **Validar la paleta con `validate_palette.js` antes de shipear** — los 5 hues del donut pasan los
+    gates duros en superficie blanca (CVD adyacente ΔE 9.1, normal-vision 19.6).
+- **Dónde vive el override**: `components/dashboard/DashboardView.tsx` — componentes `MagnitudeBar`
+  (barras), `Donut` (part-to-whole) y `TrendLine` (evolución); la regla está en `CLAUDE.md` (sección Diseño / UI).
 - **Por qué**: convención de equipo — todos los dashboards se hacen con `dataviz`. El catálogo
   del kit precede a esa decisión; se mantiene el kit intacto y se pisa acá.
 

@@ -126,6 +126,30 @@ export function buildDashboardStats(mes: string, { movimientos, salidas, ots, ve
   };
 }
 
+export interface Share {
+  key: string;
+  value: number;
+  pct: number; // share of the total (0–100)
+  rest?: boolean; // true for the folded "Otros" bucket
+}
+
+/**
+ * Top-`n` rows by `valueKey` (desc) plus the remainder folded into one "Otros (k)" bucket,
+ * each carrying its share % of the total. Keeps a part-to-whole donut at ≤ n+1 legible slices
+ * (docs/design-overrides.md §2: pie/donut only for part-to-whole, ≤6 segments). Rows whose
+ * value is ≤0 are dropped — a share of nothing is not a slice.
+ */
+export function foldTopN(rows: Grouped[], valueKey: 'a' | 'b', n = 5): { slices: Share[]; total: number } {
+  const sorted = rows.filter((r) => r[valueKey] > 0).sort((x, y) => y[valueKey] - x[valueKey]);
+  const total = sorted.reduce((s, r) => s + r[valueKey], 0);
+  const share = (v: number): number => (total ? (v / total) * 100 : 0);
+  const slices: Share[] = sorted.slice(0, n).map((r) => ({ key: r.key, value: r[valueKey], pct: share(r[valueKey]) }));
+  const rest = sorted.slice(n);
+  const restSum = rest.reduce((s, r) => s + r[valueKey], 0);
+  if (restSum > 0) slices.push({ key: `Otros (${rest.length})`, value: restSum, pct: share(restSum), rest: true });
+  return { slices, total };
+}
+
 export interface MonthlyPoint {
   mes: string; // 'YYYY-MM'
   ingreso: number;

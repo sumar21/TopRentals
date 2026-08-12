@@ -4,28 +4,32 @@
 // this file is presentation only. Everything reads from the existing services (no new backend),
 // per CLAUDE.md "la UI habla SOLO con services/". Charts use recharts per DESIGN.md §10.
 //
-// Data-viz method (skill `dataviz`) applied to the recharts layer:
-//  · Form — the job picks the form. MAGNITUDE comparisons (by building/tower/article) are
-//    sorted horizontal bars. CHANGE-OVER-TIME is a line: the "Evolución mensual" chart plots
-//    a chosen total across a rolling 12-month window (the single-month filter throws the time
-//    axis away, so the trend reads it back off the same in-memory data). The former
-//    "Incidencias por torre" donut was an anti-pattern (pie for comparing >6 nominal values)
-//    → bar; we deliberately did NOT add the example dashboard's part-to-whole donut either
-//    (docs/design-overrides.md §2: no pie/donut for magnitudes).
-//  · Color — one series → ONE hue (brand navy). Both the bars and the trend line are a lone
-//    single series, so navy is correct: it FAILs the *categorical* lightness/chroma bands
-//    (those govern multi-hue palettes) but PASSes contrast ≥3:1 on the white surface, the
-//    check that applies to a single-series fill/stroke (validate_palette.js, --mode light).
-//  · Marks — bars: thin, 4px rounded data-ends, direct end-labels. Line: 2px stroke, recessive
-//    horizontal grid, dashed navy crosshair on hover. Per-tile month-over-month deltas are
-//    NEUTRAL (arrow only, no green/red) — on an ops board "more incidencias" isn't "good", so
-//    a good/bad color would lie.
+// Data-viz method (skill `dataviz`) applied to the recharts layer — the JOB picks the form:
+//  · PART-TO-WHOLE (share of a total by building/tower/article) → donut. Grouped to top-5 +
+//    "Otros" so the ring stays ≤6 legible slices — inside docs/design-overrides.md §2, which
+//    permits pie/donut ONLY for part-to-whole at ≤6 segments. Averages are NOT part-to-whole
+//    (they don't sum to a total), so "Tiempo de resolución" stays a BAR — a pie of averages
+//    would be mathematically meaningless.
+//  · MAGNITUDE that isn't a share (avg days per tower) → sorted horizontal bar, single hue.
+//  · CHANGE-OVER-TIME → line: "Evolución mensual" plots a chosen total across a rolling
+//    12-month window (the month filter throws the time axis away; the trend reads it back off
+//    the same in-memory data).
+//  · Color — donut segments use the dataviz *validated categorical* palette (blue/orange/aqua/
+//    yellow/magenta; "Otros" neutral grey), NOT brand navy: TopRentals has no multi-hue brand
+//    ramp, so the skill's reference instance is the honest source. Validated with
+//    validate_palette.js on the white surface: 5 hues PASS every hard gate (CVD adjacent ΔE 9.1,
+//    normal-vision 19.6); the sub-3:1 contrast WARN is relieved by the per-slice % labels + the
+//    legend (identity never rests on hue alone). paddingAngle=2 = the mandated surface gap.
+//    Bars and the trend line stay lone-series brand navy (contrast-validated on white).
+//  · Marks — bars: thin, 4px rounded ends, direct end-labels. Line: 2px stroke, recessive grid,
+//    dashed navy crosshair. Donut: center total, top-slice insight, labeled legend. Per-tile
+//    month-over-month deltas are NEUTRAL (arrow only, no green/red) — on an ops board "more
+//    incidencias" isn't "good", so a good/bad color would lie.
 //  · Interaction — a single month filter scopes every card (never per-chart); the trend card
 //    adds one metric selector; per-mark / crosshair hover everywhere.
-//  · Single series ⇒ no legend box (the card title names the series).
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, ClipboardList, Clock, Fan, PackageMinus, PackagePlus } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
@@ -35,8 +39,7 @@ import { api } from '../../services/index.ts';
 import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '../../services/types.ts';
 import type { Grouped } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
-import { maskFromNumber } from '../../utils/formatMoneyInput';
-import { buildDashboardStats, buildMonthlyTrend } from '../../utils/dashboardStats';
+import { buildDashboardStats, buildMonthlyTrend, foldTopN } from '../../utils/dashboardStats';
 
 // ── Chart chrome — brand navy series + recessive slate axes/grid (DESIGN.md §10) ──
 const BRAND = '#23313E';       // single-series fill (brand navy; contrast-validated on white)
@@ -45,9 +48,13 @@ const CAT_INK = '#475569';     // category names + direct value labels (readable
 const AXIS_MUTED = '#94a3b8';  // numeric axis ticks (recessive)
 const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: '1px solid #e4e4e7', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' };
 const CURSOR = { fill: 'rgba(35,49,62,0.06)' };
+// Donut segments: dataviz validated categorical palette (blue/orange/aqua/yellow/magenta) — the
+// skill's reference instance, since TopRentals has no multi-hue brand ramp. Validated on white:
+// 5 hues clear every hard gate (validate_palette.js). "Otros" is a de-emphasized neutral, not a hue.
+const DONUT_HUES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
+const OTROS_GREY = '#64748b';
 // recharts formatter typing is loose across versions; our callbacks stay simple and cast to any at the prop.
 
-const money = (n: number) => `$ ${maskFromNumber(n)}`;
 const num = (n: number) => n.toLocaleString('es-AR');
 const oneDecimal = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const mesLabel = (ym: string) => {
@@ -147,6 +154,60 @@ const TrendLine: React.FC<{
   </ResponsiveContainer>
 );
 
+/**
+ * Part-to-whole donut — share of a total across categories. Folded to top-5 + "Otros" (≤6 slices),
+ * segments in the validated categorical palette with a 2px surface gap (paddingAngle). Center holds
+ * the total; a top-slice insight and a labeled legend (dot + name + value + %) carry identity so it
+ * never rests on hue alone — which also relieves the sub-3:1 contrast of the lighter hues.
+ */
+const Donut: React.FC<{
+  rows: Grouped[];
+  valueKey: 'a' | 'b';
+  label: (v: number) => string;
+  unit?: string;
+}> = ({ rows, valueKey, label, unit }) => {
+  const { slices, total } = useMemo(() => foldTopN(rows, valueKey, 5), [rows, valueKey]);
+  if (slices.length === 0) return null;
+  const colored = slices.map((s, i) => ({ ...s, fill: s.rest ? OTROS_GREY : DONUT_HUES[i] }));
+  const top = colored[0];
+  return (
+    <div>
+      <p className="mb-3 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">{top.key}</span> concentra el {top.pct.toFixed(0)}%.
+      </p>
+      <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-center">
+        <div className="relative h-[200px] w-[200px] shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={colored} dataKey="value" nameKey="key" cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+                {colored.map((s) => <Cell key={s.key} fill={s.fill} />)}
+              </Pie>
+              <Tooltip
+                contentStyle={TOOLTIP_STYLE}
+                formatter={((v: number, n: string) => [`${label(v)}${unit ? ` ${unit}` : ''} · ${((v / total) * 100).toFixed(0)}%`, n]) as any}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-xl font-bold tabular-nums">{label(total)}</span>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit || 'total'}</span>
+          </div>
+        </div>
+        <ul className="w-full space-y-1.5 text-xs sm:max-w-[240px]">
+          {colored.map((s) => (
+            <li key={s.key} className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: s.fill }} />
+              <span className="min-w-0 flex-1 truncate">{s.key}</span>
+              <span className="tabular-nums text-muted-foreground">{label(s.value)}</span>
+              <span className="w-10 shrink-0 text-right font-semibold tabular-nums">{s.pct.toFixed(0)}%</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
 const DashboardView: React.FC = () => {
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
@@ -190,8 +251,6 @@ const DashboardView: React.FC = () => {
     () => buildDashboardStats(mes, { movimientos, salidas, ots, ventilaciones }),
     [movimientos, salidas, ots, ventilaciones, mes],
   );
-
-  const consumoTop = useMemo(() => data.consumo.slice(0, 8), [data.consumo]);
 
   // Rolling 12-month trend (oldest → newest) ending at the selected month. Feeds the line
   // chart and the per-tile deltas; reuses buildDashboardStats so it can't drift from `data`.
@@ -269,25 +328,19 @@ const DashboardView: React.FC = () => {
             <EmptyState icon={BarChart3} title="Sin datos este mes" message="No hay movimientos, OTs ni ventilaciones registrados en el mes seleccionado." />
           ) : (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <ChartCard title="Ingreso de stock por edificio" subtitle="Unidades ingresadas" empty={data.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
-                <MagnitudeBar
-                  data={data.ingreso}
-                  valueKey="a"
-                  label={num}
-                  tooltipName="Ingreso"
-                  tooltipExtra={(g) => `${num(g.a)} u · ${money(g.b)}`}
-                />
+              <ChartCard title="Ingreso de stock por edificio" subtitle="Participación por edificio" empty={data.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
+                <Donut rows={data.ingreso} valueKey="a" label={num} unit="u" />
               </ChartCard>
 
-              <ChartCard title="Consumo por artículo" subtitle="Top 8 por unidades" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
-                <MagnitudeBar data={consumoTop} valueKey="a" label={num} tooltipName="Unidades" />
+              <ChartCard title="Consumo por artículo" subtitle="Participación por artículo" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
+                <Donut rows={data.consumo} valueKey="a" label={num} unit="u" />
               </ChartCard>
 
-              <ChartCard title="Incidencias por torre" subtitle="OTs iniciadas este mes" empty={data.incidencias.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
-                <MagnitudeBar data={data.incidencias} valueKey="a" label={num} tooltipName="OTs" />
+              <ChartCard title="Incidencias por torre" subtitle="Participación por torre" empty={data.incidencias.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
+                <Donut rows={data.incidencias} valueKey="a" label={num} unit="OTs" />
               </ChartCard>
 
-              <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
+              <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre (promedios no van en torta)" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
                 <MagnitudeBar
                   data={data.resolucion}
                   valueKey="b"
@@ -298,14 +351,8 @@ const DashboardView: React.FC = () => {
                 />
               </ChartCard>
 
-              <ChartCard title="Ventilaciones limpiadas por edificio" subtitle="Limpiezas del mes" empty={data.ventilacionesLimpiadas.length === 0} emptyMsg="No se limpiaron aires este mes.">
-                <MagnitudeBar
-                  data={data.ventilacionesLimpiadas}
-                  valueKey="a"
-                  label={num}
-                  tooltipName="Limpiezas"
-                  tooltipExtra={(g) => `${num(g.a)} limpiezas${g.extra ? ` · última ${g.extra}` : ''}`}
-                />
+              <ChartCard title="Ventilaciones limpiadas por edificio" subtitle="Participación por edificio" empty={data.ventilacionesLimpiadas.length === 0} emptyMsg="No se limpiaron aires este mes.">
+                <Donut rows={data.ventilacionesLimpiadas} valueKey="a" label={num} unit="limpiezas" />
               </ChartCard>
             </div>
           )}

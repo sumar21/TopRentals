@@ -9,7 +9,7 @@ import { canAccessModule } from '../../utils/permissions.ts';
 import {
   articuloFromDb, compraFromDb, detalleCompraFromDb, perfilPermisoFromDb, stockFromDb, unidadFromDb, usuarioFromDb,
 } from '../../services/supabase/rows.ts';
-import { buildDashboardStats, buildMonthlyTrend } from '../../utils/dashboardStats.ts';
+import { buildDashboardStats, buildMonthlyTrend, foldTopN } from '../../utils/dashboardStats.ts';
 
 let passed = 0;
 
@@ -237,6 +237,23 @@ async function main() {
     assert.equal(trend[2].ingreso, 5); // julio +5
     // el último punto coincide exactamente con la vista de un mes (no puede divergir)
     assert.equal(trend[2].ingreso, buildDashboardStats('2026-07', sources).ingresoTotal);
+  });
+
+  await check('dashboard shares: top-N fold + percentages (donut slices)', () => {
+    const rows = [
+      { key: 'A', a: 50, b: 0 }, { key: 'B', a: 30, b: 0 }, { key: 'C', a: 10, b: 0 },
+      { key: 'D', a: 5, b: 0 }, { key: 'E', a: 3, b: 0 }, { key: 'F', a: 1, b: 0 }, { key: 'G', a: 1, b: 0 },
+    ] as any;
+    const { slices, total } = foldTopN(rows, 'a', 5);
+    assert.equal(total, 100);
+    assert.equal(slices.length, 6); // top-5 + "Otros"
+    assert.equal(slices[0].key, 'A');
+    assert.equal(slices[0].pct, 50); // 50/100
+    assert.equal(slices[5].key, 'Otros (2)'); // F + G folded
+    assert.equal(slices[5].value, 2);
+    assert.equal(slices[5].rest, true);
+    // ≤5 real categories → no "Otros" bucket; zero-value rows dropped
+    assert.equal(foldTopN([{ key: 'X', a: 4, b: 0 }, { key: 'Y', a: 0, b: 0 }] as any, 'a').slices.length, 1);
   });
 
   // utils/formatMoneyInput.ts belongs to the UI/components track — check it opportunistically.
