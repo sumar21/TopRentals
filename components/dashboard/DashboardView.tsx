@@ -28,7 +28,7 @@
 //  · Interaction — a single month filter scopes every card (never per-chart); the trend card
 //    adds one metric selector; per-mark / crosshair hover everywhere.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, ClipboardList, Clock, Fan, PackageMinus, PackagePlus } from 'lucide-react';
+import { BarChart3, Clock, Fan, PackageMinus, PackagePlus, TrendingUp, Trophy } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
@@ -208,6 +208,83 @@ const Donut: React.FC<{
   );
 };
 
+/** Tiny axis-less navy trend for the hero header — shape at a glance, no exact reads (the big number carries those). */
+const Sparkline: React.FC<{ data: number[] }> = ({ data }) => (
+  <ResponsiveContainer width="100%" height={48}>
+    <LineChart data={data.map((value, i) => ({ i, value }))} margin={{ top: 4, right: 2, left: 2, bottom: 4 }}>
+      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} dot={false} isAnimationActive={false} />
+    </LineChart>
+  </ResponsiveContainer>
+);
+
+/**
+ * 100%-stacked share bar — the colorful part-to-whole strip for the hero (top-5 + "Otros").
+ * flex-grow makes segment widths proportional to value while the 2px gap gives the mandated
+ * surface separation; an inline legend (dot + name + %) keeps identity off hue-alone.
+ */
+const StackedShareBar: React.FC<{ rows: Grouped[]; valueKey: 'a' | 'b' }> = ({ rows, valueKey }) => {
+  const { slices } = useMemo(() => foldTopN(rows, valueKey, 5), [rows, valueKey]);
+  if (slices.length === 0) return <p className="text-xs text-muted-foreground">Sin datos este mes.</p>;
+  const colored = slices.map((s, i) => ({ ...s, fill: s.rest ? OTROS_GREY : DONUT_HUES[i] }));
+  return (
+    <div className="space-y-2.5">
+      <div className="flex h-3 w-full gap-[2px]">
+        {colored.map((s) => (
+          <div key={s.key} className="rounded-[2px]" style={{ flexGrow: s.value, backgroundColor: s.fill }} title={`${s.key} · ${s.pct.toFixed(0)}%`} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+        {colored.map((s) => (
+          <span key={s.key} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.fill }} />
+            <span className="min-w-0 max-w-[140px] truncate text-muted-foreground">{s.key}</span>
+            <span className="font-semibold tabular-nums">{s.pct.toFixed(0)}%</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Hero card — the dashboard's headline metric, larger than every other card (size hierarchy).
+ * Big number + neutral delta + sparkline on top; a colored 100%-stacked share strip in the middle;
+ * a footer with the previous month and the 12-month average.
+ */
+const HeroCard: React.FC<{
+  caption: string;
+  total: number;
+  unit: string;
+  prev: number | null;
+  spark: number[];
+  avg: number;
+  rows: Grouped[];
+}> = ({ caption, total, unit, prev, spark, avg, rows }) => (
+  <Card className="flex h-full flex-col border shadow-sm">
+    <div className="flex flex-1 flex-col gap-4 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{caption}</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-4xl font-bold tracking-tight tabular-nums">{num(total)}</span>
+            <span className="text-sm text-muted-foreground">{unit}</span>
+          </div>
+          {prev != null && <p className="mt-1 text-xs text-muted-foreground">{deltaChip(total, prev)}</p>}
+        </div>
+        <div className="w-28 shrink-0 sm:w-44"><Sparkline data={spark} /></div>
+      </div>
+      <div>
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Por torre</p>
+        <StackedShareBar rows={rows} valueKey="a" />
+      </div>
+      <div className="mt-auto flex flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
+        <span>Mes anterior: <span className="font-semibold tabular-nums text-foreground">{prev != null ? num(prev) : '—'}</span></span>
+        <span>Promedio 12m: <span className="font-semibold tabular-nums text-foreground">{num(avg)}</span></span>
+      </div>
+    </div>
+  </Card>
+);
+
 const DashboardView: React.FC = () => {
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
@@ -277,6 +354,11 @@ const DashboardView: React.FC = () => {
     return `Pico en ${serie[maxI].label}; valle en ${serie[minI].label}.`;
   }, [serie]);
 
+  // Hero = Incidencias (the ops workload pulse): 12-month sparkline, 12-month average, leading tower.
+  const incSpark = useMemo(() => trend.map((p) => p.incidencias), [trend]);
+  const incAvg = incSpark.length ? Math.round(incSpark.reduce((s, v) => s + v, 0) / incSpark.length) : 0;
+  const torreLider = useMemo(() => foldTopN(data.incidencias, 'a', 5).slices[0], [data.incidencias]);
+
   const hasAny =
     data.ingreso.length + data.consumo.length + data.incidencias.length + data.resolucion.length + data.ventilacionesLimpiadas.length > 0;
 
@@ -299,10 +381,29 @@ const DashboardView: React.FC = () => {
         <LoadErrorState onRetry={() => window.location.reload()} />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {/* Hero band — headline card (big) + 2 KPI tiles (small): asymmetric, size hierarchy. */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <HeroCard
+                caption={`Incidencias · ${mesLabel(mes)}`}
+                total={data.incidenciasTotal}
+                unit="OTs este mes"
+                prev={prev?.incidencias ?? null}
+                spark={incSpark}
+                avg={incAvg}
+                rows={data.incidencias}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+              <StatCard title="Torre líder" value={torreLider?.key ?? '—'} icon={Trophy} subtext={torreLider ? `${torreLider.pct.toFixed(0)}% de las OTs` : 'sin OTs este mes'} />
+              <StatCard title="Promedio mensual" value={num(incAvg)} icon={TrendingUp} subtext="OTs/mes · últimos 12m" />
+            </div>
+          </div>
+
+          {/* Secondary metrics — smaller equal tiles, a size step down from the hero. */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard title="Ingreso de stock" value={num(data.ingresoTotal)} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades'} />
             <StatCard title="Consumo" value={num(data.consumoTotal)} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades'} />
-            <StatCard title="Incidencias" value={num(data.incidenciasTotal)} icon={ClipboardList} subtext={prev ? deltaChip(data.incidenciasTotal, prev.incidencias) : 'OTs del mes'} />
             <StatCard title="Tiempo de resolución" value={oneDecimal(data.resolProm)} icon={Clock} subtext={prev ? deltaChip(data.resolProm, prev.resolProm) : 'días promedio'} />
             <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext={prev ? deltaChip(data.ventTotal, prev.ventilaciones) : 'ventilaciones'} />
           </div>
@@ -334,10 +435,6 @@ const DashboardView: React.FC = () => {
 
               <ChartCard title="Consumo por artículo" subtitle="Participación por artículo" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
                 <Donut rows={data.consumo} valueKey="a" label={num} unit="u" />
-              </ChartCard>
-
-              <ChartCard title="Incidencias por torre" subtitle="Participación por torre" empty={data.incidencias.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
-                <Donut rows={data.incidencias} valueKey="a" label={num} unit="OTs" />
               </ChartCard>
 
               <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre (promedios no van en torta)" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
