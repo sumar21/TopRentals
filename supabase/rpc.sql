@@ -17,6 +17,27 @@
 -- `search_path` is pinned to close the classic DEFINER search_path hijack.
 
 -- ============================================================================
+-- helper: stock_pool_edificios — buildings that share a stock pool. PA merged paired
+-- buildings (edificios.grupo_stock: Hollywood↔Dorrego, Hub↔Nuñez, Admin↔Admin 2) into ONE
+-- shared stock pool; a NULL grupo_stock is its own standalone pool. Mirrors the mock's
+-- edificiosDelPool — every stock lookup (agregar / salida-destino / recibir / editar-salida)
+-- resolves the whole pool so paired buildings draw from / credit the same rows.
+-- ============================================================================
+CREATE OR REPLACE FUNCTION stock_pool_edificios(p_edificio_id bigint)
+RETURNS SETOF bigint
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT e2.id
+  FROM edificios e1
+  JOIN edificios e2
+    ON (e1.grupo_stock IS NOT NULL AND e2.grupo_stock = e1.grupo_stock) OR e2.id = e1.id
+  WHERE e1.id = p_edificio_id;
+$$;
+
+-- ============================================================================
 -- helper: insertar_detalle_lineas — shared by compras_crear / compras_actualizar
 -- / aprobaciones_editar. Mirrors mock's insertarLineas(): resolves articulo/
 -- edificio display names + cant_min (articulo.corte) per line, inserts one
@@ -96,7 +117,7 @@ BEGIN
   SELECT s.id, s.cantidad INTO v_stock_id, v_cant_anterior
   FROM stock s
   JOIN stock_edificios se ON se.stock_id = s.id
-  WHERE s.articulo_id = p_articulo_id AND se.edificio_id = p_edificio_id
+  WHERE s.articulo_id = p_articulo_id AND se.edificio_id IN (SELECT stock_pool_edificios(p_edificio_id))
   LIMIT 1;
 
   IF v_stock_id IS NOT NULL THEN
@@ -204,7 +225,7 @@ BEGIN
     SELECT s.id INTO v_destino_id
     FROM stock s
     JOIN stock_edificios se ON se.stock_id = s.id
-    WHERE s.articulo_id = v_articulo_id AND se.edificio_id = p_edificio_destino_id
+    WHERE s.articulo_id = v_articulo_id AND se.edificio_id IN (SELECT stock_pool_edificios(p_edificio_destino_id))
     LIMIT 1;
 
     IF v_destino_id IS NOT NULL THEN
@@ -222,10 +243,11 @@ BEGIN
   END IF;
 
   INSERT INTO salidas_stock (
-    articulo_id, stock_id, concat_articulo, tecnico_id, tipo,
+    articulo_id, stock_id, edificio_destino_id, concat_articulo, tecnico_id, tipo,
     fecha_salida, uso, centro_de_costo, cantidad, usuario_id, fecha
   ) VALUES (
-    v_articulo_id, p_stock_id, v_articulo_nombre, p_tecnico_id, p_tipo::tipo_salida_stock,
+    v_articulo_id, p_stock_id, CASE WHEN p_tipo = 'TRASLADO' THEN p_edificio_destino_id ELSE NULL END,
+    v_articulo_nombre, p_tecnico_id, p_tipo::tipo_salida_stock,
     coalesce(p_fecha_salida, current_date), p_uso, p_centro_de_costo, p_cantidad, p_usuario_id, now()
   ) RETURNING id INTO v_salida_id;
 
@@ -310,9 +332,11 @@ DECLARE
   v_articulo_nombre text;
   v_edificio_nombre text;
   v_delta numeric;
+  v_edificio_destino_id bigint;
+  v_destino_stock_id bigint;
 BEGIN
-  SELECT articulo_id, stock_id, tipo::text, cantidad, fecha_reingreso
-    INTO v_articulo_id, v_stock_id, v_tipo, v_cantidad_actual, v_fecha_reingreso
+  SELECT articulo_id, stock_id, tipo::text, cantidad, fecha_reingreso, edificio_destino_id
+    INTO v_articulo_id, v_stock_id, v_tipo, v_cantidad_actual, v_fecha_reingreso, v_edificio_destino_id
   FROM salidas_stock WHERE id = p_salida_id;
 
   IF NOT FOUND THEN
@@ -333,7 +357,24 @@ BEGIN
     RAISE EXCEPTION 'Cantidad insuficiente.';
   END IF;
 
+  -- TRASLADO parity: the destination building was credited at salida time — rebalance it by the inverse
+  -- delta (pool-aware lookup). Resolve + validate BEFORE mutating so both sides move together or neither.
+  IF v_tipo = 'TRASLADO' AND v_edificio_destino_id IS NOT NULL THEN
+    SELECT s.id INTO v_destino_stock_id
+    FROM stock s
+    JOIN stock_edificios se ON se.stock_id = s.id
+    WHERE s.articulo_id = v_articulo_id AND se.edificio_id IN (SELECT stock_pool_edificios(v_edificio_destino_id))
+    LIMIT 1;
+    IF v_destino_stock_id IS NOT NULL AND v_delta > 0
+       AND (SELECT cantidad FROM stock WHERE id = v_destino_stock_id) < v_delta THEN
+      RAISE EXCEPTION 'El edificio destino ya no tiene el stock trasladado — no se puede reducir la cantidad.';
+    END IF;
+  END IF;
+
   UPDATE stock SET cantidad = cantidad + v_delta WHERE id = v_stock_id;
+  IF v_destino_stock_id IS NOT NULL THEN
+    UPDATE stock SET cantidad = cantidad - v_delta WHERE id = v_destino_stock_id;
+  END IF;
   UPDATE salidas_stock SET cantidad = p_cantidad WHERE id = p_salida_id;
 
   SELECT edificio_id INTO v_edificio_id FROM stock_edificios WHERE stock_id = v_stock_id LIMIT 1;
@@ -610,7 +651,7 @@ BEGIN
       SELECT s.id, s.cantidad INTO v_stock_id, v_cant_anterior
       FROM stock s
       JOIN stock_edificios se ON se.stock_id = s.id
-      WHERE s.articulo_id = v_articulo_id AND se.edificio_id = v_edificio_id
+      WHERE s.articulo_id = v_articulo_id AND se.edificio_id IN (SELECT stock_pool_edificios(v_edificio_id))
       LIMIT 1;
 
       IF v_stock_id IS NOT NULL THEN
@@ -825,7 +866,7 @@ BEGIN
     INTO v_stock_id, v_cant_anterior, v_precio, v_corte
   FROM stock s
   JOIN stock_edificios se ON se.stock_id = s.id
-  WHERE s.articulo_id = p_articulo_id AND se.edificio_id = p_edificio_id
+  WHERE s.articulo_id = p_articulo_id AND se.edificio_id IN (SELECT stock_pool_edificios(p_edificio_id))
   LIMIT 1;
 
   IF v_stock_id IS NULL OR v_cant_anterior < p_cantidad THEN

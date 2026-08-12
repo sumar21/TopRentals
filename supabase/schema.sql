@@ -349,6 +349,8 @@ CREATE TABLE salidas_stock (
   -- Stock row actually debited: the only safe credit target for edit/devolución.
   -- NULL on rows migrated from SharePoint (the source has no such column).
   stock_id bigint NULL REFERENCES stock (id) ON DELETE SET NULL,
+  -- For a TRASLADO: destination building credited at salida time, so editing the qty rebalances both (PA parity).
+  edificio_destino_id bigint NULL REFERENCES edificios (id) ON DELETE SET NULL,
   concat_articulo text,
   tecnico_id bigint NULL REFERENCES usuarios (id) ON DELETE SET NULL,
   tipo tipo_salida_stock,
