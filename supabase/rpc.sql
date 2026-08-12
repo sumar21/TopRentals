@@ -925,7 +925,10 @@ $$;
 -- Mirrors mock ots.cerrar(): sets status + fecha_cierre and, on the FIRST close only,
 -- spills the OT's active repuestos into salidas_stock (idempotent — a re-close of an
 -- already-closed/anulada OT does not duplicate the salidas).
-CREATE OR REPLACE FUNCTION ot_cerrar(p_id bigint, p_tipo text)
+-- #5: takes the user-entered fecha_cierre + obs_cierre so the close is ONE atomic write (was RPC +
+-- a separate client update that, on failure, left the OT closed with today's date and no observation).
+DROP FUNCTION IF EXISTS ot_cerrar(bigint, text);
+CREATE OR REPLACE FUNCTION ot_cerrar(p_id bigint, p_tipo text, p_fecha_cierre date DEFAULT NULL, p_obs_cierre text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -939,7 +942,11 @@ BEGIN
     RAISE EXCEPTION 'Orden de trabajo % no encontrada.', p_id;
   END IF;
 
-  UPDATE ordenes_trabajo SET status = p_tipo::estado_ot, fecha_cierre = current_date WHERE id = p_id;
+  UPDATE ordenes_trabajo
+    SET status = p_tipo::estado_ot,
+        fecha_cierre = COALESCE(p_fecha_cierre, current_date),
+        obs_cierre = p_obs_cierre
+  WHERE id = p_id;
 
   IF v_previo NOT IN ('Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada') THEN
     PERFORM ot_registrar_salidas_repuestos(p_id);

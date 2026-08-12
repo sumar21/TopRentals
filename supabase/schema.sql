@@ -579,13 +579,15 @@ BEGIN
   -- Next cycle is always UNASSIGNED (PA leaves IDAsignado_VE blank; the back office re-assigns it),
   -- starts at Orden_VE:4, es_incidente = false, and proxima_limpieza = today + frecuencia_dias
   -- (fallback 90 days when the unit has no frequency, matching the mock — NOT 0/today).
+  -- #6: the STORED frecuencia_dias is coalesced to 90 too (not left NULL), exactly like the mock — so a
+  -- null-frequency lineage heals to a concrete 90 instead of staying null forever in Postgres only.
   INSERT INTO ventilaciones (
     estado, unidad_id, direccion_edificio, edificio, habitacion,
     frecuencia_dias, fecha_ultima, proxima_limpieza, asignado_id, es_incidente, orden
   )
   VALUES (
     'Pendiente', v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion,
-    v_frecuencia_dias, current_date, current_date + coalesce(v_frecuencia_dias, 90)::int, NULL, false, 4
+    coalesce(v_frecuencia_dias, 90), current_date, current_date + coalesce(v_frecuencia_dias, 90)::int, NULL, false, 4
   )
   RETURNING id INTO v_new_id;
 

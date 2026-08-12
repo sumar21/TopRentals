@@ -499,20 +499,15 @@ export function createSupabaseAdapter(): DataApi {
         return ordenTrabajoFromDb(data);
       },
       async cerrar(id, tipo, opts) {
-        // RPC (no direct update): closing an OT also spills its consumed repuestos into
-        // salidas_stock — multi-table + idempotent, so it must be atomic. See ot_cerrar in rpc.sql.
-        const sb = getSupabase();
-        const { error } = await sb.rpc('ot_cerrar', { p_id: id, p_tipo: tipo });
+        // ONE atomic RPC (#5): ot_cerrar now takes the user-entered date + observations, so closing an OT
+        // (which also spills its repuestos into salidas_stock — multi-table + idempotent) and stamping the
+        // real close date/obs happen in a single transaction. No follow-up client update to fail halfway.
+        const { error } = await getSupabase().rpc('ot_cerrar', {
+          p_id: id, p_tipo: tipo,
+          p_fecha_cierre: opts?.fecha_cierre ?? null,
+          p_obs_cierre: opts?.obs_cierre ?? null,
+        });
         if (error) throw error;
-        // ot_cerrar stamps fecha_cierre = today; overwrite with the user-entered date +
-        // closure observations via a normal update (keeps the RPC signature untouched).
-        const patch: Record<string, unknown> = {};
-        if (opts?.fecha_cierre) patch.fecha_cierre = opts.fecha_cierre;
-        if (opts?.obs_cierre !== undefined) patch.obs_cierre = opts.obs_cierre;
-        if (Object.keys(patch).length) {
-          const { error: updErr } = await sb.from('ordenes_trabajo').update(patch).eq('id', id);
-          if (updErr) throw updErr;
-        }
         return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
       },
       async finalizar(id, tecnico_id) {
