@@ -14,13 +14,14 @@
 //  · CHANGE-OVER-TIME → line: "Evolución mensual" plots a chosen total across a rolling
 //    12-month window (the month filter throws the time axis away; the trend reads it back off
 //    the same in-memory data).
-//  · Color — donut segments use the dataviz *validated categorical* palette (blue/orange/aqua/
-//    yellow/magenta; "Otros" neutral grey), NOT brand navy: TopRentals has no multi-hue brand
-//    ramp, so the skill's reference instance is the honest source. Validated with
-//    validate_palette.js on the white surface: 5 hues PASS every hard gate (CVD adjacent ΔE 9.1,
-//    normal-vision 19.6); the sub-3:1 contrast WARN is relieved by the per-slice % labels + the
-//    legend (identity never rests on hue alone). paddingAngle=2 = the mandated surface gap.
-//    Bars and the trend line stay lone-series brand navy (contrast-validated on white).
+//  · Color — donut/stacked-bar segments use a jewel-tone *categorical* palette tuned to the navy
+//    brand (ocean-blue / terracotta / emerald / amber / wine; "Otros" neutral slate), NOT tints of
+//    navy: a single-hue ramp over nominal categories is the banned multi-tint anti-pattern. Muted
+//    "on-brand" hues failed the chroma floor (colour-blind viewers can't separate near-gray hues),
+//    so the palette is deep-but-rich, not desaturated. Validated with validate_palette.js on white:
+//    PASSes every hard gate (CVD adjacent ΔE 9.7, normal-vision 20.5); the amber's sub-3:1 contrast
+//    WARN is relieved by the per-slice % labels + legend (identity never rests on hue alone).
+//    paddingAngle=2 = the mandated surface gap. Bars and the trend/sparkline stay lone-series navy.
 //  · Marks — bars: thin, 4px rounded ends, direct end-labels. Line: 2px stroke, recessive grid,
 //    dashed navy crosshair. Donut: center total, top-slice insight, labeled legend. Per-tile
 //    month-over-month deltas are NEUTRAL (arrow only, no green/red) — on an ops board "more
@@ -48,10 +49,13 @@ const CAT_INK = '#475569';     // category names + direct value labels (readable
 const AXIS_MUTED = '#94a3b8';  // numeric axis ticks (recessive)
 const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: '1px solid #e4e4e7', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' };
 const CURSOR = { fill: 'rgba(35,49,62,0.06)' };
-// Donut segments: dataviz validated categorical palette (blue/orange/aqua/yellow/magenta) — the
-// skill's reference instance, since TopRentals has no multi-hue brand ramp. Validated on white:
-// 5 hues clear every hard gate (validate_palette.js). "Otros" is a de-emphasized neutral, not a hue.
-const DONUT_HUES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
+// Donut/stacked-bar segments: a jewel-tone categorical palette tuned to the navy brand — deeper and
+// more editorial than the dataviz bright default, with slot 1 (the largest slice) an ocean blue in the
+// navy family for cohesion. ocean-blue / terracotta / emerald / amber / wine. Validated on white
+// (validate_palette.js): clears every hard gate — CVD adjacent ΔE 9.7 (≥8), normal-vision 20.5 (≥15);
+// the amber's sub-3:1 contrast WARN is relieved by the per-slice % labels + legend. "Otros" is a
+// de-emphasized slate neutral, not a hue.
+const DONUT_HUES = ['#215f9c', '#cc5a2f', '#12906c', '#c78f1a', '#9a487a'];
 const OTROS_GREY = '#64748b';
 // recharts formatter typing is loose across versions; our callbacks stay simple and cast to any at the prop.
 

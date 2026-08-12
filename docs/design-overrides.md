@@ -29,10 +29,12 @@ qué dice el kit, qué hace TopRentals, dónde vive el cambio real y por qué.
   - **Magnitud** (comparar valores, ej. días promedio de resolución) → **barra horizontal ordenada**,
     single hue navy. Nada de multi-tint `shade(i)` sobre categorías nominales (anti-patrón: double-encodea
     largo de barra como color).
-  - **Part-to-whole** (share por edificio/torre/artículo) → **donut** agrupado a **top-5 + "Otros"**
-    (≤ 6 gajos), con la **paleta categórica validada de `dataviz`** — multi-hue *distinto* (blue/orange/
-    aqua/yellow/magenta + gris "Otros"), que NO es lo mismo que el multi-tint `shade(i)` prohibido.
-    Total al centro, % directos + leyenda (identidad nunca solo por color; releva el WARN de contraste),
+  - **Part-to-whole** (share por edificio/torre/artículo) → **donut** (o barra apilada 100% en el hero)
+    agrupado a **top-5 + "Otros"** (≤ 6 gajos), con una **paleta categórica jewel afinada al navy**
+    — multi-hue *distinto* (ocean-blue / terracotta / emerald / amber / wine + slate "Otros"), que NO es
+    el multi-tint `shade(i)` prohibido. Nota: los tonos "apagados" fallan el piso de chroma del validador
+    (un daltónico no separa hues casi-grises), por eso son profundos-pero-ricos, no desaturados. Total al
+    centro, % directos + leyenda (identidad nunca solo por color; releva el WARN de contraste),
     `paddingAngle` = gap de superficie. **Los promedios NO son part-to-whole** (no suman a un total) →
     barra, nunca torta.
   - **Cambio en el tiempo** → **línea** (una serie navy, crosshair al hover).
