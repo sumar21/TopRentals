@@ -9,7 +9,7 @@ import { canAccessModule } from '../../utils/permissions.ts';
 import {
   articuloFromDb, compraFromDb, detalleCompraFromDb, perfilPermisoFromDb, stockFromDb, unidadFromDb, usuarioFromDb,
 } from '../../services/supabase/rows.ts';
-import { buildDashboardStats } from '../../utils/dashboardStats.ts';
+import { buildDashboardStats, buildMonthlyTrend } from '../../utils/dashboardStats.ts';
 
 let passed = 0;
 
@@ -219,6 +219,24 @@ async function main() {
     assert.equal(stats.resolProm, 5); // (4 + 6) / 2 cerradas
     assert.equal(stats.ventTotal, 2); // 2 ventilaciones Realizadas
     assert.equal(stats.ventilacionesLimpiadas[0].a, 2);
+  });
+
+  await check('dashboard trend: rolling window reuses per-month totals', () => {
+    const sources = {
+      movimientos: [
+        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 5, costo_posterior: 10, fecha: '2026-07-03T10:00:00Z' },
+        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 4, costo_posterior: 10, fecha: '2026-06-03T10:00:00Z' },
+      ],
+      salidas: [], ots: [], ventilaciones: [],
+    } as any;
+    const trend = buildMonthlyTrend('2026-07', sources, 3); // may, jun, jul (oldest → newest)
+    assert.equal(trend.length, 3);
+    assert.deepEqual(trend.map((p) => p.mes), ['2026-05', '2026-06', '2026-07']);
+    assert.equal(trend[0].ingreso, 0); // mayo sin datos
+    assert.equal(trend[1].ingreso, 4); // junio +4
+    assert.equal(trend[2].ingreso, 5); // julio +5
+    // el último punto coincide exactamente con la vista de un mes (no puede divergir)
+    assert.equal(trend[2].ingreso, buildDashboardStats('2026-07', sources).ingresoTotal);
   });
 
   // utils/formatMoneyInput.ts belongs to the UI/components track — check it opportunistically.

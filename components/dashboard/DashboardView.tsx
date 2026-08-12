@@ -5,21 +5,27 @@
 // per CLAUDE.md "la UI habla SOLO con services/". Charts use recharts per DESIGN.md §10.
 //
 // Data-viz method (skill `dataviz`) applied to the recharts layer:
-//  · Form — every metric here is single-series MAGNITUDE, so every chart is a sorted
-//    horizontal bar. The former "Incidencias por torre" donut was an anti-pattern
-//    (pie for comparing >6 values; a value-ramp over nominal towers) → now a bar.
-//  · Color — one series → ONE hue. Brand navy is the only brand color (CLAUDE.md); it
-//    FAILs the *categorical* lightness/chroma bands (that's for multi-hue palettes) but
-//    PASSes contrast ≥3:1 on the white card surface, which is the check that applies to a
-//    lone single-series fill (validate_palette.js, --mode light).
-//  · Marks — thin bars, 4px rounded data-ends on the baseline, hairline recessive grid,
-//    a 2px-ish category gap, and a selective direct value label at each bar end so every
-//    value is readable without the tooltip (accessibility: values are never tooltip-gated).
-//  · Interaction — a single month filter above ALL charts (never per-chart); per-mark hover.
+//  · Form — the job picks the form. MAGNITUDE comparisons (by building/tower/article) are
+//    sorted horizontal bars. CHANGE-OVER-TIME is a line: the "Evolución mensual" chart plots
+//    a chosen total across a rolling 12-month window (the single-month filter throws the time
+//    axis away, so the trend reads it back off the same in-memory data). The former
+//    "Incidencias por torre" donut was an anti-pattern (pie for comparing >6 nominal values)
+//    → bar; we deliberately did NOT add the example dashboard's part-to-whole donut either
+//    (docs/design-overrides.md §2: no pie/donut for magnitudes).
+//  · Color — one series → ONE hue (brand navy). Both the bars and the trend line are a lone
+//    single series, so navy is correct: it FAILs the *categorical* lightness/chroma bands
+//    (those govern multi-hue palettes) but PASSes contrast ≥3:1 on the white surface, the
+//    check that applies to a single-series fill/stroke (validate_palette.js, --mode light).
+//  · Marks — bars: thin, 4px rounded data-ends, direct end-labels. Line: 2px stroke, recessive
+//    horizontal grid, dashed navy crosshair on hover. Per-tile month-over-month deltas are
+//    NEUTRAL (arrow only, no green/red) — on an ops board "more incidencias" isn't "good", so
+//    a good/bad color would lie.
+//  · Interaction — a single month filter scopes every card (never per-chart); the trend card
+//    adds one metric selector; per-mark / crosshair hover everywhere.
 //  · Single series ⇒ no legend box (the card title names the series).
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, ClipboardList, Clock, Fan, PackageMinus, PackagePlus } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
@@ -30,7 +36,7 @@ import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '..
 import type { Grouped } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
-import { buildDashboardStats } from '../../utils/dashboardStats';
+import { buildDashboardStats, buildMonthlyTrend } from '../../utils/dashboardStats';
 
 // ── Chart chrome — brand navy series + recessive slate axes/grid (DESIGN.md §10) ──
 const BRAND = '#23313E';       // single-series fill (brand navy; contrast-validated on white)
@@ -47,6 +53,31 @@ const oneDecimal = (n: number) => n.toLocaleString('es-AR', { minimumFractionDig
 const mesLabel = (ym: string) => {
   const [y, m] = ym.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+};
+// Compact axis label for the 12-month trend: "Ago", "Sep"… (window is 12 distinct months → no year needed).
+const mesShort = (ym: string) => {
+  const [y, m] = ym.split('-').map(Number);
+  const s = new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'short' }).replace('.', '');
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+// Trend-chart metrics: the 5 monthly totals, each with its own value formatter and unit.
+type MetricKey = 'incidencias' | 'consumo' | 'ingreso' | 'resolProm' | 'ventilaciones';
+const TREND_METRICS: { value: MetricKey; label: string; fmt: (n: number) => string; unit: string }[] = [
+  { value: 'incidencias', label: 'Incidencias (OTs)', fmt: num, unit: 'OTs' },
+  { value: 'consumo', label: 'Consumo de stock', fmt: num, unit: 'u' },
+  { value: 'ingreso', label: 'Ingreso de stock', fmt: num, unit: 'u' },
+  { value: 'resolProm', label: 'Tiempo de resolución', fmt: oneDecimal, unit: 'días' },
+  { value: 'ventilaciones', label: 'Aires limpiados', fmt: num, unit: '' },
+];
+
+// Month-over-month delta under each StatCard. NEUTRAL by design (arrow only, no trend color):
+// on an ops board a rise/fall isn't inherently good or bad, so green/red would mislead.
+const deltaChip = (cur: number, prev: number): string => {
+  if (cur === prev) return '± 0% vs mes ant.';
+  if (prev === 0) return '▲ vs mes ant.'; // % is undefined from a zero base
+  const pct = Math.round(Math.abs((cur - prev) / prev) * 100);
+  return `${cur > prev ? '▲' : '▼'} ${pct}% vs mes ant.`;
 };
 
 const ChartCard: React.FC<{ title: string; subtitle?: string; empty: boolean; emptyMsg: string; children: React.ReactNode }> = ({ title, subtitle, empty, emptyMsg, children }) => (
@@ -89,6 +120,33 @@ const MagnitudeBar: React.FC<{
   </ResponsiveContainer>
 );
 
+/**
+ * Change-over-time line — one navy series over the rolling 12-month window. No legend
+ * (single series; the card title names it), recessive horizontal grid, dashed navy crosshair
+ * on hover so any month's exact value is readable without a per-point label.
+ */
+const TrendLine: React.FC<{
+  data: { mes: string; label: string; value: number }[];
+  fmt: (v: number) => string;
+  name: string;
+  allowDecimals?: boolean;
+}> = ({ data, fmt, name, allowDecimals = false }) => (
+  <ResponsiveContainer width="100%" height={260}>
+    <LineChart data={data} margin={{ top: 12, right: 20, left: 4, bottom: 4 }}>
+      <CartesianGrid stroke={GRID} vertical={false} />
+      <XAxis dataKey="label" tick={{ fontSize: 11, fill: AXIS_MUTED }} axisLine={false} tickLine={false} />
+      <YAxis tick={{ fontSize: 11, fill: AXIS_MUTED }} axisLine={false} tickLine={false} width={40} allowDecimals={allowDecimals} />
+      <Tooltip
+        cursor={{ stroke: BRAND, strokeWidth: 1, strokeDasharray: '4 4' }}
+        contentStyle={TOOLTIP_STYLE}
+        labelFormatter={((_l: string, p: any) => (p?.[0]?.payload ? mesLabel(p[0].payload.mes) : _l)) as any}
+        formatter={((v: number) => [fmt(v), name]) as any}
+      />
+      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} dot={{ r: 2.5, fill: BRAND, strokeWidth: 0 }} activeDot={{ r: 4 }} isAnimationActive={false} />
+    </LineChart>
+  </ResponsiveContainer>
+);
+
 const DashboardView: React.FC = () => {
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
@@ -97,6 +155,7 @@ const DashboardView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [mes, setMes] = useState<string>(todayISO().slice(0, 7));
+  const [metric, setMetric] = useState<MetricKey>('incidencias');
 
   const load = useCallback(async (silent = false) => {
     if (!silent) { setLoading(true); setLoadError(false); }
@@ -134,6 +193,31 @@ const DashboardView: React.FC = () => {
 
   const consumoTop = useMemo(() => data.consumo.slice(0, 8), [data.consumo]);
 
+  // Rolling 12-month trend (oldest → newest) ending at the selected month. Feeds the line
+  // chart and the per-tile deltas; reuses buildDashboardStats so it can't drift from `data`.
+  const trend = useMemo(
+    () => buildMonthlyTrend(mes, { movimientos, salidas, ots, ventilaciones }, 12),
+    [movimientos, salidas, ots, ventilaciones, mes],
+  );
+  const prev = trend.length >= 2 ? trend[trend.length - 2] : null; // previous month, for the deltas
+  const metricCfg = TREND_METRICS.find((mm) => mm.value === metric)!;
+  const serie = useMemo(() => trend.map((p) => ({ mes: p.mes, label: mesShort(p.mes), value: p[metric] })), [trend, metric]);
+  const hasTrend = useMemo(
+    () => trend.some((p) => p.ingreso || p.consumo || p.incidencias || p.resolProm || p.ventilaciones),
+    [trend],
+  );
+  // Auto insight: peak/valley month of the selected metric across the window (like "Pico en Jul; valle en Feb").
+  const insight = useMemo(() => {
+    if (serie.every((p) => p.value === 0)) return 'Sin datos en la ventana de 12 meses.';
+    let maxI = 0;
+    let minI = 0;
+    serie.forEach((p, i) => {
+      if (p.value > serie[maxI].value) maxI = i;
+      if (p.value < serie[minI].value) minI = i;
+    });
+    return `Pico en ${serie[maxI].label}; valle en ${serie[minI].label}.`;
+  }, [serie]);
+
   const hasAny =
     data.ingreso.length + data.consumo.length + data.incidencias.length + data.resolucion.length + data.ventilacionesLimpiadas.length > 0;
 
@@ -157,12 +241,29 @@ const DashboardView: React.FC = () => {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard title="Ingreso de stock" value={num(data.ingresoTotal)} icon={PackagePlus} subtext="unidades" />
-            <StatCard title="Consumo" value={num(data.consumoTotal)} icon={PackageMinus} subtext="unidades" />
-            <StatCard title="Incidencias" value={num(data.incidenciasTotal)} icon={ClipboardList} subtext="OTs del mes" />
-            <StatCard title="Tiempo de resolución" value={oneDecimal(data.resolProm)} icon={Clock} subtext="días promedio" />
-            <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext="ventilaciones" />
+            <StatCard title="Ingreso de stock" value={num(data.ingresoTotal)} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades'} />
+            <StatCard title="Consumo" value={num(data.consumoTotal)} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades'} />
+            <StatCard title="Incidencias" value={num(data.incidenciasTotal)} icon={ClipboardList} subtext={prev ? deltaChip(data.incidenciasTotal, prev.incidencias) : 'OTs del mes'} />
+            <StatCard title="Tiempo de resolución" value={oneDecimal(data.resolProm)} icon={Clock} subtext={prev ? deltaChip(data.resolProm, prev.resolProm) : 'días promedio'} />
+            <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext={prev ? deltaChip(data.ventTotal, prev.ventilaciones) : 'ventilaciones'} />
           </div>
+
+          {hasTrend && (
+            <ChartCard title={`Evolución mensual · ${metricCfg.label}`} subtitle={insight} empty={false} emptyMsg="">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[11px] text-muted-foreground">Últimos 12 meses · total por mes</p>
+                <div className="w-full sm:w-56">
+                  <Select
+                    value={metric}
+                    onChange={(v) => setMetric(v as MetricKey)}
+                    options={TREND_METRICS.map((mm) => ({ value: mm.value, label: mm.label }))}
+                    placeholder="Métrica"
+                  />
+                </div>
+              </div>
+              <TrendLine data={serie} fmt={metricCfg.fmt} name={metricCfg.label} allowDecimals={metric === 'resolProm'} />
+            </ChartCard>
+          )}
 
           {!hasAny ? (
             <EmptyState icon={BarChart3} title="Sin datos este mes" message="No hay movimientos, OTs ni ventilaciones registrados en el mes seleccionado." />

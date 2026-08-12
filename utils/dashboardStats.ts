@@ -125,3 +125,39 @@ export function buildDashboardStats(mes: string, { movimientos, salidas, ots, ve
     ventTotal,
   };
 }
+
+export interface MonthlyPoint {
+  mes: string; // 'YYYY-MM'
+  ingreso: number;
+  consumo: number;
+  incidencias: number;
+  resolProm: number;
+  ventilaciones: number;
+}
+
+/**
+ * The 5 dashboard totals over the last `count` months up to and including `mes`,
+ * one point per month (oldest → newest). Reuses buildDashboardStats per month so
+ * the time series can never diverge from the single-month view — same aggregation,
+ * just a wider window. Cheap: `sources` are the arrays the view already holds in
+ * memory, so this adds no backend read. Feeds both the trend line and the
+ * per-tile month-over-month deltas.
+ */
+export function buildMonthlyTrend(mes: string, sources: DashboardSources, count = 12): MonthlyPoint[] {
+  const [y, m] = mes.split('-').map(Number);
+  const points: MonthlyPoint[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1); // Date normalizes negative month indices across year boundaries
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const s = buildDashboardStats(ym, sources);
+    points.push({
+      mes: ym,
+      ingreso: s.ingresoTotal,
+      consumo: s.consumoTotal,
+      incidencias: s.incidenciasTotal,
+      resolProm: s.resolProm,
+      ventilaciones: s.ventTotal,
+    });
+  }
+  return points;
+}
