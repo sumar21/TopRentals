@@ -18,7 +18,7 @@
 //    brand (ocean-blue / terracotta / emerald / amber / wine; "Otros" neutral slate), NOT tints of
 //    navy: a single-hue ramp over nominal categories is the banned multi-tint anti-pattern. Muted
 //    "on-brand" hues failed the chroma floor (colour-blind viewers can't separate near-gray hues),
-//    so the palette is deep-but-rich, not desaturated. Validated with validate_palette.js on white:
+//    so the palette is deep-but-rich, not desaturated. Validated with scripts/checks/validate_palette.js on white:
 //    PASSes every hard gate (CVD adjacent ΔE 9.7, normal-vision 20.5); the amber's sub-3:1 contrast
 //    WARN is relieved by the per-slice % labels + legend (identity never rests on hue alone).
 //    paddingAngle=2 = the mandated surface gap. Bars and the trend/sparkline stay lone-series navy.
@@ -28,7 +28,7 @@
 //    incidencias" isn't "good", so a good/bad color would lie.
 //  · Interaction — a single month filter scopes every card (never per-chart); the trend card
 //    adds one metric selector; per-mark / crosshair hover everywhere.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Clock, Fan, PackageMinus, PackagePlus, TrendingUp, Trophy } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard } from '../ui/UIComponents';
@@ -40,7 +40,7 @@ import { api } from '../../services/index.ts';
 import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '../../services/types.ts';
 import type { Grouped } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
-import { buildDashboardStats, buildMonthlyTrend, foldTopN } from '../../utils/dashboardStats';
+import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, monthKey, trendExtremes } from '../../utils/dashboardStats';
 
 // ── Chart chrome — brand navy series + recessive slate axes/grid (DESIGN.md §10) ──
 const BRAND = '#23313E';       // single-series fill (brand navy; contrast-validated on white)
@@ -52,9 +52,14 @@ const CURSOR = { fill: 'rgba(35,49,62,0.06)' };
 // Donut/stacked-bar segments: a jewel-tone categorical palette tuned to the navy brand — deeper and
 // more editorial than the dataviz bright default, with slot 1 (the largest slice) an ocean blue in the
 // navy family for cohesion. ocean-blue / terracotta / emerald / amber / wine. Validated on white
-// (validate_palette.js): clears every hard gate — CVD adjacent ΔE 9.7 (≥8), normal-vision 20.5 (≥15);
+// (scripts/checks/validate_palette.js): clears every hard gate — CVD adjacent ΔE 9.7 (≥8), normal-vision 20.5 (≥15);
 // the amber's sub-3:1 contrast WARN is relieved by the per-slice % labels + legend. "Otros" is a
 // de-emphasized slate neutral, not a hue.
+// Hues are assigned by RANK within each chart (slice i → DONUT_HUES[i]), NOT by a stable per-entity map.
+// That's intentional: these are top-N-fold charts over an UNBOUNDED category universe (many buildings/
+// articles), and with 5 hues a stable per-entity mapping cannot guarantee distinct colours within a
+// visible ring (pigeonhole → two same-coloured adjacent slices, worse than the cross-chart inconsistency
+// it would fix). The per-chart legend carries identity, so rank-based is the correct call here.
 const DONUT_HUES = ['#215f9c', '#cc5a2f', '#12906c', '#c78f1a', '#9a487a'];
 const OTROS_GREY = '#64748b';
 // recharts formatter typing is loose across versions; our callbacks stay simple and cast to any at the prop.
@@ -63,7 +68,8 @@ const num = (n: number) => n.toLocaleString('es-AR');
 const oneDecimal = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const mesLabel = (ym: string) => {
   const [y, m] = ym.split('-').map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const s = new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1); // es-AR month is lowercase-first; match mesShort + VentilacionesView
 };
 // Compact axis label for the 12-month trend: "Ago", "Sep"… (window is 12 distinct months → no year needed).
 const mesShort = (ym: string) => {
@@ -81,15 +87,12 @@ const TREND_METRICS: { value: MetricKey; label: string; fmt: (n: number) => stri
   { value: 'resolProm', label: 'Tiempo de resolución', fmt: oneDecimal, unit: 'días' },
   { value: 'ventilaciones', label: 'Aires limpiados', fmt: num, unit: '' },
 ];
+// Hoisted: the metric-selector options never change, so build them once (not per render).
+const TREND_SELECT_OPTIONS = TREND_METRICS.map((mm) => ({ value: mm.value, label: mm.label }));
 
-// Month-over-month delta under each StatCard. NEUTRAL by design (arrow only, no trend color):
-// on an ops board a rise/fall isn't inherently good or bad, so green/red would mislead.
-const deltaChip = (cur: number, prev: number): string => {
-  if (cur === prev) return '± 0% vs mes ant.';
-  if (prev === 0) return '▲ vs mes ant.'; // % is undefined from a zero base
-  const pct = Math.round(Math.abs((cur - prev) / prev) * 100);
-  return `${cur > prev ? '▲' : '▼'} ${pct}% vs mes ant.`;
-};
+// Stable React key for a slice: the folded "Otros" bucket gets a reserved key so it can never collide
+// with a real category literally named "Otros (n)" (migrated free-text data). Real keys are unique per aggregation.
+const sliceKey = (s: { key: string; rest?: boolean }) => (s.rest ? '__otros__' : s.key);
 
 const ChartCard: React.FC<{ title: string; subtitle?: string; empty: boolean; emptyMsg: string; children: React.ReactNode }> = ({ title, subtitle, empty, emptyMsg, children }) => (
   <Card className="border shadow-sm overflow-hidden">
@@ -153,7 +156,7 @@ const TrendLine: React.FC<{
         labelFormatter={((_l: string, p: any) => (p?.[0]?.payload ? mesLabel(p[0].payload.mes) : _l)) as any}
         formatter={((v: number) => [fmt(v), name]) as any}
       />
-      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} dot={{ r: 2.5, fill: BRAND, strokeWidth: 0 }} activeDot={{ r: 4 }} isAnimationActive={false} />
+      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={{ r: 4, fill: BRAND, stroke: '#fff', strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} />
     </LineChart>
   </ResponsiveContainer>
 );
@@ -164,7 +167,7 @@ const TrendLine: React.FC<{
  * the total; a top-slice insight and a labeled legend (dot + name + value + %) carry identity so it
  * never rests on hue alone — which also relieves the sub-3:1 contrast of the lighter hues.
  */
-const Donut: React.FC<{
+const DonutBase: React.FC<{
   rows: Grouped[];
   valueKey: 'a' | 'b';
   label: (v: number) => string;
@@ -184,22 +187,22 @@ const Donut: React.FC<{
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={colored} dataKey="value" nameKey="key" cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
-                {colored.map((s) => <Cell key={s.key} fill={s.fill} />)}
+                {colored.map((s) => <Cell key={sliceKey(s)} fill={s.fill} />)}
               </Pie>
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                formatter={((v: number, n: string) => [`${label(v)}${unit ? ` ${unit}` : ''} · ${((v / total) * 100).toFixed(0)}%`, n]) as any}
+                formatter={((v: number, n: string) => [`${label(v)}${unit ? ` ${unit}` : ''}`, n]) as any}
               />
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xl font-bold tabular-nums">{label(total)}</span>
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit || 'total'}</span>
+            <span className="text-xl font-bold">{label(total)}</span>
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit ?? 'total'}</span>
           </div>
         </div>
         <ul className="w-full space-y-1.5 text-xs sm:max-w-[240px]">
           {colored.map((s) => (
-            <li key={s.key} className="flex items-center gap-2">
+            <li key={sliceKey(s)} className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: s.fill }} />
               <span className="min-w-0 flex-1 truncate">{s.key}</span>
               <span className="tabular-nums text-muted-foreground">{label(s.value)}</span>
@@ -211,12 +214,13 @@ const Donut: React.FC<{
     </div>
   );
 };
+const Donut = React.memo(DonutBase); // props are stable refs (memoized data + module-const formatters) → skips re-render on metric change
 
 /** Tiny axis-less navy trend for the hero header — shape at a glance, no exact reads (the big number carries those). */
 const Sparkline: React.FC<{ data: number[] }> = ({ data }) => (
   <ResponsiveContainer width="100%" height={48}>
     <LineChart data={data.map((value, i) => ({ i, value }))} margin={{ top: 4, right: 2, left: 2, bottom: 4 }}>
-      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} dot={false} isAnimationActive={false} />
+      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={false} isAnimationActive={false} />
     </LineChart>
   </ResponsiveContainer>
 );
@@ -234,12 +238,12 @@ const StackedShareBar: React.FC<{ rows: Grouped[]; valueKey: 'a' | 'b' }> = ({ r
     <div className="space-y-2.5">
       <div className="flex h-3 w-full gap-[2px]">
         {colored.map((s) => (
-          <div key={s.key} className="rounded-[2px]" style={{ flexGrow: s.value, backgroundColor: s.fill }} title={`${s.key} · ${s.pct.toFixed(0)}%`} />
+          <div key={sliceKey(s)} className="rounded-[2px]" style={{ flexGrow: s.value, backgroundColor: s.fill }} title={`${s.key} · ${s.pct.toFixed(0)}%`} />
         ))}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
         {colored.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5">
+          <span key={sliceKey(s)} className="flex items-center gap-1.5">
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.fill }} />
             <span className="min-w-0 max-w-[140px] truncate text-muted-foreground">{s.key}</span>
             <span className="font-semibold tabular-nums">{s.pct.toFixed(0)}%</span>
@@ -255,7 +259,7 @@ const StackedShareBar: React.FC<{ rows: Grouped[]; valueKey: 'a' | 'b' }> = ({ r
  * Big number + neutral delta + sparkline on top; a colored 100%-stacked share strip in the middle;
  * a footer with the previous month and the 12-month average.
  */
-const HeroCard: React.FC<{
+const HeroCardBase: React.FC<{
   caption: string;
   total: number;
   unit: string;
@@ -270,7 +274,7 @@ const HeroCard: React.FC<{
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{caption}</p>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-4xl font-bold tracking-tight tabular-nums">{num(total)}</span>
+            <span className="text-4xl font-bold tracking-tight">{num(total)}</span>
             <span className="text-sm text-muted-foreground">{unit}</span>
           </div>
           {prev != null && <p className="mt-1 text-xs text-muted-foreground">{deltaChip(total, prev)}</p>}
@@ -288,6 +292,7 @@ const HeroCard: React.FC<{
     </div>
   </Card>
 );
+const HeroCard = React.memo(HeroCardBase); // stable props → doesn't re-render when only the trend metric changes
 
 const DashboardView: React.FC = () => {
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
@@ -299,18 +304,24 @@ const DashboardView: React.FC = () => {
   const [mes, setMes] = useState<string>(todayISO().slice(0, 7));
   const [metric, setMetric] = useState<MetricKey>('incidencias');
 
+  // Monotonic request id: the initial mount fetch and any realtime-triggered refetch can overlap, so
+  // stamp each call and only the newest one is allowed to commit — a slow earlier response can't clobber
+  // a fresher one (also makes StrictMode's dev double-mount harmless).
+  const reqSeq = useRef(0);
   const load = useCallback(async (silent = false) => {
+    const myId = ++reqSeq.current;
     if (!silent) { setLoading(true); setLoadError(false); }
     try {
       const [mov, sal, o, v] = await Promise.all([api.stock.movimientos(), api.stock.salidas(), api.ots.list(), api.ventilaciones.list()]);
+      if (myId !== reqSeq.current) return; // superseded by a newer load() — drop the stale response
       setMovimientos(mov);
       setSalidas(sal);
       setOts(o);
       setVentilaciones(v);
     } catch {
-      if (!silent) setLoadError(true);
+      if (myId === reqSeq.current && !silent) setLoadError(true);
     } finally {
-      if (!silent) setLoading(false);
+      if (myId === reqSeq.current && !silent) setLoading(false);
     }
   }, []);
 
@@ -320,13 +331,19 @@ const DashboardView: React.FC = () => {
 
   const mesOptions = useMemo(() => {
     const set = new Set<string>([todayISO().slice(0, 7)]);
-    movimientos.forEach((m) => m.fecha && set.add(m.fecha.slice(0, 7)));
-    salidas.forEach((s) => s.fecha_salida && set.add(s.fecha_salida.slice(0, 7)));
-    ots.forEach((o) => o.fecha_inicio && set.add(o.fecha_inicio.slice(0, 7)));
-    ots.forEach((o) => o.fecha_cierre && set.add(o.fecha_cierre.slice(0, 7)));
-    ventilaciones.forEach((v) => v.fecha_finalizacion && set.add(v.fecha_finalizacion.slice(0, 7)));
+    const add = (iso: string | null | undefined) => { if (iso) set.add(monthKey(iso)); };
+    movimientos.forEach((m) => add(m.fecha));
+    salidas.forEach((s) => add(s.fecha_salida));
+    ots.forEach((o) => { add(o.fecha_inicio); add(o.fecha_cierre); });
+    ventilaciones.forEach((v) => add(v.fecha_finalizacion));
     return [...set].sort().reverse().map((ym) => ({ value: ym, label: mesLabel(ym) }));
   }, [movimientos, salidas, ots, ventilaciones]);
+
+  // Keep the selected month valid: if a realtime update drops the row that was its only source, the month
+  // leaves mesOptions — snap back to the newest available (options are sorted newest-first) instead of a dangling value.
+  useEffect(() => {
+    if (mesOptions.length && !mesOptions.some((o) => o.value === mes)) setMes(mesOptions[0].value);
+  }, [mesOptions, mes]);
 
   const data = useMemo(
     () => buildDashboardStats(mes, { movimientos, salidas, ots, ventilaciones }),
@@ -347,15 +364,12 @@ const DashboardView: React.FC = () => {
     [trend],
   );
   // Auto insight: peak/valley month of the selected metric across the window (like "Pico en Jul; valle en Feb").
+  // A flat or all-zero series has no meaningful peak/valley, so it's worded differently (no "Pico en X; valle en X").
   const insight = useMemo(() => {
-    if (serie.every((p) => p.value === 0)) return 'Sin datos en la ventana de 12 meses.';
-    let maxI = 0;
-    let minI = 0;
-    serie.forEach((p, i) => {
-      if (p.value > serie[maxI].value) maxI = i;
-      if (p.value < serie[minI].value) minI = i;
-    });
-    return `Pico en ${serie[maxI].label}; valle en ${serie[minI].label}.`;
+    const ex = trendExtremes(serie.map((p) => p.value));
+    if (ex.allZero) return 'Sin datos en la ventana de 12 meses.';
+    if (ex.flat) return 'Sin variación en la ventana de 12 meses.';
+    return `Pico en ${serie[ex.maxIndex].label}; valle en ${serie[ex.minIndex].label}.`;
   }, [serie]);
 
   // Hero = Incidencias (the ops workload pulse): 12-month sparkline, 12-month average, leading tower.
@@ -382,7 +396,7 @@ const DashboardView: React.FC = () => {
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando dashboard…" /></div>
       ) : loadError ? (
-        <LoadErrorState onRetry={() => window.location.reload()} />
+        <LoadErrorState onRetry={() => void load()} />
       ) : (
         <>
           {/* Hero band — headline card (big) + 2 KPI tiles (small): asymmetric, size hierarchy. */}
@@ -420,7 +434,7 @@ const DashboardView: React.FC = () => {
                   <Select
                     value={metric}
                     onChange={(v) => setMetric(v as MetricKey)}
-                    options={TREND_METRICS.map((mm) => ({ value: mm.value, label: mm.label }))}
+                    options={TREND_SELECT_OPTIONS}
                     placeholder="Métrica"
                   />
                 </div>

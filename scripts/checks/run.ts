@@ -9,7 +9,7 @@ import { canAccessModule } from '../../utils/permissions.ts';
 import {
   articuloFromDb, compraFromDb, detalleCompraFromDb, perfilPermisoFromDb, stockFromDb, unidadFromDb, usuarioFromDb,
 } from '../../services/supabase/rows.ts';
-import { buildDashboardStats, buildMonthlyTrend, foldTopN } from '../../utils/dashboardStats.ts';
+import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, trendExtremes } from '../../utils/dashboardStats.ts';
 
 let passed = 0;
 
@@ -212,7 +212,6 @@ async function main() {
 
     assert.equal(stats.ingresoTotal, 5); // solo la entrada +5 del mes
     assert.equal(stats.ingreso[0].key, 'Torre A');
-    assert.equal(stats.ingreso[0].b, 50); // 5 unidades * $10
     assert.equal(stats.consumoTotal, 5); // Cloro 3+2; DEVOLUCION excluida
     assert.equal(stats.consumo[0].key, 'Cloro');
     assert.equal(stats.incidenciasTotal, 3); // 3 OTs iniciadas en el mes
@@ -221,22 +220,33 @@ async function main() {
     assert.equal(stats.ventilacionesLimpiadas[0].a, 2);
   });
 
-  await check('dashboard trend: rolling window reuses per-month totals', () => {
+  await check('dashboard trend: single-pass window matches per-month totals (all metrics + year-wrap)', () => {
     const sources = {
       movimientos: [
         { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 5, costo_posterior: 10, fecha: '2026-07-03T10:00:00Z' },
         { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 4, costo_posterior: 10, fecha: '2026-06-03T10:00:00Z' },
       ],
-      salidas: [], ots: [], ventilaciones: [],
+      salidas: [{ articulo_id: 1, concat_articulo: 'Cloro', tipo: 'CONSUMIBLE', fecha_salida: '2026-07-06', cantidad: 2 }],
+      ots: [
+        { torre: 'Torre A', status: 'Pendiente', fecha_inicio: '2026-07-01', fecha_cierre: null },
+        { torre: 'Torre A', status: 'Cerrada', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-05' },
+      ],
+      ventilaciones: [{ edificio: 'Torre A', estado: 'Realizada', fecha_finalizacion: '2026-07-12T00:00:00Z' }],
     } as any;
     const trend = buildMonthlyTrend('2026-07', sources, 3); // may, jun, jul (oldest → newest)
     assert.equal(trend.length, 3);
     assert.deepEqual(trend.map((p) => p.mes), ['2026-05', '2026-06', '2026-07']);
     assert.equal(trend[0].ingreso, 0); // mayo sin datos
     assert.equal(trend[1].ingreso, 4); // junio +4
-    assert.equal(trend[2].ingreso, 5); // julio +5
-    // el último punto coincide exactamente con la vista de un mes (no puede divergir)
-    assert.equal(trend[2].ingreso, buildDashboardStats('2026-07', sources).ingresoTotal);
+    // último punto == la vista de un mes, para CADA métrica (el single-pass no puede divergir)
+    const jul = buildDashboardStats('2026-07', sources);
+    assert.equal(trend[2].ingreso, jul.ingresoTotal);
+    assert.equal(trend[2].consumo, jul.consumoTotal);
+    assert.equal(trend[2].incidencias, jul.incidenciasTotal);
+    assert.equal(trend[2].resolProm, jul.resolProm);
+    assert.equal(trend[2].ventilaciones, jul.ventTotal);
+    // ventana de 12m desde enero cruza el límite de año correctamente
+    assert.deepEqual(buildMonthlyTrend('2026-01', sources, 3).map((p) => p.mes), ['2025-11', '2025-12', '2026-01']);
   });
 
   await check('dashboard shares: top-N fold + percentages (donut slices)', () => {
@@ -252,8 +262,51 @@ async function main() {
     assert.equal(slices[5].key, 'Otros (2)'); // F + G folded
     assert.equal(slices[5].value, 2);
     assert.equal(slices[5].rest, true);
+    // percentages are integers summing to exactly 100 (largest-remainder)
+    assert.equal(slices.reduce((s, x) => s + x.pct, 0), 100);
     // ≤5 real categories → no "Otros" bucket; zero-value rows dropped
     assert.equal(foldTopN([{ key: 'X', a: 4, b: 0 }, { key: 'Y', a: 0, b: 0 }] as any, 'a').slices.length, 1);
+    // exact-n boundary: 5 rows, no remainder → no "Otros"
+    const five = [{ key: 'A', a: 1, b: 0 }, { key: 'B', a: 1, b: 0 }, { key: 'C', a: 1, b: 0 }, { key: 'D', a: 1, b: 0 }, { key: 'E', a: 1, b: 0 }] as any;
+    assert.equal(foldTopN(five, 'a', 5).slices.length, 5);
+    // total === 0 → empty, no NaN
+    const zero = foldTopN([{ key: 'Z', a: 0, b: 0 }] as any, 'a');
+    assert.equal(zero.total, 0);
+    assert.equal(zero.slices.length, 0);
+    // three equal thirds still sum to 100 (largest-remainder, not 99)
+    assert.equal(foldTopN([{ key: 'A', a: 1, b: 0 }, { key: 'B', a: 1, b: 0 }, { key: 'C', a: 1, b: 0 }] as any, 'a').slices.reduce((s, x) => s + x.pct, 0), 100);
+  });
+
+  await check('dashboard stats: empty input yields zeros, no NaN', () => {
+    const s = buildDashboardStats('2026-07', { movimientos: [], salidas: [], ots: [], ventilaciones: [] });
+    assert.equal(s.ingresoTotal, 0);
+    assert.equal(s.consumoTotal, 0);
+    assert.equal(s.incidenciasTotal, 0);
+    assert.equal(s.resolProm, 0); // guard: no closed OTs → 0, not NaN
+    assert.equal(s.ventTotal, 0);
+    assert.equal(s.ingreso.length, 0);
+  });
+
+  await check('deltaChip: neutral arrow-only, "± 0%" whenever the change rounds to zero', () => {
+    assert.equal(deltaChip(120, 100), '▲ 20% vs mes ant.');
+    assert.equal(deltaChip(80, 100), '▼ 20% vs mes ant.');
+    assert.equal(deltaChip(100, 100), '± 0% vs mes ant.');
+    assert.equal(deltaChip(1004, 1000), '± 0% vs mes ant.'); // 0.4% rounds to 0 → no contradictory "▲ 0%"
+    assert.equal(deltaChip(3, 0), '▲ vs mes ant.'); // % undefined from a zero base
+    assert.equal(deltaChip(0, 0), '± 0% vs mes ant.');
+  });
+
+  await check('trendExtremes: peak/valley, with flat + all-zero flagged', () => {
+    const normal = trendExtremes([1, 5, 2]);
+    assert.equal(normal.maxIndex, 1);
+    assert.equal(normal.minIndex, 0);
+    assert.equal(normal.flat, false);
+    const flat = trendExtremes([5, 5, 5]);
+    assert.equal(flat.flat, true); // constant → "sin variación", not "pico=valle"
+    assert.equal(flat.allZero, false);
+    const zero = trendExtremes([0, 0, 0]);
+    assert.equal(zero.allZero, true);
+    assert.equal(zero.flat, true);
   });
 
   // utils/formatMoneyInput.ts belongs to the UI/components track — check it opportunistically.

@@ -38,10 +38,14 @@ qué dice el kit, qué hace TopRentals, dónde vive el cambio real y por qué.
     `paddingAngle` = gap de superficie. **Los promedios NO son part-to-whole** (no suman a un total) →
     barra, nunca torta.
   - **Cambio en el tiempo** → **línea** (una serie navy, crosshair al hover).
-  - **Validar la paleta con `validate_palette.js` antes de shipear** — los 5 hues del donut pasan los
-    gates duros en superficie blanca (CVD adyacente ΔE 9.1, normal-vision 19.6).
+  - **Validar la paleta con `scripts/checks/validate_palette.js` antes de shipear** (vendoreado del skill
+    `dataviz` para que el equipo pueda re-correrlo): `node scripts/checks/validate_palette.js "<hex,hex,…>" --mode light --surface "#ffffff"`.
+    Los 5 hues del donut (`#215f9c,#cc5a2f,#12906c,#c78f1a,#9a487a`) pasan los gates duros en blanco
+    (CVD adyacente ΔE 9.7, normal-vision 20.5; el amber queda en WARN de contraste, relevado por labels + leyenda).
 - **Dónde vive el override**: `components/dashboard/DashboardView.tsx` — componentes `MagnitudeBar`
-  (barras), `Donut` (part-to-whole) y `TrendLine` (evolución); la regla está en `CLAUDE.md` (sección Diseño / UI).
+  (barras), `Donut` y `StackedShareBar` (part-to-whole), `TrendLine` + `Sparkline` (evolución) y `HeroCard`;
+  más el delta mes-a-mes **neutro** (`deltaChip` en `utils/dashboardStats.ts`, flecha sin color). La regla está en
+  `CLAUDE.md` (sección Diseño / UI).
 - **Por qué**: convención de equipo — todos los dashboards se hacen con `dataviz`. El catálogo
   del kit precede a esa decisión; se mantiene el kit intacto y se pisa acá.
 
