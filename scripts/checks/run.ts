@@ -93,6 +93,18 @@ async function main() {
     assert.equal(siguiente.proxima_limpieza, addDays(todayISO(), siguiente.frecuencia_dias ?? 0));
   });
 
+  await check('mock adapter: crear ventilación escribe la frecuencia en la unidad', async () => {
+    const api = createMockAdapter();
+    const base = (await api.ventilaciones.list())[0];
+    assert.ok(base, 'seed debe tener ventilaciones');
+    const { id: _id, ...nueva } = base;
+    const creada = await api.ventilaciones.crear({ ...nueva, frecuencia_dias: 77, estado: 'Pendiente' });
+    const unidad = (await api.unidades.list()).find((u) => u.id === creada.unidad_id);
+    assert.ok(unidad, 'la ventilación creada debe referir a una unidad existente');
+    assert.equal(unidad!.frecuencia_ventilacion_dias, 77); // #4: crear ahora escribe la frecuencia de la unidad
+    assert.equal(unidad!.requiere_ventilacion, true);
+  });
+
   await check('mock adapter: edificios apareados (grupo_stock) comparten un pool', async () => {
     const api = createMockAdapter();
     const art = (await api.articulos.list())[0];

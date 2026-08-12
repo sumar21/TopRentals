@@ -1190,7 +1190,12 @@ BEGIN
   ) RETURNING id INTO v_id;
 
   IF v_row.unidad_id IS NOT NULL THEN
-    UPDATE unidades SET requiere_ventilacion = true WHERE id = v_row.unidad_id;
+    -- PA patched both Ventilacion_ABMUnid + Frecuencia_ABMUnid on create — store the frequency too
+    -- (COALESCE keeps the existing value when the payload carries no frequency).
+    UPDATE unidades
+      SET requiere_ventilacion = true,
+          frecuencia_ventilacion_dias = COALESCE(v_row.frecuencia_dias, frecuencia_ventilacion_dias)
+    WHERE id = v_row.unidad_id;
   END IF;
 
   RETURN v_id;

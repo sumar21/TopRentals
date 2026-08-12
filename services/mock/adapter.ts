@@ -914,9 +914,13 @@ export function createMockAdapter(): DataApi {
         await sleep();
         const row: Ventilacion = { id: nextId(db.ventilaciones), ...input };
         db.ventilaciones.push(row);
-        // PA parity: creating a schedule flags the unit as under ventilation control.
+        // PA parity: creating a schedule flags the unit as under ventilation control AND stores its
+        // frequency (PA patched both Ventilacion_ABMUnid + Frecuencia_ABMUnid on '99.ABM_TipoUnidades').
         const unidad = db.unidades.find((u) => u.id === row.unidad_id);
-        if (unidad) unidad.requiere_ventilacion = true;
+        if (unidad) {
+          unidad.requiere_ventilacion = true;
+          if (row.frecuencia_dias != null) unidad.frecuencia_ventilacion_dias = row.frecuencia_dias;
+        }
         return structuredClone(row);
       },
       async asignar({ id, tecnico_id, proxima_limpieza, frecuencia_dias }) {
