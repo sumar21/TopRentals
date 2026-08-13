@@ -237,6 +237,9 @@ const DonutBase: React.FC<{
               </Pie>
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
+                // El total central del donut es un div absolute posterior en el DOM → se pinta encima del
+                // tooltip. Elevamos el wrapper del tooltip para que quede por arriba (no transparente).
+                wrapperStyle={{ zIndex: 50 }}
                 {...(detail
                   ? { content: <DetailTooltip /> }
                   : { formatter: ((v: number, n: string) => [`${label(v)}${unit ? ` ${unit}` : ''}`, n]) as any })}
