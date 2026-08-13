@@ -44,13 +44,17 @@ export const categoriaColor = (value: string): string => {
   return CATEGORIA_COLORS[key] ?? PALETTE[hashIndex(key)];
 };
 
-/** Colored categorical pill. Same size as StatusBadge; '—' when empty. */
-export const CategoriaBadge: React.FC<{ value: string | null | undefined; className?: string }> = ({ value, className }) => {
+/**
+ * Colored categorical pill. Same size as StatusBadge; '—' when empty.
+ * `label` overrides the displayed text (e.g. a short "OT"/"Sol OT") while the color still keys off
+ * the full `value`, so the palette stays consistent no matter how it's abbreviated.
+ */
+export const CategoriaBadge: React.FC<{ value: string | null | undefined; label?: string; className?: string }> = ({ value, label, className }) => {
   const v = (value ?? '').trim();
   if (!v) return <span className="text-muted-foreground">—</span>;
   return (
     <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap', categoriaColor(v), className)}>
-      {v}
+      {label ?? v}
     </span>
   );
 };

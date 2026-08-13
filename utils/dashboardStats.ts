@@ -24,6 +24,7 @@ export interface DashboardStats {
   consumo: Grouped[];
   consumoTotal: number;
   consumoPorEdificio: Grouped[]; // consumo del mes agrupado por edificio (a dónde se fue el stock)
+  consumoPorEdificioDesglose: Record<string, Grouped[]>; // por edificio → artículos consumidos (desc), para el tooltip de desglose
   incidencias: Grouped[];
   incidenciasTotal: number;
   otsPorEstado: Grouped[]; // OTs iniciadas en el mes, por estado (salud del flujo)
@@ -100,17 +101,30 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
   const ingresoTotal = ingreso.reduce((s, r) => s + r.a, 0);
 
   // 2. Consumo: consumption-type movements from movimientos_stock (incl. OT repuestos), por artículo y por edificio.
+  //    consumoDesglose acumula, dentro de cada edificio, el consumo por artículo → alimenta el tooltip de desglose.
   const consumoMap = new Map<string, Grouped>();
   const consumoEdifMap = new Map<string, Grouped>();
+  const consumoDesgloseMap = new Map<string, Map<string, number>>();
   for (const m of movimientos) {
     if (!inMonth(m.fecha) || !CONSUMO_MOV_TIPOS.has(m.tipo_movimiento)) continue;
     const amt = consumido(m);
-    bump(consumoMap, articuloKey(m.concat_articulo, m.articulo_id), amt, 0);
-    bump(consumoEdifMap, named(m.edificio, 'Sin edificio'), amt, 0);
+    const artKey = articuloKey(m.concat_articulo, m.articulo_id);
+    const edifKey = named(m.edificio, 'Sin edificio');
+    bump(consumoMap, artKey, amt, 0);
+    bump(consumoEdifMap, edifKey, amt, 0);
+    const inner = consumoDesgloseMap.get(edifKey) ?? new Map<string, number>();
+    inner.set(artKey, (inner.get(artKey) ?? 0) + amt);
+    consumoDesgloseMap.set(edifKey, inner);
   }
   const consumo = [...consumoMap.values()].sort((x, y) => y.a - x.a);
   const consumoTotal = consumo.reduce((s, r) => s + r.a, 0);
   const consumoPorEdificio = [...consumoEdifMap.values()].sort((x, y) => y.a - x.a);
+  const consumoPorEdificioDesglose: Record<string, Grouped[]> = {};
+  for (const [edif, inner] of consumoDesgloseMap) {
+    consumoPorEdificioDesglose[edif] = [...inner.entries()]
+      .map(([key, a]) => ({ key, a, b: 0 }))
+      .sort((x, y) => y.a - x.a);
+  }
 
   // 3. Incidencias (OTs iniciadas este mes): por torre, por estado y por tipo de trabajo.
   const incidenciasMap = new Map<string, Grouped>();
@@ -167,6 +181,7 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
     consumo,
     consumoTotal,
     consumoPorEdificio,
+    consumoPorEdificioDesglose,
     incidencias,
     incidenciasTotal,
     otsPorEstado,

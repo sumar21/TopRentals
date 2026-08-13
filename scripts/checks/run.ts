@@ -284,6 +284,8 @@ async function main() {
     assert.equal(stats.otsPorEstado.length, 3); // Pendiente, Cerrada, Cerrada V (1 c/u)
     assert.equal(stats.otsPorTipoTrabajo[0].a, 3); // sin tipo_trabajo -> "Sin tipo"
     assert.equal(stats.consumoPorEdificio[0].a, 5); // consumo sin edificio -> "Sin edificio"
+    assert.equal(stats.consumoPorEdificioDesglose['Sin edificio'][0].key, 'Cloro'); // desglose por producto (tooltip "Consumo por edificio")
+    assert.equal(stats.consumoPorEdificioDesglose['Sin edificio'][0].a, 5);
     assert.equal(stats.ventilacionesPorEstado[0].key, 'Realizada');
     assert.equal(stats.ventilacionesPorEstado[0].a, 2); // 2 Realizadas caen en el mes por su fecha
   });

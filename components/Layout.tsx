@@ -113,8 +113,9 @@ const Layout = () => {
       {/* Aside desktop */}
       <aside className={cn('hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out z-20', collapsed ? 'w-16' : 'w-64')}>
         {/* Colapsado (w-16): logo + toggle no entran en una fila → se apilan centrados en lugar de desbordar. */}
-        <div className={cn('flex h-16 border-b', collapsed ? 'flex-col items-center justify-center gap-1 px-2' : 'items-center gap-2 px-4')}>
-          <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 rounded-md shrink-0" />
+        <div className={cn('flex h-16 border-b', collapsed ? 'flex-col items-center justify-center gap-1 px-3' : 'items-center gap-2 px-4')}>
+          {/* Colapsado: logo un poco más chico para que no quede pegado a los bordes del riel angosto (w-16). */}
+          <img src="/logo.png" alt="Top Rentals" className={cn('rounded-md shrink-0', collapsed ? 'h-7 w-7' : 'h-8 w-8')} />
           {!collapsed && <span className="text-sm font-bold tracking-tight truncate">Top Rentals</span>}
           <button
             onClick={() => setCollapsed((c) => !c)}

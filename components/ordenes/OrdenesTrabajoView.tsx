@@ -2,7 +2,7 @@
 // Page skeleton per DESIGN.md §4.4; filters per §4.7 pattern C (collapsible bar, never a modal).
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Ban, CheckCircle2, ChevronLeft, ChevronRight,
+  Ban, CheckCircle2,
   Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, RefreshCw, Search,
   UserCog,
 } from 'lucide-react';
@@ -32,19 +32,24 @@ import VerRepuestosModal from './VerRepuestosModal';
 import CerrarOTModal from './CerrarOTModal';
 import AsignarOTModal from './AsignarOTModal';
 
-const PAGE_SIZE = 30;
+// Etiqueta corta del tipo para la grilla (color sigue por el valor completo en CategoriaBadge).
+const TIPO_CORTO: Record<string, string> = {
+  'Orden de Trabajo': 'OT',
+  'Solicitud OT': 'Sol OT',
+};
 
 // Excel-style frozen leading columns (Estado · Tipo · ID · ID F). Fixed widths so the cumulative
 // `left` offsets line up; the trailing columns — incl. Acciones — scroll underneath. Acciones was
 // pinned before but it's wide (8 icon buttons); moving it to the end and into the scroll zone frees
-// the frozen prefix and cuts horizontal scroll.
+// the frozen prefix and cuts horizontal scroll. Tipo se angostó (etiquetas "OT"/"Sol OT") → los
+// offsets left de ID / ID F se recalculan en cadena.
 const FZ_TH = 'sticky z-20 bg-muted'; // header wins the top-left corner (opaque over scrolling cells)
 const FZ_TD = 'sticky z-[5] bg-card group-hover:bg-muted'; // fully opaque (incl. hover) so scrolled cells never bleed through
 const FZ_COL = {
   estado: 'left-0 w-[104px] min-w-[104px] max-w-[104px]',
-  tipo: 'left-[104px] w-[128px] min-w-[128px] max-w-[128px]',
-  id: 'left-[232px] w-[60px] min-w-[60px] max-w-[60px]',
-  idf: 'left-[292px] w-[68px] min-w-[68px] max-w-[68px] border-r border-border',
+  tipo: 'left-[104px] w-[84px] min-w-[84px] max-w-[84px]',
+  id: 'left-[188px] w-[60px] min-w-[60px] max-w-[60px]',
+  idf: 'left-[248px] w-[68px] min-w-[68px] max-w-[68px] border-r border-border',
 };
 
 interface OtFiltros { meses: string[]; estados: string[]; edificios: string[]; tiposTrabajo: string[]; tiposTarea: string[]; }
@@ -66,8 +71,6 @@ const OrdenesTrabajoView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [draftFiltros, setDraftFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
   const [appliedFiltros, setAppliedFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
-  const [page, setPage] = useState(0);
-  const [pageInput, setPageInput] = useState('1'); // caja "ir a la página N"
 
   const [formModal, setFormModal] = useState<{ ot: OrdenTrabajo | null; readOnly: boolean } | null>(null);
   const [bitacorasOt, setBitacorasOt] = useState<OrdenTrabajo | null>(null);
@@ -169,20 +172,6 @@ const OrdenesTrabajoView: React.FC = () => {
     // PA parity: SortByColumns(CollectOT,"ID",SortOrder.Descending)
     return [...rows].sort((a, b) => b.id - a.id);
   }, [baseFiltered, search]);
-
-  useEffect(() => { setPage(0); }, [search, appliedFiltros]);
-
-  const pageCount = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const visible = searched.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
-
-  // Keep the jump box in sync with the current page; jump on Enter/blur (clamped to [1, pageCount]).
-  useEffect(() => { setPageInput(String(safePage + 1)); }, [safePage]);
-  const jumpToPage = () => {
-    const n = parseInt(pageInput, 10);
-    if (Number.isFinite(n) && n >= 1) setPage(Math.min(n, pageCount) - 1);
-    else setPageInput(String(safePage + 1));
-  };
 
   const aplicarFiltros = () => setAppliedFiltros(draftFiltros);
   const limpiarFiltros = () => { setDraftFiltros(EMPTY_FILTROS); setAppliedFiltros(EMPTY_FILTROS); };
@@ -299,7 +288,7 @@ const OrdenesTrabajoView: React.FC = () => {
         <>
           {/* MOBILE: una card por fila */}
           <div className="md:hidden space-y-2">
-            {visible.map((ot) => (
+            {searched.map((ot) => (
               <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -353,14 +342,14 @@ const OrdenesTrabajoView: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((ot) => (
+                {searched.map((ot) => (
                   <TableRow key={ot.id} className="group">
                     <TableCell className={cn(FZ_TD, FZ_COL.estado)}><StatusBadge status={ot.status} /></TableCell>
-                    <TableCell className={cn(FZ_TD, FZ_COL.tipo)}><CategoriaBadge value={ot.tipo} /></TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.tipo)}><CategoriaBadge value={ot.tipo} label={TIPO_CORTO[ot.tipo] ?? ot.tipo} /></TableCell>
                     <TableCell className={cn(FZ_TD, FZ_COL.id, 'whitespace-nowrap font-medium')}>#{ot.id}</TableCell>
                     <TableCell className={cn(FZ_TD, FZ_COL.idf, 'whitespace-nowrap text-muted-foreground')}>{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
-                    {/* Detalle: 2 renglones con clamp — más texto legible sin agrandar la fila (ya son 2 líneas por las columnas apiladas). */}
-                    <TableCell className="max-w-[280px] align-middle"><span className="line-clamp-2 whitespace-normal leading-snug" title={ot.detalle ?? ''}>{ot.detalle || '—'}</span></TableCell>
+                    {/* Detalle: columna ancha, 2 renglones con clamp — más texto legible sin agrandar la fila (ya son 2 líneas por las columnas apiladas). */}
+                    <TableCell className="w-[380px] min-w-[320px] max-w-[420px] align-middle"><span className="line-clamp-2 whitespace-normal leading-snug" title={ot.detalle ?? ''}>{ot.detalle || '—'}</span></TableCell>
                     <TableCell className="whitespace-nowrap align-middle">
                       <div className="leading-tight">
                         <div className="font-medium">{ot.torre ?? '—'}</div>
@@ -394,34 +383,6 @@ const OrdenesTrabajoView: React.FC = () => {
               </TableBody>
             </Table>
           </Card>
-
-          {pageCount > 1 && (
-            <div className="flex items-center justify-end gap-1.5">
-              <button disabled={safePage === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted disabled:opacity-40" aria-label="Página anterior">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              {/* Caja para saltar directo a una página (evita clickear N veces). */}
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <span>Página</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={pageInput}
-                  onChange={(e) => setPageInput(e.target.value.replace(/\D/g, ''))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') jumpToPage(); }}
-                  onBlur={jumpToPage}
-                  aria-label="Ir a la página"
-                  className="h-8 w-12 rounded-md border bg-background text-center text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <span>/ {pageCount}</span>
-              </div>
-              <button disabled={safePage >= pageCount - 1} onClick={() => setPage((p) => p + 1)}
-                className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted disabled:opacity-40" aria-label="Página siguiente">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </>
       )}
 

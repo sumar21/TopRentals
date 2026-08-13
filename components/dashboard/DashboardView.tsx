@@ -37,7 +37,7 @@ import { Loader } from '../ui/Loader';
 import { LoadErrorState } from '../LoadErrorState';
 import { api } from '../../services/index.ts';
 import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '../../services/types.ts';
-import type { Grouped } from '../../utils/dashboardStats';
+import type { Grouped, MonthlyPoint } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, monthKey, trendExtremes } from '../../utils/dashboardStats';
 
@@ -103,6 +103,10 @@ type DashTab = (typeof DASH_TABS)[number]['value'];
 // Stable React key for a slice: the folded "Otros" bucket gets a reserved key so it can never collide
 // with a real category literally named "Otros (n)" (migrated free-text data). Real keys are unique per aggregation.
 const sliceKey = (s: { key: string; rest?: boolean }) => (s.rest ? '__otros__' : s.key);
+
+// Clave de edificio/torre — idéntica a `named(m.edificio, 'Sin edificio')` de dashboardStats, para que el
+// filtro por torre matchee exactamente los grupos de las agregaciones.
+const edificioKey = (e?: string | null) => e?.trim() || 'Sin edificio';
 
 const ChartCard: React.FC<{ title: string; subtitle?: string; empty: boolean; emptyMsg: string; children: React.ReactNode }> = ({ title, subtitle, empty, emptyMsg, children }) => (
   <Card className="border shadow-sm overflow-hidden">
@@ -182,11 +186,43 @@ const DonutBase: React.FC<{
   valueKey: 'a' | 'b';
   label: (v: number) => string;
   unit?: string;
-}> = ({ rows, valueKey, label, unit }) => {
+  // Desglose opcional por slice (key → sub-ítems): cuando está, el tooltip muestra el detalle
+  // (p. ej. "qué productos se consumieron" en el edificio bajo el mouse) en vez del valor pelado.
+  detail?: Record<string, Grouped[]>;
+}> = ({ rows, valueKey, label, unit, detail }) => {
   const { slices, total } = useMemo(() => foldTopN(rows, valueKey, 5), [rows, valueKey]);
   if (slices.length === 0) return null;
   const colored = slices.map((s, i) => ({ ...s, fill: s.rest ? OTROS_GREY : DONUT_HUES[i] }));
   const top = colored[0];
+
+  // Tooltip enriquecido: total del slice + desglose de sub-ítems (top 6). El bucket "Otros" no tiene
+  // desglose propio (agrupa varios edificios) → cae al mensaje "sin desglose".
+  const DetailTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: { key: string; value: number } }[] }) => {
+    if (!active || !payload?.length) return null;
+    const p = payload[0].payload;
+    const items = detail?.[p.key] ?? [];
+    return (
+      <div style={{ ...TOOLTIP_STYLE, background: '#fff', padding: '8px 10px', maxWidth: 240 }}>
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <span className="font-semibold">{p.key}</span>
+          <span className="tabular-nums text-muted-foreground">{label(p.value)}{unit ? ` ${unit}` : ''}</span>
+        </div>
+        {items.length > 0 ? (
+          <ul className="space-y-0.5">
+            {items.slice(0, 6).map((it) => (
+              <li key={it.key} className="flex items-center justify-between gap-3 text-[11px]">
+                <span className="min-w-0 truncate text-muted-foreground">{it.key}</span>
+                <span className="tabular-nums">{label(it.a)}</span>
+              </li>
+            ))}
+            {items.length > 6 && <li className="text-[11px] text-muted-foreground">+{items.length - 6} más…</li>}
+          </ul>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">Sin desglose por artículo.</p>
+        )}
+      </div>
+    );
+  };
   return (
     <div>
       <p className="mb-3 text-[11px] text-muted-foreground">
@@ -201,7 +237,9 @@ const DonutBase: React.FC<{
               </Pie>
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                formatter={((v: number, n: string) => [`${label(v)}${unit ? ` ${unit}` : ''}`, n]) as any}
+                {...(detail
+                  ? { content: <DetailTooltip /> }
+                  : { formatter: ((v: number, n: string) => [`${label(v)}${unit ? ` ${unit}` : ''}`, n]) as any })}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -314,6 +352,9 @@ const DashboardView: React.FC = () => {
   const [mes, setMes] = useState<string>(todayISO().slice(0, 7));
   const [metric, setMetric] = useState<MetricKey>('incidencias');
   const [tab, setTab] = useState<DashTab>('resumen');
+  // Filtro por torre, independiente por sección (Ingresos / Consumos). '' = todas las torres.
+  const [ingTorre, setIngTorre] = useState('');
+  const [conTorre, setConTorre] = useState('');
 
   // Monotonic request id: the initial mount fetch and any realtime-triggered refetch can overlap, so
   // stamp each call and only the newest one is allowed to commit — a slow earlier response can't clobber
@@ -368,6 +409,25 @@ const DashboardView: React.FC = () => {
     [movimientos, salidas, ots, ventilaciones, mes],
   );
   const prev = trend.length >= 2 ? trend[trend.length - 2] : null; // previous month, for the deltas
+
+  // Torres disponibles (según los movimientos de stock) para el filtro de las secciones Ingresos/Consumos.
+  const torreOptions = useMemo(() => {
+    const set = new Set<string>();
+    movimientos.forEach((m) => set.add(edificioKey(m.edificio)));
+    return [{ value: '', label: 'Todas las torres' }, ...[...set].sort().map((t) => ({ value: t, label: t }))];
+  }, [movimientos]);
+
+  // Stats + trend scopeados por torre. Sin torre seleccionada devuelven `data`/`trend` (sin recomputar):
+  // el filtro sólo acota los movimientos (ingreso/consumo dependen de ellos); OTs/ventilaciones no cambian.
+  const ingMovs = useMemo(() => (ingTorre ? movimientos.filter((m) => edificioKey(m.edificio) === ingTorre) : movimientos), [movimientos, ingTorre]);
+  const conMovs = useMemo(() => (conTorre ? movimientos.filter((m) => edificioKey(m.edificio) === conTorre) : movimientos), [movimientos, conTorre]);
+  const ingData = useMemo(() => (ingTorre ? buildDashboardStats(mes, { movimientos: ingMovs, salidas, ots, ventilaciones }) : data), [ingTorre, mes, ingMovs, salidas, ots, ventilaciones, data]);
+  const conData = useMemo(() => (conTorre ? buildDashboardStats(mes, { movimientos: conMovs, salidas, ots, ventilaciones }) : data), [conTorre, mes, conMovs, salidas, ots, ventilaciones, data]);
+  const ingTrend = useMemo(() => (ingTorre ? buildMonthlyTrend(mes, { movimientos: ingMovs, salidas, ots, ventilaciones }, 12) : trend), [ingTorre, mes, ingMovs, salidas, ots, ventilaciones, trend]);
+  const conTrend = useMemo(() => (conTorre ? buildMonthlyTrend(mes, { movimientos: conMovs, salidas, ots, ventilaciones }, 12) : trend), [conTorre, mes, conMovs, salidas, ots, ventilaciones, trend]);
+  const ingPrev = ingTrend.length >= 2 ? ingTrend[ingTrend.length - 2] : null;
+  const conPrev = conTrend.length >= 2 ? conTrend[conTrend.length - 2] : null;
+
   const metricCfg = TREND_METRICS.find((mm) => mm.value === metric)!;
   const serie = useMemo(() => trend.map((p) => ({ mes: p.mes, label: mesShort(p.mes), value: p[metric] })), [trend, metric]);
   const hasTrend = useMemo(
@@ -384,16 +444,17 @@ const DashboardView: React.FC = () => {
   }, [serie]);
 
   // Trend fijo por pestaña (reusa el mismo cálculo del selector del Resumen, pero atado a una métrica).
-  const serieFor = (mk: MetricKey) => trend.map((p) => ({ mes: p.mes, label: mesShort(p.mes), value: p[mk] }));
+  // `tr` permite pasar un trend scopeado por torre (Ingresos/Consumos); por defecto usa el global.
+  const serieOf = (tr: MonthlyPoint[], mk: MetricKey) => tr.map((p) => ({ mes: p.mes, label: mesShort(p.mes), value: p[mk] }));
   const trendInsight = (labels: string[], values: number[]) => {
     const ex = trendExtremes(values);
     if (ex.allZero) return 'Sin datos en la ventana de 12 meses.';
     if (ex.flat) return 'Sin variación en la ventana de 12 meses.';
     return `Pico en ${labels[ex.maxIndex]}; valle en ${labels[ex.minIndex]}.`;
   };
-  const trendCard = (mk: MetricKey) => {
+  const trendCard = (mk: MetricKey, tr: MonthlyPoint[] = trend) => {
     const cfg = TREND_METRICS.find((m) => m.value === mk)!;
-    const s = serieFor(mk);
+    const s = serieOf(tr, mk);
     return (
       <ChartCard title={`Evolución mensual · ${cfg.label}`} subtitle={trendInsight(s.map((p) => p.label), s.map((p) => p.value))} empty={false} emptyMsg="">
         <p className="mb-3 text-[11px] text-muted-foreground">Últimos 12 meses · total por mes</p>
@@ -459,10 +520,9 @@ const DashboardView: React.FC = () => {
                   <StatCard title="Promedio mensual" value={num(incAvg)} icon={TrendingUp} subtext="OTs/mes · últimos 12m" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {/* Unidad SIEMPRE junto al número: un "1,3" pelado no dice si son horas/días/meses. */}
-                <StatCard title="Ingreso de stock" value={`${num(data.ingresoTotal)} u`} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades'} />
-                <StatCard title="Consumo" value={`${num(data.consumoTotal)} u`} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades'} />
+              {/* Ingreso y Consumo salieron de acá: viven completos en sus propias pestañas (Ingresos / Consumos).
+                  Unidad SIEMPRE junto al número: un "1,3" pelado no dice si son horas/días/meses. */}
+              <div className="grid grid-cols-2 gap-3">
                 <StatCard title="Tiempo de resolución" value={`${oneDecimal(data.resolProm)} días`} icon={Clock} subtext={prev ? deltaChip(data.resolProm, prev.resolProm) : 'días promedio'} />
                 <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext={prev ? deltaChip(data.ventTotal, prev.ventilaciones) : 'ventilaciones'} />
               </div>
@@ -506,41 +566,57 @@ const DashboardView: React.FC = () => {
             </>
           )}
 
-          {/* CONSUMOS — por artículo y por edificio + evolución. */}
+          {/* CONSUMOS — por artículo y por edificio + evolución. Filtro por torre scopea toda la sección. */}
           {tab === 'consumos' && (
             <>
+              <div className="flex justify-end">
+                <div className="w-full sm:w-56">
+                  <Select value={conTorre} onChange={setConTorre} options={torreOptions} placeholder="Torre" />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <StatCard title="Consumo" value={`${num(data.consumoTotal)} u`} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades este mes'} />
-                <StatCard title="Artículo más consumido" value={data.consumo[0]?.key ?? '—'} icon={Trophy} subtext={data.consumo[0] ? `${num(data.consumo[0].a)} u` : 'sin consumo este mes'} />
+                <StatCard title="Consumo" value={`${num(conData.consumoTotal)} u`} icon={PackageMinus} subtext={conPrev ? deltaChip(conData.consumoTotal, conPrev.consumo) : 'unidades este mes'} />
+                <StatCard title="Artículo más consumido" value={conData.consumo[0]?.key ?? '—'} icon={Trophy} subtext={conData.consumo[0] ? `${num(conData.consumo[0].a)} u` : 'sin consumo este mes'} />
               </div>
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <ChartCard title="Consumo por artículo" subtitle="Participación por artículo (incluye repuestos de OT)" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
-                  <Donut rows={data.consumo} valueKey="a" label={num} unit="u" />
+              {/* Con una torre elegida, "por edificio" sería un único slice al 100% → se oculta y "por artículo" ocupa el ancho. */}
+              <div className={`grid grid-cols-1 gap-4 ${!conTorre ? 'xl:grid-cols-2' : ''}`}>
+                <ChartCard title="Consumo por artículo" subtitle={conTorre ? `Participación por artículo · ${conTorre}` : 'Participación por artículo (incluye repuestos de OT)'} empty={conData.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
+                  <Donut rows={conData.consumo} valueKey="a" label={num} unit="u" />
                 </ChartCard>
-                <ChartCard title="Consumo por edificio" subtitle="A qué edificio se fue el stock" empty={data.consumoPorEdificio.length === 0} emptyMsg="Sin consumo registrado este mes.">
-                  <Donut rows={data.consumoPorEdificio} valueKey="a" label={num} unit="u" />
-                </ChartCard>
+                {!conTorre && (
+                  <ChartCard title="Consumo por edificio" subtitle="A qué edificio se fue el stock · pasá el mouse para ver el desglose por producto" empty={conData.consumoPorEdificio.length === 0} emptyMsg="Sin consumo registrado este mes.">
+                    <Donut rows={conData.consumoPorEdificio} valueKey="a" label={num} unit="u" detail={conData.consumoPorEdificioDesglose} />
+                  </ChartCard>
+                )}
               </div>
-              {trendCard('consumo')}
+              {trendCard('consumo', conTrend)}
             </>
           )}
 
-          {/* INGRESOS — por artículo y por edificio + evolución. */}
+          {/* INGRESOS — por artículo y por edificio + evolución. Filtro por torre scopea toda la sección. */}
           {tab === 'ingresos' && (
             <>
+              <div className="flex justify-end">
+                <div className="w-full sm:w-56">
+                  <Select value={ingTorre} onChange={setIngTorre} options={torreOptions} placeholder="Torre" />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <StatCard title="Ingreso de stock" value={`${num(data.ingresoTotal)} u`} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades este mes'} />
-                <StatCard title="Artículo más ingresado" value={data.ingresoArticulo[0]?.key ?? '—'} icon={Trophy} subtext={data.ingresoArticulo[0] ? `${num(data.ingresoArticulo[0].a)} u` : 'sin ingresos este mes'} />
+                <StatCard title="Ingreso de stock" value={`${num(ingData.ingresoTotal)} u`} icon={PackagePlus} subtext={ingPrev ? deltaChip(ingData.ingresoTotal, ingPrev.ingreso) : 'unidades este mes'} />
+                <StatCard title="Artículo más ingresado" value={ingData.ingresoArticulo[0]?.key ?? '—'} icon={Trophy} subtext={ingData.ingresoArticulo[0] ? `${num(ingData.ingresoArticulo[0].a)} u` : 'sin ingresos este mes'} />
               </div>
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <ChartCard title="Ingreso de stock por artículo" subtitle="Participación por artículo (item)" empty={data.ingresoArticulo.length === 0} emptyMsg="Sin ingresos de stock este mes.">
-                  <Donut rows={data.ingresoArticulo} valueKey="a" label={num} unit="u" />
+              {/* Con una torre elegida, "por edificio" sería un único slice al 100% → se oculta y "por artículo" ocupa el ancho. */}
+              <div className={`grid grid-cols-1 gap-4 ${!ingTorre ? 'xl:grid-cols-2' : ''}`}>
+                <ChartCard title="Ingreso de stock por artículo" subtitle={ingTorre ? `Participación por artículo · ${ingTorre}` : 'Participación por artículo (item)'} empty={ingData.ingresoArticulo.length === 0} emptyMsg="Sin ingresos de stock este mes.">
+                  <Donut rows={ingData.ingresoArticulo} valueKey="a" label={num} unit="u" />
                 </ChartCard>
-                <ChartCard title="Ingreso de stock por edificio" subtitle="Participación por edificio" empty={data.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
-                  <Donut rows={data.ingreso} valueKey="a" label={num} unit="u" />
-                </ChartCard>
+                {!ingTorre && (
+                  <ChartCard title="Ingreso de stock por edificio" subtitle="Participación por edificio" empty={ingData.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
+                    <Donut rows={ingData.ingreso} valueKey="a" label={num} unit="u" />
+                  </ChartCard>
+                )}
               </div>
-              {trendCard('ingreso')}
+              {trendCard('ingreso', ingTrend)}
             </>
           )}
 
