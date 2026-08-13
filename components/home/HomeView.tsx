@@ -14,6 +14,7 @@ import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
 import { formatDate } from '../../utils/dates.ts';
 import { bucketOf, matchesSearch, type BoardColumn } from './otBoard.ts';
+import HomeAlerts from './HomeAlerts';
 
 const COLUMN_DEFS: { key: BoardColumn; title: string }[] = [
   { key: 'pendiente', title: 'Pendiente' },
@@ -168,6 +169,7 @@ const HomeView: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
+      <HomeAlerts />
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>

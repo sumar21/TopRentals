@@ -1,12 +1,13 @@
 // Back-office app shell — DESIGN.md §4.5: collapsible aside on desktop, fixed
 // header + left drawer on mobile, <TooltipHost/> mounted once here.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, LogOut, Menu, X } from 'lucide-react';
 import { cn, Avatar, AvatarFallback } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../services/index';
 import { canAccessModule, moduleRoute } from '../utils/permissions';
 import { moduleIcon, moduleLabel } from '../config/moduleIcons';
 
@@ -15,8 +16,9 @@ interface NavEntry {
   route: string;
 }
 
-const NavItem = ({ entry, collapsed, onClick }: { entry: NavEntry; collapsed: boolean; onClick?: () => void }) => {
+const NavItem = ({ entry, collapsed, onClick, badge }: { entry: NavEntry; collapsed: boolean; onClick?: () => void; badge?: number }) => {
   const Icon = moduleIcon(entry.modulo);
+  const showBadge = typeof badge === 'number' && badge > 0;
   return (
     <NavLink
       to={entry.route}
@@ -30,8 +32,17 @@ const NavItem = ({ entry, collapsed, onClick }: { entry: NavEntry; collapsed: bo
         )
       }
     >
-      <Icon className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />
+      <span className={cn('relative shrink-0', !collapsed && 'mr-3')}>
+        <Icon className="h-4 w-4" />
+        {/* Colapsado: sin lugar para el número, un punto rojo sobre el ícono. */}
+        {showBadge && collapsed && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-card" />}
+      </span>
       {!collapsed && <span className="truncate">{moduleLabel(entry.modulo)}</span>}
+      {showBadge && !collapsed && (
+        <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </NavLink>
   );
 };
@@ -61,6 +72,23 @@ const Layout = () => {
   const activeModule = entries.find((e) => location.pathname.startsWith(e.route))?.modulo ?? 'Top Rentals';
   const initials = user ? `${user.nombre?.[0] ?? ''}${user.apellido?.[0] ?? ''}`.toUpperCase() || 'TR' : 'TR';
 
+  // Badge de "Mis aprobaciones": cantidad pendiente PARA ESTE PERFIL (mismo criterio que la vista de
+  // Aprobaciones). Solo se consulta si el usuario tiene el módulo; live-update por realtime.
+  const canAprob = useMemo(() => entries.some((e) => e.modulo === 'Aprobaciones'), [entries]);
+  const [aprobPendientes, setAprobPendientes] = useState(0);
+  useEffect(() => {
+    if (!user || !canAprob) { setAprobPendientes(0); return; }
+    const { perfil } = user;
+    const contar = (rows: { status: string }[]) => {
+      if (perfil === 'Gerencia') return rows.filter((r) => r.status === 'Aprobada Supervision').length;
+      if (perfil === 'Admin') return rows.filter((r) => r.status === 'Aprobada Supervision' || r.status === 'Pendiente').length;
+      return rows.filter((r) => r.status === 'Pendiente').length;
+    };
+    const load = () => { void api.aprobaciones.list().then((rows) => setAprobPendientes(contar(rows))).catch(() => {}); };
+    load();
+    return api.realtime.subscribe(['aprobaciones'], load);
+  }, [user, canAprob]);
+
   const doLogout = () => {
     logout();
     navigate('/login', { replace: true });
@@ -69,7 +97,13 @@ const Layout = () => {
   const nav = (onItemClick?: () => void, isCollapsed = false) => (
     <nav className="flex-1 space-y-1 overflow-y-auto p-3">
       {entries.map((entry) => (
-        <NavItem key={entry.modulo} entry={entry} collapsed={isCollapsed} onClick={onItemClick} />
+        <NavItem
+          key={entry.modulo}
+          entry={entry}
+          collapsed={isCollapsed}
+          onClick={onItemClick}
+          badge={entry.modulo === 'Aprobaciones' ? aprobPendientes : undefined}
+        />
       ))}
     </nav>
   );
