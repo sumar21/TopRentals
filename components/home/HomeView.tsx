@@ -172,7 +172,6 @@ const HomeView: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
-          <p className="text-sm text-muted-foreground mt-1">Tablero de Órdenes de Trabajo en curso.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap lg:justify-end">
           <div className="relative flex-1 sm:w-80 lg:w-96 sm:flex-none min-w-[7rem]">
@@ -198,6 +197,8 @@ const HomeView: React.FC = () => {
       </div>
 
       <HomeAlerts />
+
+      <p className="hidden md:block text-sm text-muted-foreground shrink-0">Tablero de Órdenes de Trabajo en curso.</p>
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
