@@ -37,6 +37,7 @@ import {
 } from './rows.ts';
 import { getSupabase } from './client.ts';
 import { todayISO } from '../../utils/dates.ts';
+import { APP_VERSION } from '../../config/appVersion';
 
 // Domain topic -> Postgres table for Realtime subscriptions. The tables must also be in
 // the `supabase_realtime` publication (supabase/migrations/0003_realtime_publication.sql).
@@ -328,6 +329,7 @@ export function createSupabaseAdapter(): DataApi {
           p_cantidad: cantidad,
           p_precio_unitario: precio_unitario,
           p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectStockWithEdificios(Number(data));
@@ -345,6 +347,7 @@ export function createSupabaseAdapter(): DataApi {
           p_usuario_id: input.usuario_id,
           p_edificio_destino_id: input.edificio_destino_id ?? null,
           p_fecha_salida: input.fecha_salida ?? null,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectOneRequired('salidas_stock', Number(data), salidaStockFromDb);
@@ -357,6 +360,7 @@ export function createSupabaseAdapter(): DataApi {
           p_precio_unitario: precio_unitario,
           p_condicion_corte: condicion_corte,
           p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectStockWithEdificios(Number(data));
@@ -367,6 +371,7 @@ export function createSupabaseAdapter(): DataApi {
           p_salida_id: salida_id,
           p_cantidad: cantidad,
           p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectOneRequired('salidas_stock', Number(data), salidaStockFromDb);
@@ -376,6 +381,7 @@ export function createSupabaseAdapter(): DataApi {
         const { data, error } = await getSupabase().rpc('stock_confirmar_devolucion', {
           p_salida_id: salida_id,
           p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectOneRequired('salidas_stock', Number(data), salidaStockFromDb);
@@ -398,7 +404,10 @@ export function createSupabaseAdapter(): DataApi {
         return result;
       },
       async crear(input, lineas) {
-        const { data, error } = await getSupabase().rpc('compras_crear', { p_compra: input, p_lineas: lineas });
+        const { data, error } = await getSupabase().rpc('compras_crear', {
+          p_compra: { ...input, version_app: APP_VERSION },
+          p_lineas: lineas,
+        });
         if (error) throw error;
         return selectCompraConDetalle(Number(data));
       },
@@ -407,6 +416,7 @@ export function createSupabaseAdapter(): DataApi {
           p_id: id,
           p_patch: patch,
           p_lineas: lineas ?? null,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectCompraConDetalle(Number(data));
@@ -421,6 +431,7 @@ export function createSupabaseAdapter(): DataApi {
           p_id: id,
           p_lineas: lineas,
           p_obs_recibir: obs_recibir,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectCompraConDetalle(Number(data));
@@ -453,6 +464,7 @@ export function createSupabaseAdapter(): DataApi {
           p_id: id,
           p_lineas: lineas,
           p_header: header ?? null,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectOneRequired('aprobaciones', Number(data), aprobacionFromDb);
@@ -469,7 +481,7 @@ export function createSupabaseAdapter(): DataApi {
         // then rename it once the real id exists (mirrors mock ots.crear()).
         const { data: inserted, error: err1 } = await sb
           .from('ordenes_trabajo')
-          .insert({ ...rest, id_univoco: crypto.randomUUID() })
+          .insert({ ...rest, id_univoco: crypto.randomUUID(), version_app: APP_VERSION })
           .select()
           .single();
         if (err1) throw err1;
@@ -506,12 +518,13 @@ export function createSupabaseAdapter(): DataApi {
           p_id: id, p_tipo: tipo,
           p_fecha_cierre: opts?.fecha_cierre ?? null,
           p_obs_cierre: opts?.obs_cierre ?? null,
+          p_version_app: APP_VERSION,
         });
         if (error) throw error;
         return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
       },
       async finalizar(id, tecnico_id) {
-        const { error } = await getSupabase().rpc('ot_finalizar', { p_id: id, p_tecnico_id: tecnico_id ?? null });
+        const { error } = await getSupabase().rpc('ot_finalizar', { p_id: id, p_tecnico_id: tecnico_id ?? null, p_version_app: APP_VERSION });
         if (error) throw error;
         return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
       },
@@ -525,6 +538,7 @@ export function createSupabaseAdapter(): DataApi {
           .insert({
             ...rest,
             id_univoco: crypto.randomUUID(),
+            version_app: APP_VERSION,
             status: 'Pendiente',
             orden_revision_id: Number(original.id),
             // PA replicar re-stamps FechaInicio_OT=Today() and leaves asignador + closure notes blank.
@@ -563,6 +577,7 @@ export function createSupabaseAdapter(): DataApi {
             p_descripcion: descripcion,
             p_usuario_id: usuario_id,
             p_foto_path: foto_path ?? null,
+            p_version_app: APP_VERSION,
           });
           if (error) throw error;
           return selectOneRequired('bitacoras', Number(data), bitacoraFromDb);
@@ -586,6 +601,7 @@ export function createSupabaseAdapter(): DataApi {
             p_edificio_id: edificio_id,
             p_cantidad: cantidad,
             p_usuario_id: usuario_id,
+            p_version_app: APP_VERSION,
           });
           if (error) throw error;
           return selectOneRequired('repuestos_ot', Number(data), repuestoOTFromDb);
@@ -663,6 +679,7 @@ export function createSupabaseAdapter(): DataApi {
           p_id: id,
           p_obs: obs_resuelto,
           p_foto_path: foto_path ?? null,
+          p_version: APP_VERSION,
         });
         if (error) throw error;
         const [{ data: cerradaRow, error: err1 }, { data: siguienteRow, error: err2 }] = await Promise.all([

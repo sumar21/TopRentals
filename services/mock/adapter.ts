@@ -3,6 +3,7 @@
 // ~150ms artificial latency on every call so loading states are visible in the UI.
 
 import type { CompraConDetalle, CompraLineaInput, DataApi, StockRowWithEdificios } from '../api.ts';
+import { APP_VERSION } from '../../config/appVersion.ts';
 import type {
   Articulo,
   Bitacora,
@@ -133,7 +134,7 @@ export function createMockAdapter(): DataApi {
         cantidad: rep.cantidad,
         usuario_id: rep.usuario_id,
         fecha: nowIso(),
-        version_app: null,
+        version_app: APP_VERSION,
       });
     }
   }
@@ -165,7 +166,7 @@ export function createMockAdapter(): DataApi {
         status: 'Activo',
         usuario_id: null,
         fecha: nowIso(),
-        version_app: null,
+        version_app: APP_VERSION,
       };
       db.detalleCompras.push(row);
     }
@@ -325,7 +326,7 @@ export function createMockAdapter(): DataApi {
             fecha: nowIso(),
             ultima_mod: null,
             desde: 'Desktop',
-            version_app: null,
+            version_app: APP_VERSION,
           };
           db.stock.push(row);
           db.stockEdificios.push({ stock_id: row.id, edificio_id });
@@ -353,7 +354,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return withEdificios(row);
       },
@@ -385,7 +386,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         if (tipo === 'TRASLADO') {
           if (!edificio_destino_id) throw new Error('TRASLADO requiere edificio_destino_id.');
@@ -413,7 +414,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         };
         db.salidasStock.push(salidaRow);
         return structuredClone(salidaRow);
@@ -453,7 +454,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return withEdificios(row);
       },
@@ -501,7 +502,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return structuredClone(salida);
       },
@@ -540,7 +541,7 @@ export function createMockAdapter(): DataApi {
           cantidad: salida.cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return structuredClone(salida);
       },
@@ -614,7 +615,7 @@ export function createMockAdapter(): DataApi {
           cantidad: row.cantidad_total,
           monto: row.monto_total,
           sector: null,
-          version_app: null,
+          version_app: APP_VERSION,
           hora: new Date().toISOString().slice(11, 16),
         };
         db.aprobaciones.push(aprobacion);
@@ -649,7 +650,7 @@ export function createMockAdapter(): DataApi {
                 fecha: nowIso(),
                 ultima_mod: null,
                 desde: 'Desktop',
-                version_app: null,
+                version_app: APP_VERSION,
               };
               db.stock.push(stockRow);
               db.stockEdificios.push({ stock_id: stockRow.id, edificio_id: linea.edificio_id });
@@ -674,7 +675,7 @@ export function createMockAdapter(): DataApi {
               cantidad: recibido,
               usuario_id: row.usuario_id,
               fecha: nowIso(),
-              version_app: null,
+              version_app: APP_VERSION,
             });
           }
         }
@@ -839,7 +840,7 @@ export function createMockAdapter(): DataApi {
             descripcion,
             fecha: nowIso(),
             usuario_id,
-            version_app: null,
+            version_app: APP_VERSION,
           };
           db.bitacoras.push(row);
           if (foto_path) {
@@ -870,7 +871,7 @@ export function createMockAdapter(): DataApi {
             usuario_id,
             fecha: nowIso(),
             status: 'Activo',
-            version_app: null,
+            version_app: APP_VERSION,
           };
           db.repuestosOT.push(row);
           registrarMovimiento({
@@ -893,7 +894,7 @@ export function createMockAdapter(): DataApi {
             cantidad,
             usuario_id,
             fecha: nowIso(),
-            version_app: null,
+            version_app: APP_VERSION,
           });
           return structuredClone(row);
         },
@@ -955,7 +956,7 @@ export function createMockAdapter(): DataApi {
         row.estado = 'Realizada';
         row.obs_resuelto = obs_resuelto;
         row.fecha_finalizacion = nowIso();
-        row.version_resuelto = null;
+        row.version_resuelto = APP_VERSION;
         row.orden = 1;
         // KEY BUSINESS RULE (CLAUDE.md): closing a cycle atomically creates the next one.
         const frecuencia = row.frecuencia_dias ?? 90;

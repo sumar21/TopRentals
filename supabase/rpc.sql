@@ -42,9 +42,10 @@ $$;
 -- / aprobaciones_editar. Mirrors mock's insertarLineas(): resolves articulo/
 -- edificio display names + cant_min (articulo.corte) per line, inserts one
 -- detalle_compras row per line, then stamps its own id into id_univoco
--- (mirrors mock's `(DTC)-XXX` format).
--- ============================================================================
-CREATE OR REPLACE FUNCTION insertar_detalle_lineas(p_compra_id bigint, p_lineas jsonb)
+-- (mirrors mock's `(DTC)-XXX` format). p_version_app: only compras_crear passes
+-- it (stamps the same version as the parent compra on its detail lines);
+-- compras_actualizar/aprobaciones_editar keep passing 2 args (defaults to NULL).
+CREATE OR REPLACE FUNCTION insertar_detalle_lineas(p_compra_id bigint, p_lineas jsonb, p_version_app text DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -78,10 +79,10 @@ BEGIN
 
     INSERT INTO detalle_compras (
       compra_id, articulo_id, articulo, edificio_id, edificio,
-      cantidad, costo_unitario, cant_min, costo_total, activo, fecha
+      cantidad, costo_unitario, cant_min, costo_total, activo, fecha, version_app
     ) VALUES (
       p_compra_id, v_articulo_id, v_articulo_nombre, v_edificio_id, v_edificio_nombre,
-      v_cantidad, v_costo_unitario, v_cant_min, v_cantidad * v_costo_unitario, true, now()
+      v_cantidad, v_costo_unitario, v_cant_min, v_cantidad * v_costo_unitario, true, now(), p_version_app
     ) RETURNING id INTO v_detalle_id;
 
     UPDATE detalle_compras SET id_univoco = '(DTC)-' || lpad(v_detalle_id::text, 3, '0')
@@ -100,7 +101,7 @@ $$;
 -- NULL in the audit row regardless of whether the stock row already existed.
 CREATE OR REPLACE FUNCTION stock_agregar(
   p_articulo_id bigint, p_edificio_id bigint, p_cantidad numeric,
-  p_precio_unitario numeric, p_usuario_id bigint
+  p_precio_unitario numeric, p_usuario_id bigint, p_version_app text DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -129,8 +130,8 @@ BEGIN
     SELECT NULLIF(corte, '')::numeric INTO v_condicion_corte FROM articulos WHERE id = p_articulo_id;
     v_condicion_corte := coalesce(v_condicion_corte, 0);
 
-    INSERT INTO stock (articulo_id, cantidad, precio_unitario, condicion_corte, activo, usuario_id, fecha, desde)
-    VALUES (p_articulo_id, p_cantidad, p_precio_unitario, v_condicion_corte, true, p_usuario_id, now(), 'Desktop')
+    INSERT INTO stock (articulo_id, cantidad, precio_unitario, condicion_corte, activo, usuario_id, fecha, desde, version_app)
+    VALUES (p_articulo_id, p_cantidad, p_precio_unitario, v_condicion_corte, true, p_usuario_id, now(), 'Desktop', p_version_app)
     RETURNING id INTO v_stock_id;
 
     UPDATE stock SET id_univoco = '(STK)-' || lpad(v_stock_id::text, 3, '0') WHERE id = v_stock_id;
@@ -146,14 +147,14 @@ BEGIN
     articulo_id, articulo_raw, concat_articulo, articulo,
     cant_anterior, cant_posterior, costo_anterior, costo_posterior,
     stock_min_anterior, stock_min_posterior,
-    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha
+    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha, version_app
   ) VALUES (
     p_articulo_id, p_articulo_id::text, v_articulo_nombre, v_articulo_nombre,
     v_cant_anterior, v_cant_anterior + p_cantidad, NULL, p_precio_unitario,
     NULL, v_condicion_corte,
     p_edificio_id, v_edificio_nombre, 'Desktop - Stock',
     CASE WHEN v_cant_anterior = 0 THEN 'Nuevo' ELSE 'Editado' END,
-    p_cantidad, p_usuario_id, now()
+    p_cantidad, p_usuario_id, now(), p_version_app
   );
 
   RETURN v_stock_id;
@@ -167,7 +168,8 @@ $$;
 CREATE OR REPLACE FUNCTION stock_salida(
   p_stock_id bigint, p_edificio_id bigint, p_tipo text, p_cantidad numeric,
   p_tecnico_id bigint, p_uso text, p_centro_de_costo text, p_usuario_id bigint,
-  p_edificio_destino_id bigint DEFAULT NULL, p_fecha_salida date DEFAULT NULL
+  p_edificio_destino_id bigint DEFAULT NULL, p_fecha_salida date DEFAULT NULL,
+  p_version_app text DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -212,13 +214,13 @@ BEGIN
     articulo_id, articulo_raw, concat_articulo, articulo,
     cant_anterior, cant_posterior, costo_anterior, costo_posterior,
     stock_min_anterior, stock_min_posterior,
-    edificio_id, edificio, edificio_traslado, desde, tipo_movimiento, cantidad, usuario_id, fecha
+    edificio_id, edificio, edificio_traslado, desde, tipo_movimiento, cantidad, usuario_id, fecha, version_app
   ) VALUES (
     v_articulo_id, v_articulo_id::text, v_articulo_nombre, v_articulo_nombre,
     v_cant_anterior, v_cant_anterior - p_cantidad, v_precio, v_precio,
     v_corte, v_corte,
     p_edificio_id, v_edificio_nombre, v_edificio_traslado_nombre, 'Desktop - Salida Stock',
-    p_tipo, p_cantidad, p_usuario_id, now()
+    p_tipo, p_cantidad, p_usuario_id, now(), p_version_app
   );
 
   IF p_tipo = 'TRASLADO' THEN
@@ -244,11 +246,11 @@ BEGIN
 
   INSERT INTO salidas_stock (
     articulo_id, stock_id, edificio_destino_id, concat_articulo, tecnico_id, tipo,
-    fecha_salida, uso, centro_de_costo, cantidad, usuario_id, fecha
+    fecha_salida, uso, centro_de_costo, cantidad, usuario_id, fecha, version_app
   ) VALUES (
     v_articulo_id, p_stock_id, CASE WHEN p_tipo = 'TRASLADO' THEN p_edificio_destino_id ELSE NULL END,
     v_articulo_nombre, p_tecnico_id, p_tipo::tipo_salida_stock,
-    coalesce(p_fecha_salida, current_date), p_uso, p_centro_de_costo, p_cantidad, p_usuario_id, now()
+    coalesce(p_fecha_salida, current_date), p_uso, p_centro_de_costo, p_cantidad, p_usuario_id, now(), p_version_app
   ) RETURNING id INTO v_salida_id;
 
   RETURN v_salida_id;
@@ -259,7 +261,7 @@ $$;
 -- directly (no delta logic) and writes the audit row.
 CREATE OR REPLACE FUNCTION stock_editar(
   p_stock_id bigint, p_cantidad numeric, p_precio_unitario numeric,
-  p_condicion_corte numeric, p_usuario_id bigint
+  p_condicion_corte numeric, p_usuario_id bigint, p_version_app text DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -299,12 +301,12 @@ BEGIN
     articulo_id, articulo_raw, concat_articulo, articulo,
     cant_anterior, cant_posterior, costo_anterior, costo_posterior,
     stock_min_anterior, stock_min_posterior,
-    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha
+    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha, version_app
   ) VALUES (
     v_articulo_id, v_articulo_id::text, v_articulo_nombre, v_articulo_nombre,
     v_cant_anterior, p_cantidad, v_costo_anterior, p_precio_unitario,
     v_stock_min_anterior, p_condicion_corte,
-    v_edificio_id, v_edificio_nombre, 'Desktop - Stock', 'Editado', p_cantidad, p_usuario_id, now()
+    v_edificio_id, v_edificio_nombre, 'Desktop - Stock', 'Editado', p_cantidad, p_usuario_id, now(), p_version_app
   );
 
   RETURN p_stock_id;
@@ -313,7 +315,7 @@ $$;
 
 -- Mirrors mock stock.editarSalida(): re-adjusts the credited stock row by the
 -- delta between the old and new cantidad, never touching fecha_reingreso.
-CREATE OR REPLACE FUNCTION stock_editar_salida(p_salida_id bigint, p_cantidad numeric, p_usuario_id bigint)
+CREATE OR REPLACE FUNCTION stock_editar_salida(p_salida_id bigint, p_cantidad numeric, p_usuario_id bigint, p_version_app text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -387,12 +389,12 @@ BEGIN
     articulo_id, articulo_raw, concat_articulo, articulo,
     cant_anterior, cant_posterior, costo_anterior, costo_posterior,
     stock_min_anterior, stock_min_posterior,
-    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha
+    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha, version_app
   ) VALUES (
     v_articulo_id, v_articulo_id::text, v_articulo_nombre, v_articulo_nombre,
     v_cant_anterior, v_cant_anterior + v_delta, v_costo, v_costo,
     v_corte, v_corte,
-    v_edificio_id, v_edificio_nombre, 'Desktop - Salida Stock', v_tipo || ' - EDIT CANT', p_cantidad, p_usuario_id, now()
+    v_edificio_id, v_edificio_nombre, 'Desktop - Salida Stock', v_tipo || ' - EDIT CANT', p_cantidad, p_usuario_id, now(), p_version_app
   );
 
   RETURN p_salida_id;
@@ -402,7 +404,7 @@ $$;
 -- Mirrors mock stock.confirmarDevolucion(): credits the full salida.cantidad
 -- back, stamps fecha_reingreso + tipo='DEVUELTO', writes the audit row the PA
 -- flow had commented out.
-CREATE OR REPLACE FUNCTION stock_confirmar_devolucion(p_salida_id bigint, p_usuario_id bigint)
+CREATE OR REPLACE FUNCTION stock_confirmar_devolucion(p_salida_id bigint, p_usuario_id bigint, p_version_app text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -451,12 +453,12 @@ BEGIN
     articulo_id, articulo_raw, concat_articulo, articulo,
     cant_anterior, cant_posterior, costo_anterior, costo_posterior,
     stock_min_anterior, stock_min_posterior,
-    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha
+    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha, version_app
   ) VALUES (
     v_articulo_id, v_articulo_id::text, v_articulo_nombre, v_articulo_nombre,
     v_cant_anterior, v_cant_anterior + v_cantidad, v_costo, v_costo,
     v_corte, v_corte,
-    v_edificio_id, v_edificio_nombre, 'Desktop - Salida Stock', 'DEVOLUCION - REINGRESO', v_cantidad, p_usuario_id, now()
+    v_edificio_id, v_edificio_nombre, 'Desktop - Salida Stock', 'DEVOLUCION - REINGRESO', v_cantidad, p_usuario_id, now(), p_version_app
   );
 
   RETURN p_salida_id;
@@ -508,7 +510,7 @@ BEGIN
   UPDATE compras SET id_compra = '(BUY)-' || lpad(v_id::text, 3, '0') || to_char(current_date, 'YYYYMMDD')
     WHERE id = v_id;
 
-  PERFORM insertar_detalle_lineas(v_id, p_lineas);
+  PERFORM insertar_detalle_lineas(v_id, p_lineas, p_compra->>'version_app');
 
   RETURN v_id;
 END;
@@ -518,7 +520,8 @@ $$;
 -- so an absent key leaves the column untouched, matching Object.assign
 -- semantics) + optional full line replacement + totals recompute, exactly
 -- like the mock's `if (lineas) { reemplazarLineas(...); recompute totals }`.
-CREATE OR REPLACE FUNCTION compras_actualizar(p_id bigint, p_patch jsonb, p_lineas jsonb DEFAULT NULL)
+DROP FUNCTION IF EXISTS compras_actualizar(bigint, jsonb, jsonb);
+CREATE OR REPLACE FUNCTION compras_actualizar(p_id bigint, p_patch jsonb, p_lineas jsonb DEFAULT NULL, p_version_app text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -547,7 +550,7 @@ BEGIN
 
   IF p_lineas IS NOT NULL THEN
     UPDATE detalle_compras SET activo = false WHERE compra_id = p_id AND activo = true;
-    PERFORM insertar_detalle_lineas(p_id, p_lineas);
+    PERFORM insertar_detalle_lineas(p_id, p_lineas, p_version_app);
 
     SELECT coalesce(sum((l->>'cantidad')::numeric), 0),
            coalesce(sum((l->>'cantidad')::numeric * (l->>'costo_unitario')::numeric), 0)
@@ -604,7 +607,7 @@ $$;
 -- Mirrors mock compras.recibir(): per line, stamps recibido + (when > 0)
 -- credits/creates the matching stock row and writes the audit row
 -- ('Nuevo' | 'Existente' — NOT the 'Nuevo'/'Editado' pair stock_agregar uses).
-CREATE OR REPLACE FUNCTION compras_recibir(p_id bigint, p_lineas jsonb, p_obs_recibir text)
+CREATE OR REPLACE FUNCTION compras_recibir(p_id bigint, p_lineas jsonb, p_obs_recibir text, p_version_app text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -658,8 +661,8 @@ BEGIN
         UPDATE stock SET cantidad = cantidad + v_recibido WHERE id = v_stock_id;
       ELSE
         v_cant_anterior := 0;
-        INSERT INTO stock (articulo_id, cantidad, precio_unitario, condicion_corte, activo, usuario_id, fecha, desde)
-        VALUES (v_articulo_id, v_recibido, v_costo_unitario, v_cant_min, true, v_usuario_id, now(), 'Desktop')
+        INSERT INTO stock (articulo_id, cantidad, precio_unitario, condicion_corte, activo, usuario_id, fecha, desde, version_app)
+        VALUES (v_articulo_id, v_recibido, v_costo_unitario, v_cant_min, true, v_usuario_id, now(), 'Desktop', p_version_app)
         RETURNING id INTO v_stock_id;
         INSERT INTO stock_edificios (stock_id, edificio_id) VALUES (v_stock_id, v_edificio_id);
         UPDATE stock SET id_univoco = '(STK)-' || lpad(v_stock_id::text, 3, '0') WHERE id = v_stock_id; -- parity: stamp id_univoco like stock_agregar / the mock
@@ -669,14 +672,14 @@ BEGIN
         articulo_id, articulo_raw, concat_articulo, articulo,
         cant_anterior, cant_posterior, costo_anterior, costo_posterior,
         stock_min_anterior, stock_min_posterior,
-        edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha
+        edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha, version_app
       ) VALUES (
         v_articulo_id, v_articulo_id::text, v_articulo, v_articulo,
         v_cant_anterior, v_cant_anterior + v_recibido, NULL, v_costo_unitario,
         NULL, v_cant_min,
         v_edificio_id, v_edificio, 'Desktop - Recibir Compra',
         CASE WHEN v_cant_anterior = 0 THEN 'Nuevo' ELSE 'Existente' END,
-        v_recibido, v_usuario_id, now()
+        v_recibido, v_usuario_id, now(), p_version_app
       );
     END IF;
   END LOOP;
@@ -765,7 +768,8 @@ $$;
 -- compra's lines, recomputes cantidad/monto on both aprobacion and compra, and
 -- optionally patches a few compra header fields + the aprobacion's own
 -- urgencia snapshot (mock: `if (header?.urgencia) row.urgencia = header.urgencia`).
-CREATE OR REPLACE FUNCTION aprobaciones_editar(p_id bigint, p_lineas jsonb, p_header jsonb DEFAULT NULL)
+DROP FUNCTION IF EXISTS aprobaciones_editar(bigint, jsonb, jsonb);
+CREATE OR REPLACE FUNCTION aprobaciones_editar(p_id bigint, p_lineas jsonb, p_header jsonb DEFAULT NULL, p_version_app text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -782,7 +786,7 @@ BEGIN
   END IF;
 
   UPDATE detalle_compras SET activo = false WHERE compra_id = v_compra_id AND activo = true;
-  PERFORM insertar_detalle_lineas(v_compra_id, p_lineas);
+  PERFORM insertar_detalle_lineas(v_compra_id, p_lineas, p_version_app);
 
   SELECT coalesce(sum((l->>'cantidad')::numeric), 0),
          coalesce(sum((l->>'cantidad')::numeric * (l->>'costo_unitario')::numeric), 0)
@@ -816,7 +820,8 @@ $$;
 -- into id_univoco_bitacora (mock's `BC-XXXX...` format), and — only when a
 -- photo was attached — inserts the matching fotos_bitacora row.
 CREATE OR REPLACE FUNCTION ot_bitacora_crear(
-  p_orden_trabajo_id bigint, p_descripcion text, p_usuario_id bigint, p_foto_path text DEFAULT NULL
+  p_orden_trabajo_id bigint, p_descripcion text, p_usuario_id bigint, p_foto_path text DEFAULT NULL,
+  p_version_app text DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -826,8 +831,8 @@ AS $$
 DECLARE
   v_id bigint;
 BEGIN
-  INSERT INTO bitacoras (orden_trabajo_id, descripcion, fecha, usuario_id)
-  VALUES (p_orden_trabajo_id, p_descripcion, now(), p_usuario_id)
+  INSERT INTO bitacoras (orden_trabajo_id, descripcion, fecha, usuario_id, version_app)
+  VALUES (p_orden_trabajo_id, p_descripcion, now(), p_usuario_id, p_version_app)
   RETURNING id INTO v_id;
 
   UPDATE bitacoras
@@ -847,7 +852,8 @@ $$;
 -- row (raises if missing/insufficient), inserts the repuestos_ot row, writes
 -- the 'Asignacion Repuesto' audit row.
 CREATE OR REPLACE FUNCTION ot_asignar_repuesto(
-  p_orden_trabajo_id bigint, p_articulo_id bigint, p_edificio_id bigint, p_cantidad numeric, p_usuario_id bigint
+  p_orden_trabajo_id bigint, p_articulo_id bigint, p_edificio_id bigint, p_cantidad numeric, p_usuario_id bigint,
+  p_version_app text DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -879,20 +885,20 @@ BEGIN
   SELECT nombre INTO v_articulo_nombre FROM articulos WHERE id = p_articulo_id;
   SELECT nombre INTO v_edificio_nombre FROM edificios WHERE id = p_edificio_id;
 
-  INSERT INTO repuestos_ot (orden_trabajo_id, articulo_id, repuesto, cantidad, edificio, usuario_id, fecha, activo)
-  VALUES (p_orden_trabajo_id, p_articulo_id, v_articulo_nombre, p_cantidad, v_edificio_nombre, p_usuario_id, now(), true)
+  INSERT INTO repuestos_ot (orden_trabajo_id, articulo_id, repuesto, cantidad, edificio, usuario_id, fecha, activo, version_app)
+  VALUES (p_orden_trabajo_id, p_articulo_id, v_articulo_nombre, p_cantidad, v_edificio_nombre, p_usuario_id, now(), true, p_version_app)
   RETURNING id INTO v_id;
 
   INSERT INTO movimientos_stock (
     articulo_id, articulo_raw, concat_articulo, articulo,
     cant_anterior, cant_posterior, costo_anterior, costo_posterior,
     stock_min_anterior, stock_min_posterior,
-    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha
+    edificio_id, edificio, desde, tipo_movimiento, cantidad, usuario_id, fecha, version_app
   ) VALUES (
     p_articulo_id, p_articulo_id::text, v_articulo_nombre, v_articulo_nombre,
     v_cant_anterior, v_cant_anterior - p_cantidad, v_precio, v_precio,
     v_corte, v_corte,
-    p_edificio_id, v_edificio_nombre, 'Mobile - OT', 'Asignacion Repuesto', p_cantidad, p_usuario_id, now()
+    p_edificio_id, v_edificio_nombre, 'Mobile - OT', 'Asignacion Repuesto', p_cantidad, p_usuario_id, now(), p_version_app
   );
 
   RETURN v_id;
@@ -904,19 +910,22 @@ $$;
 -- en ot_asignar_repuesto, así que acá NO se toca stock. stock_id = NULL a propósito → estas
 -- salidas no son editables ni devolvibles (stock_editar_salida / stock_confirmar_devolucion
 -- rechazan un stock_id NULL), que es lo correcto: el débito ocurrió una sola vez.
-CREATE OR REPLACE FUNCTION ot_registrar_salidas_repuestos(p_ot_id bigint)
+DROP FUNCTION IF EXISTS ot_registrar_salidas_repuestos(bigint);
+CREATE OR REPLACE FUNCTION ot_registrar_salidas_repuestos(p_ot_id bigint, p_version_app text DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- version_app: the CLOSE-time app version (passed down from ot_cerrar/ot_finalizar), matching the
+  -- mock (registrarSalidasDeRepuestos stamps APP_VERSION) — this salida row is written now, at close.
   INSERT INTO salidas_stock (
     articulo_id, stock_id, concat_articulo, tecnico_id, tipo,
-    fecha_salida, fecha_reingreso, uso, centro_de_costo, cantidad, usuario_id, fecha
+    fecha_salida, fecha_reingreso, uso, centro_de_costo, cantidad, usuario_id, fecha, version_app
   )
   SELECT r.articulo_id, NULL, r.repuesto, ot.tecnico_id, 'CONSUMIBLE'::tipo_salida_stock,
-         current_date, NULL, ot.id_univoco, NULL, r.cantidad, r.usuario_id, now()
+         current_date, NULL, ot.id_univoco, NULL, r.cantidad, r.usuario_id, now(), p_version_app
   FROM repuestos_ot r
   JOIN ordenes_trabajo ot ON ot.id = r.orden_trabajo_id
   WHERE r.orden_trabajo_id = p_ot_id AND r.activo = true;
@@ -929,7 +938,8 @@ $$;
 -- #5: takes the user-entered fecha_cierre + obs_cierre so the close is ONE atomic write (was RPC +
 -- a separate client update that, on failure, left the OT closed with today's date and no observation).
 DROP FUNCTION IF EXISTS ot_cerrar(bigint, text);
-CREATE OR REPLACE FUNCTION ot_cerrar(p_id bigint, p_tipo text, p_fecha_cierre date DEFAULT NULL, p_obs_cierre text DEFAULT NULL)
+DROP FUNCTION IF EXISTS ot_cerrar(bigint, text, date, text);
+CREATE OR REPLACE FUNCTION ot_cerrar(p_id bigint, p_tipo text, p_fecha_cierre date DEFAULT NULL, p_obs_cierre text DEFAULT NULL, p_version_app text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -950,7 +960,7 @@ BEGIN
   WHERE id = p_id;
 
   IF v_previo NOT IN ('Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada') THEN
-    PERFORM ot_registrar_salidas_repuestos(p_id);
+    PERFORM ot_registrar_salidas_repuestos(p_id, p_version_app);
   END IF;
 
   RETURN p_id;
@@ -959,7 +969,8 @@ $$;
 
 -- Mirrors mock ots.finalizar(): same close flow as ot_cerrar but forces status 'Cerrada'.
 DROP FUNCTION IF EXISTS ot_finalizar(bigint);
-CREATE OR REPLACE FUNCTION ot_finalizar(p_id bigint, p_tecnico_id bigint DEFAULT NULL)
+DROP FUNCTION IF EXISTS ot_finalizar(bigint, bigint);
+CREATE OR REPLACE FUNCTION ot_finalizar(p_id bigint, p_tecnico_id bigint DEFAULT NULL, p_version_app text DEFAULT NULL)
 RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -977,7 +988,7 @@ BEGIN
   UPDATE ordenes_trabajo SET status = 'Cerrada', fecha_cierre = current_date, tecnico_id = COALESCE(p_tecnico_id, tecnico_id) WHERE id = p_id;
 
   IF v_previo NOT IN ('Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada') THEN
-    PERFORM ot_registrar_salidas_repuestos(p_id);
+    PERFORM ot_registrar_salidas_repuestos(p_id, p_version_app);
   END IF;
 
   RETURN p_id;

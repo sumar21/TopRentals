@@ -545,7 +545,8 @@ CREATE INDEX idx_documentos_compra_id ON documentos (compra_id);
 CREATE OR REPLACE FUNCTION finalizar_ventilacion(
   p_id bigint,
   p_obs text,
-  p_foto_path text
+  p_foto_path text,
+  p_version text DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -560,12 +561,15 @@ DECLARE
   v_frecuencia_dias numeric;
   v_new_id bigint;
 BEGIN
+  -- version_resuelto stamps the CLOSED row only; the auto-created next cycle stays
+  -- version_asignado = NULL, version_resuelto = NULL (mock parity — it isn't assigned/resolved yet).
   UPDATE ventilaciones
   SET
     estado = 'Realizada',
     obs_resuelto = p_obs,
     foto_path = coalesce(p_foto_path, foto_path),
     fecha_finalizacion = now(),
+    version_resuelto = p_version,
     orden = 1  -- PA re-stamps Orden_VE:1 on the closed row (drives the desktop list sort)
   WHERE id = p_id
   RETURNING
@@ -595,7 +599,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION finalizar_ventilacion(bigint, text, text) IS
+COMMENT ON FUNCTION finalizar_ventilacion(bigint, text, text, text) IS
   'Closes a ventilacion cycle (estado=Realizada, obs + foto) and atomically '
   'inserts the next cycle (estado=Pendiente, proxima_limpieza = current_date + '
   'frecuencia_dias). Returns the new row''s id. Replaces the desktop/mobile '
