@@ -347,8 +347,11 @@ BEGIN
   IF v_fecha_reingreso IS NOT NULL THEN
     RAISE EXCEPTION 'La salida ya fue devuelta.';
   END IF;
+  -- Registro histórico sin stock de origen (stock_id null, p. ej. salidas migradas de SharePoint):
+  -- se corrige SOLO el dato de la fila, sin reajustar stock ni auditar (parity con el mock).
   IF v_stock_id IS NULL THEN
-    RAISE EXCEPTION 'La salida no tiene stock de origen registrado (registro legacy) — no se puede reajustar.';
+    UPDATE salidas_stock SET cantidad = p_cantidad WHERE id = p_salida_id;
+    RETURN p_salida_id;
   END IF;
 
   SELECT cantidad, precio_unitario, condicion_corte INTO v_cant_anterior, v_costo, v_corte

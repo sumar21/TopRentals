@@ -176,6 +176,18 @@ async function main() {
     assert.equal(trasEdit.find((r) => r.articulo_id === art.id && r.edificio_ids.includes(2))!.cantidad, destinoAntes + 1); // (antes+4) - 3
   });
 
+  await check('mock adapter: editar salida legacy (sin stock_id) corrige el registro sin tocar stock', async () => {
+    const api = createMockAdapter();
+    const legacy = (await api.stock.salidas()).find((s) => s.stock_id == null && !s.fecha_reingreso);
+    assert.ok(legacy, 'seed debe tener una salida legacy sin stock_id');
+    const stockBefore = (await api.stock.list()).reduce((sum, r) => sum + r.cantidad, 0);
+    const movsBefore = (await api.stock.movimientos()).length;
+    const updated = await api.stock.editarSalida({ salida_id: legacy!.id, cantidad: legacy!.cantidad + 3, usuario_id: 1 });
+    assert.equal(updated.cantidad, legacy!.cantidad + 3); // el registro se corrige
+    assert.equal((await api.stock.list()).reduce((sum, r) => sum + r.cantidad, 0), stockBefore, 'no reajusta stock');
+    assert.equal((await api.stock.movimientos()).length, movsBefore, 'no escribe movimiento de auditoría');
+  });
+
   await check('mock adapter: cerrar OT vuelca repuestos al histórico de salidas (idempotente)', async () => {
     const api = createMockAdapter();
     const ot = (await api.ots.list()).find((o) => o.status === 'Pendiente' || o.status === 'Asignada');

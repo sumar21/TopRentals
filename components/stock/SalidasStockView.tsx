@@ -203,7 +203,7 @@ const SalidasStockView: React.FC = () => {
                 {visible.map((s) => {
                   const tecnico = s.tecnico_id != null ? tecnicosById.get(s.tecnico_id)?.concat_name : null;
                   const puedeDevolver = s.tipo === 'DEVOLUCION' && !s.fecha_reingreso;
-                  const puedeEditar = !s.fecha_reingreso && s.stock_id != null; // record-only (consumo de OT) no es editable
+                  const puedeEditar = !s.fecha_reingreso; // con stock_id reajusta stock; sin él, corrige sólo el registro (histórico)
                   return (
                     <TableRow key={s.id}>
                       <TableCell><StatusBadge status={s.tipo} /></TableCell>
@@ -331,6 +331,9 @@ const EditarSalidaModal: React.FC<{
             Cantidad{maxCantidad != null && <> · Disponible <span className="font-semibold text-foreground">{maxCantidad}</span></>}
           </label>
           <NumberInput autoFocus value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 5" />
+          {salida?.stock_id == null && (
+            <p className="mt-2 text-[11px] text-muted-foreground">Registro histórico: corrige el dato de la salida, no reajusta el stock.</p>
+          )}
           {cantidad !== '' && parsed <= 0 && (
             <p className="mt-1 text-xs text-red-600" role="alert">Ingresá una cantidad mayor a cero.</p>
           )}

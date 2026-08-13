@@ -464,8 +464,15 @@ export function createMockAdapter(): DataApi {
         const salida = db.salidasStock.find((s) => s.id === salida_id);
         if (!salida) throw new Error(`Salida ${salida_id} no encontrada.`);
         if (salida.fecha_reingreso) throw new Error('La salida ya fue devuelta.');
+        // Registro histórico sin stock de origen (stock_id null, p. ej. salidas migradas de SharePoint o
+        // consumos-registro de OT): corregimos SOLO el dato de la fila, sin reajustar stock ni auditar. No hay
+        // estante contra el cual reconciliar y no queremos mover el inventario de HOY por un dato viejo.
+        if (salida.stock_id == null) {
+          salida.cantidad = cantidad;
+          return structuredClone(salida);
+        }
         // Credit target = the row actually debited. Never guess by centro_de_costo (free text).
-        const stockRow = salida.stock_id != null ? db.stock.find((s) => s.id === salida.stock_id) : undefined;
+        const stockRow = db.stock.find((s) => s.id === salida.stock_id);
         if (!stockRow) throw new Error('La salida no tiene stock de origen registrado (registro legacy) — no se puede reajustar.');
         const edificio = db.edificios.find((e) => db.stockEdificios.some((se) => se.stock_id === stockRow.id && se.edificio_id === e.id)) ?? null;
         const delta = salida.cantidad - cantidad; // positive delta returns stock to the shelf
