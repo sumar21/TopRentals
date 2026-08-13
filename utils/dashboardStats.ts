@@ -44,6 +44,11 @@ const OT_CERRADA = new Set(['Cerrada', 'Cerrada V', 'Cerrada F']);
 // the close-time CONSUMIBLE salida writes NO movimiento, so a repuesto is counted once, at assign time.
 // TRASLADO (internal relocation) and DEVOLUCION/DEVUELTO (returns) are not consumption → excluded.
 const CONSUMO_MOV_TIPOS = new Set(['CONSUMIBLE', 'ASIGNACION', 'Asignacion Repuesto']);
+// Amount consumed by a movement = the stock DECREASE (cant_anterior - cant_posterior), NOT the `cantidad`
+// column: the SharePoint-migrated data leaves `cantidad` null on many rows, so summing it read 0 in prod
+// even where stock clearly dropped. The before/after levels are the reliable signal (same fields `ingreso`
+// uses), so consumo mirrors ingreso instead of trusting a sparsely-populated column.
+const consumido = (m: MovimientoStock) => Math.max(0, (m.cant_anterior ?? 0) - (m.cant_posterior ?? 0));
 const daysBetween = (from: string, to: string) => Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000);
 
 // Month attribution → 'YYYY-MM'. Plain SQL `date` values arrive as a bare 'YYYY-MM-DD' (already the local
@@ -99,8 +104,9 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
   const consumoEdifMap = new Map<string, Grouped>();
   for (const m of movimientos) {
     if (!inMonth(m.fecha) || !CONSUMO_MOV_TIPOS.has(m.tipo_movimiento)) continue;
-    bump(consumoMap, articuloKey(m.concat_articulo, m.articulo_id), m.cantidad ?? 0, 0);
-    bump(consumoEdifMap, named(m.edificio, 'Sin edificio'), m.cantidad ?? 0, 0);
+    const amt = consumido(m);
+    bump(consumoMap, articuloKey(m.concat_articulo, m.articulo_id), amt, 0);
+    bump(consumoEdifMap, named(m.edificio, 'Sin edificio'), amt, 0);
   }
   const consumo = [...consumoMap.values()].sort((x, y) => y.a - x.a);
   const consumoTotal = consumo.reduce((s, r) => s + r.a, 0);
@@ -235,7 +241,7 @@ export function buildMonthlyTrend(mes: string, { movimientos, ots, ventilaciones
     if (!m.fecha) continue;
     const delta = (m.cant_posterior ?? 0) - (m.cant_anterior ?? 0);
     if (delta > 0) at(monthKey(m.fecha)).ingreso += delta;
-    if (CONSUMO_MOV_TIPOS.has(m.tipo_movimiento)) at(monthKey(m.fecha)).consumo += m.cantidad ?? 0;
+    if (CONSUMO_MOV_TIPOS.has(m.tipo_movimiento)) at(monthKey(m.fecha)).consumo += consumido(m);
   }
   for (const o of ots) {
     if (o.fecha_inicio) at(monthKey(o.fecha_inicio)).incidencias += 1;
