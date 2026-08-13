@@ -6,9 +6,10 @@ import {
   Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, RefreshCw, Search,
   UserCog,
 } from 'lucide-react';
-import { Badge, Button, Card, cn, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
+import { Button, Card, cn, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
 import { FilterPopover } from '../ui/FilterPopover';
 import { StatusBadge } from '../ui/StatusBadge';
+import { CategoriaBadge } from '../ui/CategoriaBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
 import EmptyState from '../EmptyState';
@@ -33,15 +34,17 @@ import AsignarOTModal from './AsignarOTModal';
 
 const PAGE_SIZE = 30;
 
-// Excel-style frozen leading columns (Estado · ID · ID F · Acciones). Fixed widths
-// so the cumulative `left` offsets line up; the trailing columns scroll underneath.
+// Excel-style frozen leading columns (Estado · Tipo · ID · ID F). Fixed widths so the cumulative
+// `left` offsets line up; the trailing columns — incl. Acciones — scroll underneath. Acciones was
+// pinned before but it's wide (8 icon buttons); moving it to the end and into the scroll zone frees
+// the frozen prefix and cuts horizontal scroll.
 const FZ_TH = 'sticky z-20 bg-muted'; // header wins the top-left corner (opaque over scrolling cells)
 const FZ_TD = 'sticky z-[5] bg-card group-hover:bg-muted'; // fully opaque (incl. hover) so scrolled cells never bleed through
 const FZ_COL = {
-  estado: 'left-0 w-[112px] min-w-[112px] max-w-[112px]',
-  id: 'left-[112px] w-[64px] min-w-[64px] max-w-[64px]',
-  idf: 'left-[176px] w-[72px] min-w-[72px] max-w-[72px]',
-  acc: 'left-[248px] w-[280px] min-w-[280px] max-w-[280px] border-r border-border',
+  estado: 'left-0 w-[104px] min-w-[104px] max-w-[104px]',
+  tipo: 'left-[104px] w-[128px] min-w-[128px] max-w-[128px]',
+  id: 'left-[232px] w-[60px] min-w-[60px] max-w-[60px]',
+  idf: 'left-[292px] w-[68px] min-w-[68px] max-w-[68px] border-r border-border',
 };
 
 interface OtFiltros { meses: string[]; estados: string[]; edificios: string[]; tiposTrabajo: string[]; tiposTarea: string[]; }
@@ -64,6 +67,7 @@ const OrdenesTrabajoView: React.FC = () => {
   const [draftFiltros, setDraftFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
   const [appliedFiltros, setAppliedFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
   const [page, setPage] = useState(0);
+  const [pageInput, setPageInput] = useState('1'); // caja "ir a la página N"
 
   const [formModal, setFormModal] = useState<{ ot: OrdenTrabajo | null; readOnly: boolean } | null>(null);
   const [bitacorasOt, setBitacorasOt] = useState<OrdenTrabajo | null>(null);
@@ -172,6 +176,14 @@ const OrdenesTrabajoView: React.FC = () => {
   const safePage = Math.min(page, pageCount - 1);
   const visible = searched.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
+  // Keep the jump box in sync with the current page; jump on Enter/blur (clamped to [1, pageCount]).
+  useEffect(() => { setPageInput(String(safePage + 1)); }, [safePage]);
+  const jumpToPage = () => {
+    const n = parseInt(pageInput, 10);
+    if (Number.isFinite(n) && n >= 1) setPage(Math.min(n, pageCount) - 1);
+    else setPageInput(String(safePage + 1));
+  };
+
   const aplicarFiltros = () => setAppliedFiltros(draftFiltros);
   const limpiarFiltros = () => { setDraftFiltros(EMPTY_FILTROS); setAppliedFiltros(EMPTY_FILTROS); };
 
@@ -185,7 +197,7 @@ const OrdenesTrabajoView: React.FC = () => {
     if (!perfil) return null;
     const editable = canEditar(ot, perfil);
     return (
-      <div className="flex items-center justify-end gap-0.5 flex-nowrap">
+      <div className="flex items-center justify-start gap-0.5 flex-nowrap">
         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" title={editable ? 'Editar' : 'Ver detalle'} aria-label={editable ? 'Editar' : 'Ver detalle'}
           onClick={() => (editable ? openEditar(ot) : openVer(ot))}>
           {editable ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -318,52 +330,65 @@ const OrdenesTrabajoView: React.FC = () => {
           {/* DESKTOP: tabla ancha con scroll horizontal — columnas 1:1 con gal_incidentes (PA).
               min-w fuerza el ancho natural para que el contenedor del kit haga scroll en vez de clippear. */}
           <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
-            <Table className="min-w-[1500px]" wrapperClassName="h-full">
-              {/* Orden exacto de gal_incidentes (PA), por coordenada X del .msapp:
-                  Estado · ID · ID F · Acciones · Detalle · Torre · Departamento · Prioridad ·
-                  Requiere parada de equipo · F. inicio · Tipo trabajo · Tipo tarea · F. asignada ·
-                  Días est. · F. cierre · Días reales · Tipo */}
+            <Table className="min-w-[1240px]" wrapperClassName="h-full">
+              {/* Columnas: fijas (Estado · Tipo · ID · ID F) + scroll (Detalle · Ubicación · Prioridad ·
+                  Requiere parada · F. inicio · Trabajo/Tarea · Asignada · Cierre · Acciones).
+                  Campos apareados en una sola columna apilada (torre/depto, trabajo/tarea,
+                  fecha+días est., fecha+días real) para achicar el scroll horizontal. */}
               <TableHeader>
                 <TableRow>
                   <TableHead className={cn(FZ_TH, FZ_COL.estado)}>Estado</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.tipo)}>Tipo</TableHead>
                   <TableHead className={cn(FZ_TH, FZ_COL.id)}>ID</TableHead>
                   <TableHead className={cn(FZ_TH, FZ_COL.idf, 'whitespace-nowrap')}>ID F</TableHead>
-                  <TableHead className={cn(FZ_TH, FZ_COL.acc)}>Acciones</TableHead>
                   <TableHead>Detalle</TableHead>
-                  <TableHead>Torre</TableHead>
-                  <TableHead>Departamento</TableHead>
+                  <TableHead className="whitespace-nowrap">Ubicación</TableHead>
                   <TableHead>Prioridad</TableHead>
-                  <TableHead className="whitespace-nowrap">Requiere parada de equipo</TableHead>
+                  <TableHead className="whitespace-nowrap">Requiere parada</TableHead>
                   <TableHead className="whitespace-nowrap">F. inicio</TableHead>
-                  <TableHead className="whitespace-nowrap">Tipo trabajo</TableHead>
-                  <TableHead className="whitespace-nowrap">Tipo tarea</TableHead>
-                  <TableHead className="whitespace-nowrap">F. asignada</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Días est.</TableHead>
-                  <TableHead className="whitespace-nowrap">F. cierre</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Días reales</TableHead>
-                  {!compras && <TableHead>Tipo</TableHead>}
+                  <TableHead className="whitespace-nowrap">Trabajo / Tarea</TableHead>
+                  <TableHead className="whitespace-nowrap">Asignada</TableHead>
+                  <TableHead className="whitespace-nowrap">Cierre</TableHead>
+                  <TableHead className="whitespace-nowrap">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visible.map((ot) => (
                   <TableRow key={ot.id} className="group">
                     <TableCell className={cn(FZ_TD, FZ_COL.estado)}><StatusBadge status={ot.status} /></TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.tipo)}><CategoriaBadge value={ot.tipo} /></TableCell>
                     <TableCell className={cn(FZ_TD, FZ_COL.id, 'whitespace-nowrap font-medium')}>#{ot.id}</TableCell>
                     <TableCell className={cn(FZ_TD, FZ_COL.idf, 'whitespace-nowrap text-muted-foreground')}>{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
-                    <TableCell className={cn(FZ_TD, FZ_COL.acc, 'whitespace-nowrap')}><RowActions ot={ot} /></TableCell>
-                    <TableCell className="max-w-[240px] truncate" title={ot.detalle ?? ''}>{truncate(ot.detalle)}</TableCell>
-                    <TableCell className="whitespace-nowrap font-medium">{ot.torre ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.departamento ?? '—'}</TableCell>
+                    {/* Detalle: 2 renglones con clamp — más texto legible sin agrandar la fila (ya son 2 líneas por las columnas apiladas). */}
+                    <TableCell className="max-w-[280px] align-middle"><span className="line-clamp-2 whitespace-normal leading-snug" title={ot.detalle ?? ''}>{ot.detalle || '—'}</span></TableCell>
+                    <TableCell className="whitespace-nowrap align-middle">
+                      <div className="leading-tight">
+                        <div className="font-medium">{ot.torre ?? '—'}</div>
+                        <div className="text-xs text-muted-foreground">{ot.departamento ?? '—'}</div>
+                      </div>
+                    </TableCell>
                     <TableCell><StatusBadge status={ot.prioridad} /></TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.tipo_prioridad ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap"><CategoriaBadge value={ot.tipo_prioridad} /></TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_inicio) || '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.tipo_trabajo ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.tipo_tarea ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_asignada) || '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">{ot.dias_estimado ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_cierre) || '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">{diasReales(ot) ?? '—'}</TableCell>
-                    {!compras && <TableCell><Badge variant="outline" className="whitespace-nowrap">{ot.tipo}</Badge></TableCell>}
+                    <TableCell className="align-middle">
+                      <div className="flex flex-col items-start gap-1">
+                        <CategoriaBadge value={ot.tipo_trabajo} />
+                        <CategoriaBadge value={ot.tipo_tarea} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap align-middle">
+                      <div className="leading-tight">
+                        <div>{formatDate(ot.fecha_asignada) || '—'}</div>
+                        <div className="text-xs text-muted-foreground tabular-nums">{ot.dias_estimado != null ? `${ot.dias_estimado} días est.` : '—'}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap align-middle">
+                      <div className="leading-tight">
+                        <div>{formatDate(ot.fecha_cierre) || '—'}</div>
+                        <div className="text-xs text-muted-foreground tabular-nums">{diasReales(ot) != null ? `${diasReales(ot)} días real` : '—'}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap"><RowActions ot={ot} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -371,12 +396,26 @@ const OrdenesTrabajoView: React.FC = () => {
           </Card>
 
           {pageCount > 1 && (
-            <div className="flex items-center justify-end gap-1">
+            <div className="flex items-center justify-end gap-1.5">
               <button disabled={safePage === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}
                 className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted disabled:opacity-40" aria-label="Página anterior">
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-sm text-muted-foreground px-1">Página {safePage + 1}/{pageCount}</span>
+              {/* Caja para saltar directo a una página (evita clickear N veces). */}
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <span>Página</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={pageInput}
+                  onChange={(e) => setPageInput(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') jumpToPage(); }}
+                  onBlur={jumpToPage}
+                  aria-label="Ir a la página"
+                  className="h-8 w-12 rounded-md border bg-background text-center text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <span>/ {pageCount}</span>
+              </div>
               <button disabled={safePage >= pageCount - 1} onClick={() => setPage((p) => p + 1)}
                 className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted disabled:opacity-40" aria-label="Página siguiente">
                 <ChevronRight className="h-4 w-4" />
