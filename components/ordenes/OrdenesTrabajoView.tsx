@@ -33,9 +33,13 @@ import CerrarOTModal from './CerrarOTModal';
 import AsignarOTModal from './AsignarOTModal';
 
 // Etiqueta corta del tipo para la grilla (color sigue por el valor completo en CategoriaBadge).
-const TIPO_CORTO: Record<string, string> = {
-  'Orden de Trabajo': 'OT',
-  'Solicitud OT': 'Sol OT',
+// Normalizamos a minúscula/trim como categoriaColor: el valor real viene en mayúsculas
+// ('ORDEN DE TRABAJO', 'SOLICITUD OT'), así que un match por casing exacto no servía.
+const tipoCorto = (tipo: string | null | undefined): string => {
+  const k = (tipo ?? '').trim().toLowerCase();
+  if (k === 'orden de trabajo') return 'OT';
+  if (k === 'solicitud ot') return 'Sol OT';
+  return (tipo ?? '').trim();
 };
 
 // Excel-style frozen leading columns (Estado · Tipo · ID · ID F). Fixed widths so the cumulative
@@ -345,7 +349,7 @@ const OrdenesTrabajoView: React.FC = () => {
                 {searched.map((ot) => (
                   <TableRow key={ot.id} className="group">
                     <TableCell className={cn(FZ_TD, FZ_COL.estado)}><StatusBadge status={ot.status} /></TableCell>
-                    <TableCell className={cn(FZ_TD, FZ_COL.tipo)}><CategoriaBadge value={ot.tipo} label={TIPO_CORTO[ot.tipo] ?? ot.tipo} /></TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.tipo)}><CategoriaBadge value={ot.tipo} label={tipoCorto(ot.tipo)} /></TableCell>
                     <TableCell className={cn(FZ_TD, FZ_COL.id, 'whitespace-nowrap font-medium')}>#{ot.id}</TableCell>
                     <TableCell className={cn(FZ_TD, FZ_COL.idf, 'whitespace-nowrap text-muted-foreground')}>{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
                     {/* Detalle: columna ancha, 2 renglones con clamp — más texto legible sin agrandar la fila (ya son 2 líneas por las columnas apiladas). */}
