@@ -269,8 +269,8 @@ const RowActions: React.FC<{ puedeEditar: boolean; puedeDevolver: boolean; onEdi
       </Button>
     )}
     {/* Registros históricos migrados (sin stock_id) o devoluciones ya reingresadas: no hay acción segura.
-        Un "—" explícito deja claro que es intencional (no un botón que falta). */}
-    {!puedeEditar && !puedeDevolver && <span className="text-sm text-muted-foreground" title="Registro histórico — sin acciones disponibles">—</span>}
+        Un "—" tenue deja claro que es intencional (no un botón que falta). */}
+    {!puedeEditar && !puedeDevolver && <span className="text-sm text-muted-foreground/60">—</span>}
   </>
 );
 
