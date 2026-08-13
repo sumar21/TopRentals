@@ -490,18 +490,31 @@ const DashboardView: React.FC = () => {
         <LoadErrorState onRetry={() => void load()} />
       ) : (
         <>
-          {/* Botonera de secciones — una pestaña por dominio (Resumen · OTs · Consumos · Ingresos · Ventilaciones). */}
-          <Tabs value={tab} onValueChange={(v: string) => setTab(v as DashTab)}>
-            <div className="overflow-x-auto pb-1">
-              <TabsList className="w-max">
-                {DASH_TABS.map(({ value, label, icon: Icon }) => (
-                  <TabsTrigger key={value} value={value} className="gap-1.5">
-                    <Icon className="h-3.5 w-3.5" /> {label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          </Tabs>
+          {/* Botonera de secciones + filtro por torre en la MISMA fila (el filtro sólo aplica a Consumos/Ingresos,
+              cambiando según la pestaña activa) → no gastamos un renglón extra. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Tabs value={tab} onValueChange={(v: string) => setTab(v as DashTab)}>
+              <div className="overflow-x-auto pb-1">
+                <TabsList className="w-max">
+                  {DASH_TABS.map(({ value, label, icon: Icon }) => (
+                    <TabsTrigger key={value} value={value} className="gap-1.5">
+                      <Icon className="h-3.5 w-3.5" /> {label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+            </Tabs>
+            {(tab === 'consumos' || tab === 'ingresos') && (
+              <div className="w-full shrink-0 sm:w-56">
+                <Select
+                  value={tab === 'consumos' ? conTorre : ingTorre}
+                  onChange={tab === 'consumos' ? setConTorre : setIngTorre}
+                  options={torreOptions}
+                  placeholder="Torre"
+                />
+              </div>
+            )}
+          </div>
 
           {/* RESUMEN — pulso ejecutivo: incidencias (hero) + KPIs + evolución mensual (selector de métrica). */}
           {tab === 'resumen' && (
@@ -572,11 +585,6 @@ const DashboardView: React.FC = () => {
           {/* CONSUMOS — por artículo y por edificio + evolución. Filtro por torre scopea toda la sección. */}
           {tab === 'consumos' && (
             <>
-              <div className="flex justify-end">
-                <div className="w-full sm:w-56">
-                  <Select value={conTorre} onChange={setConTorre} options={torreOptions} placeholder="Torre" />
-                </div>
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <StatCard title="Consumo" value={`${num(conData.consumoTotal)} u`} icon={PackageMinus} subtext={conPrev ? deltaChip(conData.consumoTotal, conPrev.consumo) : 'unidades este mes'} />
                 <StatCard title="Artículo más consumido" value={conData.consumo[0]?.key ?? '—'} icon={Trophy} subtext={conData.consumo[0] ? `${num(conData.consumo[0].a)} u` : 'sin consumo este mes'} />
@@ -599,11 +607,6 @@ const DashboardView: React.FC = () => {
           {/* INGRESOS — por artículo y por edificio + evolución. Filtro por torre scopea toda la sección. */}
           {tab === 'ingresos' && (
             <>
-              <div className="flex justify-end">
-                <div className="w-full sm:w-56">
-                  <Select value={ingTorre} onChange={setIngTorre} options={torreOptions} placeholder="Torre" />
-                </div>
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <StatCard title="Ingreso de stock" value={`${num(ingData.ingresoTotal)} u`} icon={PackagePlus} subtext={ingPrev ? deltaChip(ingData.ingresoTotal, ingPrev.ingreso) : 'unidades este mes'} />
                 <StatCard title="Artículo más ingresado" value={ingData.ingresoArticulo[0]?.key ?? '—'} icon={Trophy} subtext={ingData.ingresoArticulo[0] ? `${num(ingData.ingresoArticulo[0].a)} u` : 'sin ingresos este mes'} />
