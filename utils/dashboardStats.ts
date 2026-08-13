@@ -23,11 +23,15 @@ export interface DashboardStats {
   ingresoArticulo: Grouped[]; // desglose de ingreso por artículo (item), en paralelo al consumo por artículo
   consumo: Grouped[];
   consumoTotal: number;
+  consumoPorEdificio: Grouped[]; // consumo del mes agrupado por edificio (a dónde se fue el stock)
   incidencias: Grouped[];
   incidenciasTotal: number;
+  otsPorEstado: Grouped[]; // OTs iniciadas en el mes, por estado (salud del flujo)
+  otsPorTipoTrabajo: Grouped[]; // OTs iniciadas en el mes, por tipo de trabajo (mix de trabajo)
   resolucion: Grouped[];
   resolProm: number;
   ventilacionesLimpiadas: Grouped[];
+  ventilacionesPorEstado: Grouped[]; // ventilaciones del mes (por fecha relevante), por estado
   ventTotal: number;
 }
 
@@ -90,23 +94,32 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
   const ingresoArticulo = [...ingresoArtMap.values()].sort((x, y) => y.a - x.a);
   const ingresoTotal = ingreso.reduce((s, r) => s + r.a, 0);
 
-  // 2. Consumo por artículo: consumption-type movements from movimientos_stock (incl. OT repuestos).
+  // 2. Consumo: consumption-type movements from movimientos_stock (incl. OT repuestos), por artículo y por edificio.
   const consumoMap = new Map<string, Grouped>();
+  const consumoEdifMap = new Map<string, Grouped>();
   for (const m of movimientos) {
     if (!inMonth(m.fecha) || !CONSUMO_MOV_TIPOS.has(m.tipo_movimiento)) continue;
     bump(consumoMap, articuloKey(m.concat_articulo, m.articulo_id), m.cantidad ?? 0, 0);
+    bump(consumoEdifMap, named(m.edificio, 'Sin edificio'), m.cantidad ?? 0, 0);
   }
   const consumo = [...consumoMap.values()].sort((x, y) => y.a - x.a);
   const consumoTotal = consumo.reduce((s, r) => s + r.a, 0);
+  const consumoPorEdificio = [...consumoEdifMap.values()].sort((x, y) => y.a - x.a);
 
-  // 3. Incidencias por torre: OTs started this month.
+  // 3. Incidencias (OTs iniciadas este mes): por torre, por estado y por tipo de trabajo.
   const incidenciasMap = new Map<string, Grouped>();
+  const otsEstadoMap = new Map<string, Grouped>();
+  const otsTrabajoMap = new Map<string, Grouped>();
   for (const o of ots) {
     if (!inMonth(o.fecha_inicio)) continue;
     bump(incidenciasMap, named(o.torre, 'Sin torre'), 1, 0);
+    bump(otsEstadoMap, named(o.status, 'Sin estado'), 1, 0);
+    bump(otsTrabajoMap, named(o.tipo_trabajo, 'Sin tipo'), 1, 0);
   }
   const incidencias = [...incidenciasMap.values()].sort((x, y) => y.a - x.a);
   const incidenciasTotal = incidencias.reduce((s, r) => s + r.a, 0);
+  const otsPorEstado = [...otsEstadoMap.values()].sort((x, y) => y.a - x.a);
+  const otsPorTipoTrabajo = [...otsTrabajoMap.values()].sort((x, y) => y.a - x.a);
 
   // 4. Tiempo de resolución por torre: OTs closed this month, avg (cierre - inicio) in days.
   const resolMap = new Map<string, { key: string; count: number; totalDays: number }>();
@@ -128,14 +141,18 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
     .sort((x, y) => y.b - x.b);
   const resolProm = resolCount ? resolTotalDays / resolCount : 0;
 
-  // 5. Ventilaciones limpiadas por edificio: estado Realizada + fecha_finalizacion this month (count only).
+  // 5. Ventilaciones: limpiadas por edificio (Realizada + fecha_finalizacion en el mes) y distribución
+  //    por estado de las que caen en el mes (por su fecha relevante: programada → próxima → finalización).
   const ventMap = new Map<string, Grouped>();
+  const ventEstadoMap = new Map<string, Grouped>();
   for (const v of ventilaciones) {
-    if (v.estado !== 'Realizada' || !inMonth(v.fecha_finalizacion)) continue;
-    bump(ventMap, named(v.edificio, 'Sin edificio'), 1, 0);
+    if (v.estado === 'Realizada' && inMonth(v.fecha_finalizacion)) bump(ventMap, named(v.edificio, 'Sin edificio'), 1, 0);
+    const fRel = v.fecha_programada ?? v.proxima_limpieza ?? v.fecha_finalizacion;
+    if (inMonth(fRel)) bump(ventEstadoMap, named(v.estado, 'Sin estado'), 1, 0);
   }
   const ventilacionesLimpiadas = [...ventMap.values()].sort((x, y) => y.a - x.a);
   const ventTotal = ventilacionesLimpiadas.reduce((s, r) => s + r.a, 0);
+  const ventilacionesPorEstado = [...ventEstadoMap.values()].sort((x, y) => y.a - x.a);
 
   return {
     ingreso,
@@ -143,11 +160,15 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
     ingresoArticulo,
     consumo,
     consumoTotal,
+    consumoPorEdificio,
     incidencias,
     incidenciasTotal,
+    otsPorEstado,
+    otsPorTipoTrabajo,
     resolucion,
     resolProm,
     ventilacionesLimpiadas,
+    ventilacionesPorEstado,
     ventTotal,
   };
 }

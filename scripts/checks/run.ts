@@ -280,6 +280,12 @@ async function main() {
     assert.equal(stats.resolProm, 5); // (4 + 6) / 2 cerradas
     assert.equal(stats.ventTotal, 2); // 2 ventilaciones Realizadas
     assert.equal(stats.ventilacionesLimpiadas[0].a, 2);
+    // desgloses nuevos (pestañas del dashboard)
+    assert.equal(stats.otsPorEstado.length, 3); // Pendiente, Cerrada, Cerrada V (1 c/u)
+    assert.equal(stats.otsPorTipoTrabajo[0].a, 3); // sin tipo_trabajo -> "Sin tipo"
+    assert.equal(stats.consumoPorEdificio[0].a, 5); // consumo sin edificio -> "Sin edificio"
+    assert.equal(stats.ventilacionesPorEstado[0].key, 'Realizada');
+    assert.equal(stats.ventilacionesPorEstado[0].a, 2); // 2 Realizadas caen en el mes por su fecha
   });
 
   await check('dashboard trend: single-pass window matches per-month totals (all metrics + year-wrap)', () => {

@@ -29,12 +29,11 @@
 //  · Interaction — a single month filter scopes every card (never per-chart); the trend card
 //    adds one metric selector; per-mark / crosshair hover everywhere.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Clock, Fan, PackageMinus, PackagePlus, TrendingUp, Trophy } from 'lucide-react';
+import { ClipboardList, Clock, Fan, LayoutDashboard, PackageMinus, PackagePlus, TrendingUp, Trophy } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Card, StatCard } from '../ui/UIComponents';
+import { Card, StatCard, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
-import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
 import { api } from '../../services/index.ts';
 import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '../../services/types.ts';
@@ -89,6 +88,17 @@ const TREND_METRICS: { value: MetricKey; label: string; fmt: (n: number) => stri
 ];
 // Hoisted: the metric-selector options never change, so build them once (not per render).
 const TREND_SELECT_OPTIONS = TREND_METRICS.map((mm) => ({ value: mm.value, label: mm.label }));
+
+// Botonera de secciones del dashboard — una pestaña por dominio. Los gráficos existentes se
+// redistribuyen acá y cada pestaña suma métricas propias del dominio (dataviz-consistente).
+const DASH_TABS = [
+  { value: 'resumen', label: 'Resumen', icon: LayoutDashboard },
+  { value: 'ots', label: 'OTs', icon: ClipboardList },
+  { value: 'consumos', label: 'Consumos', icon: PackageMinus },
+  { value: 'ingresos', label: 'Ingresos', icon: PackagePlus },
+  { value: 'ventilaciones', label: 'Ventilaciones', icon: Fan },
+] as const;
+type DashTab = (typeof DASH_TABS)[number]['value'];
 
 // Stable React key for a slice: the folded "Otros" bucket gets a reserved key so it can never collide
 // with a real category literally named "Otros (n)" (migrated free-text data). Real keys are unique per aggregation.
@@ -303,6 +313,7 @@ const DashboardView: React.FC = () => {
   const [loadError, setLoadError] = useState(false);
   const [mes, setMes] = useState<string>(todayISO().slice(0, 7));
   const [metric, setMetric] = useState<MetricKey>('incidencias');
+  const [tab, setTab] = useState<DashTab>('resumen');
 
   // Monotonic request id: the initial mount fetch and any realtime-triggered refetch can overlap, so
   // stamp each call and only the newest one is allowed to commit — a slow earlier response can't clobber
@@ -372,13 +383,29 @@ const DashboardView: React.FC = () => {
     return `Pico en ${serie[ex.maxIndex].label}; valle en ${serie[ex.minIndex].label}.`;
   }, [serie]);
 
+  // Trend fijo por pestaña (reusa el mismo cálculo del selector del Resumen, pero atado a una métrica).
+  const serieFor = (mk: MetricKey) => trend.map((p) => ({ mes: p.mes, label: mesShort(p.mes), value: p[mk] }));
+  const trendInsight = (labels: string[], values: number[]) => {
+    const ex = trendExtremes(values);
+    if (ex.allZero) return 'Sin datos en la ventana de 12 meses.';
+    if (ex.flat) return 'Sin variación en la ventana de 12 meses.';
+    return `Pico en ${labels[ex.maxIndex]}; valle en ${labels[ex.minIndex]}.`;
+  };
+  const trendCard = (mk: MetricKey) => {
+    const cfg = TREND_METRICS.find((m) => m.value === mk)!;
+    const s = serieFor(mk);
+    return (
+      <ChartCard title={`Evolución mensual · ${cfg.label}`} subtitle={trendInsight(s.map((p) => p.label), s.map((p) => p.value))} empty={false} emptyMsg="">
+        <p className="mb-3 text-[11px] text-muted-foreground">Últimos 12 meses · total por mes</p>
+        <TrendLine data={s} fmt={cfg.fmt} name={cfg.label} allowDecimals={mk === 'resolProm'} />
+      </ChartCard>
+    );
+  };
+
   // Hero = Incidencias (the ops workload pulse): 12-month sparkline, 12-month average, leading tower.
   const incSpark = useMemo(() => trend.map((p) => p.incidencias), [trend]);
   const incAvg = incSpark.length ? Math.round(incSpark.reduce((s, v) => s + v, 0) / incSpark.length) : 0;
   const torreLider = useMemo(() => foldTopN(data.incidencias, 'a', 5).slices[0], [data.incidencias]);
-
-  const hasAny =
-    data.ingreso.length + data.consumo.length + data.incidencias.length + data.resolucion.length + data.ventilacionesLimpiadas.length > 0;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -399,84 +426,141 @@ const DashboardView: React.FC = () => {
         <LoadErrorState onRetry={() => void load()} />
       ) : (
         <>
-          {/* Hero band — headline card (big) + 2 KPI tiles (small): asymmetric, size hierarchy. */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <HeroCard
-                caption={`Incidencias · ${mesLabel(mes)}`}
-                total={data.incidenciasTotal}
-                unit="OTs este mes"
-                prev={prev?.incidencias ?? null}
-                spark={incSpark}
-                avg={incAvg}
-                rows={data.incidencias}
-              />
+          {/* Botonera de secciones — una pestaña por dominio (Resumen · OTs · Consumos · Ingresos · Ventilaciones). */}
+          <Tabs value={tab} onValueChange={(v: string) => setTab(v as DashTab)}>
+            <div className="overflow-x-auto pb-1">
+              <TabsList className="w-max">
+                {DASH_TABS.map(({ value, label, icon: Icon }) => (
+                  <TabsTrigger key={value} value={value} className="gap-1.5">
+                    <Icon className="h-3.5 w-3.5" /> {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </div>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
-              <StatCard title="Torre líder" value={torreLider?.key ?? '—'} icon={Trophy} subtext={torreLider ? `${torreLider.pct.toFixed(0)}% de las OTs` : 'sin OTs este mes'} />
-              <StatCard title="Promedio mensual" value={num(incAvg)} icon={TrendingUp} subtext="OTs/mes · últimos 12m" />
-            </div>
-          </div>
+          </Tabs>
 
-          {/* Secondary metrics — smaller equal tiles, a size step down from the hero. */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {/* Unidad SIEMPRE junto al número (no solo en el subtext): un "1,3" pelado no dice si son horas/días/meses. */}
-            <StatCard title="Ingreso de stock" value={`${num(data.ingresoTotal)} u`} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades'} />
-            <StatCard title="Consumo" value={`${num(data.consumoTotal)} u`} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades'} />
-            <StatCard title="Tiempo de resolución" value={`${oneDecimal(data.resolProm)} días`} icon={Clock} subtext={prev ? deltaChip(data.resolProm, prev.resolProm) : 'días promedio'} />
-            <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext={prev ? deltaChip(data.ventTotal, prev.ventilaciones) : 'ventilaciones'} />
-          </div>
-
-          {hasTrend && (
-            <ChartCard title={`Evolución mensual · ${metricCfg.label}`} subtitle={insight} empty={false} emptyMsg="">
-              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-[11px] text-muted-foreground">Últimos 12 meses · total por mes</p>
-                <div className="w-full sm:w-56">
-                  <Select
-                    value={metric}
-                    onChange={(v) => setMetric(v as MetricKey)}
-                    options={TREND_SELECT_OPTIONS}
-                    placeholder="Métrica"
+          {/* RESUMEN — pulso ejecutivo: incidencias (hero) + KPIs + evolución mensual (selector de métrica). */}
+          {tab === 'resumen' && (
+            <>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <HeroCard
+                    caption={`Incidencias · ${mesLabel(mes)}`}
+                    total={data.incidenciasTotal}
+                    unit="OTs este mes"
+                    prev={prev?.incidencias ?? null}
+                    spark={incSpark}
+                    avg={incAvg}
+                    rows={data.incidencias}
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+                  <StatCard title="Torre líder" value={torreLider?.key ?? '—'} icon={Trophy} subtext={torreLider ? `${torreLider.pct.toFixed(0)}% de las OTs` : 'sin OTs este mes'} />
+                  <StatCard title="Promedio mensual" value={num(incAvg)} icon={TrendingUp} subtext="OTs/mes · últimos 12m" />
+                </div>
               </div>
-              <TrendLine data={serie} fmt={metricCfg.fmt} name={metricCfg.label} allowDecimals={metric === 'resolProm'} />
-            </ChartCard>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {/* Unidad SIEMPRE junto al número: un "1,3" pelado no dice si son horas/días/meses. */}
+                <StatCard title="Ingreso de stock" value={`${num(data.ingresoTotal)} u`} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades'} />
+                <StatCard title="Consumo" value={`${num(data.consumoTotal)} u`} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades'} />
+                <StatCard title="Tiempo de resolución" value={`${oneDecimal(data.resolProm)} días`} icon={Clock} subtext={prev ? deltaChip(data.resolProm, prev.resolProm) : 'días promedio'} />
+                <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext={prev ? deltaChip(data.ventTotal, prev.ventilaciones) : 'ventilaciones'} />
+              </div>
+              {hasTrend && (
+                <ChartCard title={`Evolución mensual · ${metricCfg.label}`} subtitle={insight} empty={false} emptyMsg="">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-[11px] text-muted-foreground">Últimos 12 meses · total por mes</p>
+                    <div className="w-full sm:w-56">
+                      <Select value={metric} onChange={(v) => setMetric(v as MetricKey)} options={TREND_SELECT_OPTIONS} placeholder="Métrica" />
+                    </div>
+                  </div>
+                  <TrendLine data={serie} fmt={metricCfg.fmt} name={metricCfg.label} allowDecimals={metric === 'resolProm'} />
+                </ChartCard>
+              )}
+            </>
           )}
 
-          {!hasAny ? (
-            <EmptyState icon={BarChart3} title="Sin datos este mes" message="No hay movimientos, OTs ni ventilaciones registrados en el mes seleccionado." />
-          ) : (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {/* Desglose x item — ingreso y consumo, en paralelo, ambos por artículo. */}
-              <ChartCard title="Ingreso de stock por artículo" subtitle="Participación por artículo (item)" empty={data.ingresoArticulo.length === 0} emptyMsg="Sin ingresos de stock este mes.">
-                <Donut rows={data.ingresoArticulo} valueKey="a" label={num} unit="u" />
-              </ChartCard>
+          {/* OTs — incidencias por torre/estado/tipo + tiempo de resolución + evolución. */}
+          {tab === 'ots' && (
+            <>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                <StatCard title="Incidencias" value={num(data.incidenciasTotal)} icon={ClipboardList} subtext={prev ? deltaChip(data.incidenciasTotal, prev.incidencias) : 'OTs este mes'} />
+                <StatCard title="Tiempo de resolución" value={`${oneDecimal(data.resolProm)} días`} icon={Clock} subtext="promedio de cierre" />
+                <StatCard title="Torre líder" value={torreLider?.key ?? '—'} icon={Trophy} subtext={torreLider ? `${torreLider.pct.toFixed(0)}% de las OTs` : 'sin OTs este mes'} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <ChartCard title="Incidencias por torre" subtitle="Participación por torre" empty={data.incidencias.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
+                  <Donut rows={data.incidencias} valueKey="a" label={num} unit="OTs" />
+                </ChartCard>
+                <ChartCard title="OTs por estado" subtitle="Cómo se reparten las OTs del mes" empty={data.otsPorEstado.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
+                  <MagnitudeBar data={data.otsPorEstado} valueKey="a" label={num} tooltipName="OTs" />
+                </ChartCard>
+                <ChartCard title="OTs por tipo de trabajo" subtitle="Mix de trabajo del mes" empty={data.otsPorTipoTrabajo.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
+                  <Donut rows={data.otsPorTipoTrabajo} valueKey="a" label={num} unit="OTs" />
+                </ChartCard>
+                <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre (promedios no van en torta)" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
+                  <MagnitudeBar data={data.resolucion} valueKey="b" label={oneDecimal} tooltipName="Promedio" tooltipExtra={(g) => `${oneDecimal(g.b)} días · ${num(g.a)} OTs`} allowDecimals />
+                </ChartCard>
+              </div>
+              {trendCard('incidencias')}
+            </>
+          )}
 
-              <ChartCard title="Consumo por artículo" subtitle="Participación por artículo (incluye repuestos de OT)" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
-                <Donut rows={data.consumo} valueKey="a" label={num} unit="u" />
-              </ChartCard>
+          {/* CONSUMOS — por artículo y por edificio + evolución. */}
+          {tab === 'consumos' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard title="Consumo" value={`${num(data.consumoTotal)} u`} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades este mes'} />
+                <StatCard title="Artículo más consumido" value={data.consumo[0]?.key ?? '—'} icon={Trophy} subtext={data.consumo[0] ? `${num(data.consumo[0].a)} u` : 'sin consumo este mes'} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <ChartCard title="Consumo por artículo" subtitle="Participación por artículo (incluye repuestos de OT)" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
+                  <Donut rows={data.consumo} valueKey="a" label={num} unit="u" />
+                </ChartCard>
+                <ChartCard title="Consumo por edificio" subtitle="A qué edificio se fue el stock" empty={data.consumoPorEdificio.length === 0} emptyMsg="Sin consumo registrado este mes.">
+                  <Donut rows={data.consumoPorEdificio} valueKey="a" label={num} unit="u" />
+                </ChartCard>
+              </div>
+              {trendCard('consumo')}
+            </>
+          )}
 
-              {/* Mismo dato por edificio — qué edificio recibió stock / dónde se limpiaron aires. */}
-              <ChartCard title="Ingreso de stock por edificio" subtitle="Participación por edificio" empty={data.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
-                <Donut rows={data.ingreso} valueKey="a" label={num} unit="u" />
-              </ChartCard>
+          {/* INGRESOS — por artículo y por edificio + evolución. */}
+          {tab === 'ingresos' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard title="Ingreso de stock" value={`${num(data.ingresoTotal)} u`} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades este mes'} />
+                <StatCard title="Artículo más ingresado" value={data.ingresoArticulo[0]?.key ?? '—'} icon={Trophy} subtext={data.ingresoArticulo[0] ? `${num(data.ingresoArticulo[0].a)} u` : 'sin ingresos este mes'} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <ChartCard title="Ingreso de stock por artículo" subtitle="Participación por artículo (item)" empty={data.ingresoArticulo.length === 0} emptyMsg="Sin ingresos de stock este mes.">
+                  <Donut rows={data.ingresoArticulo} valueKey="a" label={num} unit="u" />
+                </ChartCard>
+                <ChartCard title="Ingreso de stock por edificio" subtitle="Participación por edificio" empty={data.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
+                  <Donut rows={data.ingreso} valueKey="a" label={num} unit="u" />
+                </ChartCard>
+              </div>
+              {trendCard('ingreso')}
+            </>
+          )}
 
-              <ChartCard title="Ventilaciones limpiadas por edificio" subtitle="Participación por edificio" empty={data.ventilacionesLimpiadas.length === 0} emptyMsg="No se limpiaron aires este mes.">
-                <Donut rows={data.ventilacionesLimpiadas} valueKey="a" label={num} unit="limpiezas" />
-              </ChartCard>
-
-              <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre (promedios no van en torta)" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
-                <MagnitudeBar
-                  data={data.resolucion}
-                  valueKey="b"
-                  label={oneDecimal}
-                  tooltipName="Promedio"
-                  tooltipExtra={(g) => `${oneDecimal(g.b)} días · ${num(g.a)} OTs`}
-                  allowDecimals
-                />
-              </ChartCard>
-            </div>
+          {/* VENTILACIONES — limpiadas por edificio + estado + evolución. */}
+          {tab === 'ventilaciones' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext={prev ? deltaChip(data.ventTotal, prev.ventilaciones) : 'ventilaciones este mes'} />
+                <StatCard title="Edificio líder" value={data.ventilacionesLimpiadas[0]?.key ?? '—'} icon={Trophy} subtext={data.ventilacionesLimpiadas[0] ? `${num(data.ventilacionesLimpiadas[0].a)} limpiezas` : 'sin limpiezas este mes'} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <ChartCard title="Ventilaciones limpiadas por edificio" subtitle="Participación por edificio" empty={data.ventilacionesLimpiadas.length === 0} emptyMsg="No se limpiaron aires este mes.">
+                  <Donut rows={data.ventilacionesLimpiadas} valueKey="a" label={num} unit="limpiezas" />
+                </ChartCard>
+                <ChartCard title="Ventilaciones por estado" subtitle="Estado de las ventilaciones del mes" empty={data.ventilacionesPorEstado.length === 0} emptyMsg="Sin ventilaciones este mes.">
+                  <MagnitudeBar data={data.ventilacionesPorEstado} valueKey="a" label={num} tooltipName="Ventilaciones" />
+                </ChartCard>
+              </div>
+              {trendCard('ventilaciones')}
+            </>
           )}
         </>
       )}
