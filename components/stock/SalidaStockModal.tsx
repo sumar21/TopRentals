@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, PackageMinus, X } from 'lucide-react';
 import { Button, cn, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
-import { Input } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
 import { DatePicker } from '../ui/DatePicker';
 import { backdropClose } from '../ui/backdropClose';
 import { todayISO } from '../../utils/dates';
@@ -139,7 +139,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
-              <Input type="number" min={1} max={disponible} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" />
+              <NumberInput min={1} max={disponible} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 5" />
               {cantidad !== '' && !cantidadValida && (
                 <p className="text-[11px] text-red-600 mt-1">Cantidad insuficiente — disponible: {disponible}.</p>
               )}

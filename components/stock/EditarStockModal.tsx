@@ -2,8 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Save, X } from 'lucide-react';
-import { Button, Input, cn, useModalAnimation } from '../ui/UIComponents';
+import { Button, cn, useModalAnimation } from '../ui/UIComponents';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
 import { api } from '../../services/index.ts';
@@ -84,11 +85,11 @@ export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onCl
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad actual</label>
-            <Input type="number" min={0} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+            <NumberInput min={0} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 10" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Stock mínimo</label>
-            <Input type="number" min={0} step={1} value={minimo} onChange={(e) => setMinimo(e.target.value)} />
+            <NumberInput min={0} value={minimo} onChange={(e) => setMinimo(e.target.value)} placeholder="Ej: 5" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Costo unitario</label>

@@ -4,13 +4,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Paperclip, Save, Upload, X } from 'lucide-react';
-import { Button, Input, useModalAnimation } from '../ui/UIComponents';
+import { Button, useModalAnimation } from '../ui/UIComponents';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
+import { APP_VERSION } from '../../config/appVersion';
 import { todayISO } from '../../utils/dates';
 import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
 import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TAREA_OPTIONS, TIPO_TRABAJO_OPTIONS } from './otHelpers';
@@ -133,7 +135,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
         orden_revision_id: ot?.orden_revision_id ?? null,
         problema: ot?.problema ?? null,
         desde: 'Desktop' as const,
-        version_app: ot?.version_app ?? null,
+        version_app: ot?.version_app ?? APP_VERSION,
         hora: ot?.hora ?? null,
         id_univoco: ot?.id_univoco ?? '',
       };
@@ -218,17 +220,18 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Días estimados *</label>
-              <Input type="number" min={0} inputMode="numeric" value={diasEstimado} onChange={(e) => setDiasEstimado(e.target.value)} disabled={readOnly} />
+              <NumberInput min={0} value={diasEstimado} onChange={(e) => setDiasEstimado(e.target.value)} disabled={readOnly} placeholder="Ej: 3" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Personas necesarias *</label>
-              <Input type="number" min={0} inputMode="numeric" value={personasRequeridas} onChange={(e) => setPersonasRequeridas(e.target.value)} disabled={readOnly} />
+              <NumberInput min={0} value={personasRequeridas} onChange={(e) => setPersonasRequeridas(e.target.value)} disabled={readOnly} placeholder="Ej: 2" />
             </div>
           </div>
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Detalle *</label>
             <textarea rows={3} maxLength={1000} value={detalle} onChange={(e) => setDetalle(e.target.value)} disabled={readOnly}
+              placeholder="Describí el problema o la tarea…"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none disabled:opacity-50" />
           </div>
 

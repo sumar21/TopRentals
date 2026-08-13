@@ -60,6 +60,7 @@ const RechazarModal: React.FC<RechazarModalProps> = ({ isOpen, onClose, idCompra
             Motivo del rechazo<span className="text-destructive ml-0.5">*</span>
           </label>
           <textarea rows={4} maxLength={500} autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Motivo del rechazo…"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
         </div>
 

@@ -14,7 +14,7 @@ export const Loader: React.FC<LoaderProps> = ({ text, subtext, size = 'md', clas
         <span className="absolute inset-0 rounded-full bg-primary/10 animate-ping" />
         <span className="absolute inset-0 rounded-full border-2 border-primary/15 border-t-primary animate-spin" />
         <div className={`absolute inset-0 m-auto ${s.bubble} rounded-full bg-background border border-primary/10 shadow-sm flex items-center justify-center overflow-hidden`}>
-          <img src="/logo.png" alt="TopRentals" className={`${s.logo} object-contain`} />
+          <img src="/logo.png" alt="Top Rentals" className={`${s.logo} object-contain`} />
         </div>
       </div>
       {text && <p className={`mt-4 font-medium text-muted-foreground ${s.text}`}>{text}</p>}

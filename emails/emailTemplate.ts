@@ -38,7 +38,7 @@ export function renderBrandedEmail({ title, intro, contentHtml, footerNote, badg
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:840px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid ${BRAND.border};">
     <tr><td style="padding:32px 40px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-        <td style="font-size:18px;font-weight:800;color:${BRAND.primary};">TopRentals</td>
+        <td style="font-size:18px;font-weight:800;color:${BRAND.primary};">Top Rentals</td>
         ${badge ? `<td align="right"><span style="display:inline-block;background:${BRAND.primary};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;border-radius:999px;padding:4px 12px;">${escapeHtml(badge)}</span></td>` : ''}
       </tr></table>
       <div style="height:3px;width:52px;background:${BRAND.primary};margin:20px 0;"></div>
@@ -48,7 +48,7 @@ export function renderBrandedEmail({ title, intro, contentHtml, footerNote, badg
       ${footerNote ? `<p style="margin:24px 0 0;font-size:12px;color:${BRAND.muted};">${escapeHtml(footerNote)}</p>` : ''}
     </td></tr>
   </table>
-  <p style="max-width:840px;margin:16px auto 0;text-align:center;font-size:11px;color:#b0b0b8;">Este es un mensaje automático de TopRentals.</p>
+  <p style="max-width:840px;margin:16px auto 0;text-align:center;font-size:11px;color:#b0b0b8;">Este es un mensaje automático de Top Rentals.</p>
 </body>
 </html>`;
 }

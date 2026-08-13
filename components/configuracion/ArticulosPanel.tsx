@@ -9,6 +9,7 @@ import { api } from '../../services/index.ts';
 import type { Articulo } from '../../services/types.ts';
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, cn, useModalAnimation } from '../ui/UIComponents';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -112,13 +113,13 @@ const ArticuloFormModal: React.FC<{
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Artículo<span className="text-destructive ml-0.5">*</span></label>
               <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                aria-invalid={!!errors.nombre} className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                aria-invalid={!!errors.nombre} placeholder="Nombre del artículo" className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('nombre')}
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Stock mínimo<span className="text-destructive ml-0.5">*</span></label>
-              <Input type="number" inputMode="numeric" min={0} value={form.corte} onChange={(e) => setForm((f) => ({ ...f, corte: e.target.value }))}
-                aria-invalid={!!errors.corte} className={cn(errors.corte && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+              <NumberInput min={0} value={form.corte} onChange={(e) => setForm((f) => ({ ...f, corte: e.target.value }))}
+                placeholder="Ej: 10" aria-invalid={!!errors.corte} className={cn(errors.corte && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('corte')}
             </div>
             <div>
@@ -130,6 +131,7 @@ const ArticuloFormModal: React.FC<{
             <div className="sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Detalle</label>
               <textarea rows={3} maxLength={500} value={form.detalle} onChange={(e) => setForm((f) => ({ ...f, detalle: e.target.value }))}
+                placeholder="Detalle del artículo (opcional)"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
             </div>
           </div>

@@ -5,9 +5,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
-import { Button, Combobox, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { Button, Combobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
@@ -256,7 +257,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   </div>
                   <div>
                     <label className="text-[11px] text-muted-foreground mb-1 block">Cantidad</label>
-                    <Input type="number" min={1} value={nuevaCantidad} onChange={(e) => setNuevaCantidad(e.target.value)} />
+                    <NumberInput min={1} value={nuevaCantidad} onChange={(e) => setNuevaCantidad(e.target.value)} placeholder="Ej: 1" />
                   </div>
                   <div>
                     <label className="text-[11px] text-muted-foreground mb-1 block">Costo unit.</label>
@@ -286,7 +287,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[11px] text-muted-foreground mb-1 block">Cantidad</label>
-                              <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 text-right" />
+                              <NumberInput min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 text-right" />
                             </div>
                             <div>
                               <label className="text-[11px] text-muted-foreground mb-1 block">Costo unit.</label>
@@ -315,7 +316,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                             <TableRow key={l.key}>
                               <TableCell className="text-sm">{l.articulo_nombre}</TableCell>
                               <TableCell className="text-right">
-                                <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
+                                <NumberInput min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
                               </TableCell>
                               <TableCell className="text-right">
                                 <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 w-28 text-right ml-auto" />
@@ -341,6 +342,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Observación</label>
                 <textarea rows={3} maxLength={1000} value={observacion} onChange={(e) => setObservacion(e.target.value)}
+                  placeholder="Observación (opcional)"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
               </div>
             </>

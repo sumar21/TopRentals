@@ -5,8 +5,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
-import { Button, Combobox, Input, useModalAnimation } from '../ui/UIComponents';
+import { Button, Combobox, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
@@ -139,7 +140,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
                 <Combobox options={articuloOptions} value={articuloId} onChange={setArticuloId} placeholder="Artículo…" searchPlaceholder="Buscar artículo…" disabled={loadingData} />
               </div>
               <div className="w-24">
-                <Input type="number" min={1} inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+                <NumberInput min={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 1" />
               </div>
               <Button variant="outline" onClick={handleAgregarRepuesto} disabled={!articuloId} className="gap-1.5 shrink-0"><Plus className="h-4 w-4" /> Agregar</Button>
             </div>

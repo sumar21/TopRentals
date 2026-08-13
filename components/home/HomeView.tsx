@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Inbox, Loader2 } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import type { OrdenTrabajo, Usuario } from '../../services/types.ts';
-import { Badge, Card, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
+import { Badge, Card, cn, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -48,30 +48,40 @@ const TipoTag: React.FC<{ tipo: OrdenTrabajo['tipo'] }> = ({ tipo }) =>
     </span>
   );
 
-const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColumn; onClick: () => void }> = ({ ot, asignador, column, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="w-full text-left rounded-lg border bg-card p-3 shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
-  >
-    <div className="flex items-start justify-between gap-2">
-      <p className="text-sm font-medium leading-snug line-clamp-2">{ot.detalle || 'Sin detalle'}</p>
-      {column === 'pendiente' && <StatusBadge status={ot.prioridad} className="shrink-0" />}
-    </div>
-    {column === 'pendiente' && (
+// Left-accent + priority pill so each card reads its urgency at a glance (Alta rojo,
+// Media ámbar, Baja slate) — the board's meaningful "state" here is priority, since every
+// card is already either Pendiente (its column) or Asignada (the section).
+const PRIORITY_ACCENT: Record<string, string> = {
+  alta: 'border-l-red-400',
+  media: 'border-l-amber-400',
+  baja: 'border-l-slate-300',
+};
+
+const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; onClick: () => void }> = ({ ot, asignador, onClick }) => {
+  const accent = PRIORITY_ACCENT[String(ot.prioridad ?? '').trim().toLowerCase()] ?? 'border-l-slate-200';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn('w-full text-left rounded-lg border border-l-4 bg-card p-3 shadow-sm hover:shadow-md active:scale-[0.99] transition-all', accent)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium leading-snug line-clamp-2">{ot.detalle || 'Sin detalle'}</p>
+        <StatusBadge status={ot.prioridad} className="shrink-0" />
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <TipoTag tipo={ot.tipo} />
       </div>
-    )}
-    <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-      <p>Inicio: {formatDate(ot.fecha_inicio) || '-'}</p>
-      <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
-      <p>{ot.tipo_tarea || 'Sin tipo de tarea'}</p>
-      <p>{ot.tipo_trabajo || '-'}</p>
-      <p>Asignador: {asignador}</p>
-    </div>
-  </button>
-);
+      <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        <p>Inicio: {formatDate(ot.fecha_inicio) || '-'}</p>
+        <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
+        <p>{ot.tipo_tarea || 'Sin tipo de tarea'}</p>
+        <p>{ot.tipo_trabajo || '-'}</p>
+        <p>Asignador: {asignador}</p>
+      </div>
+    </button>
+  );
+};
 
 const ColumnHeader: React.FC<{ title: string; count: number; column: BoardColumn }> = ({ title, count, column }) => (
   <div className="flex items-center justify-between px-1">
@@ -149,7 +159,6 @@ const HomeView: React.FC = () => {
       key={ot.id}
       ot={ot}
       asignador={ot.asignador_id ? nombreById.get(ot.asignador_id) ?? 'Sin asignar' : 'Sin asignar'}
-      column={bucketOf(ot) ?? 'pendiente'}
       onClick={goToDetail}
     />
   );

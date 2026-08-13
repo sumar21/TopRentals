@@ -6,6 +6,8 @@ import {
   ArrowLeft, MoreVertical, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle,
 } from 'lucide-react';
 import { Button, Input, Badge, cn } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
+import { APP_VERSION } from '../../config/appVersion';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -264,7 +266,7 @@ const OrdenesTecnicoView: React.FC = () => {
         orden_revision_id: null,
         problema: null,
         desde: 'Mobile',
-        version_app: null,
+        version_app: APP_VERSION,
         hora: new Date().toTimeString().slice(0, 5),
       });
       // Persist staged photos to Storage (best-effort — the solicitud is created regardless).
@@ -462,10 +464,9 @@ const OrdenesTecnicoView: React.FC = () => {
                       <p className="text-sm font-medium truncate">{articulosMap.get(row.articulo_id)?.nombre ?? `Artículo ${row.articulo_id}`}</p>
                       <p className="text-xs text-muted-foreground">Disponible: {row.cantidad}</p>
                     </div>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
+                    <NumberInput
                       min={1}
+                      placeholder="Ej: 1"
                       className={cn('h-9 w-16 text-center px-1', invalid && 'border-red-500 focus-visible:ring-red-500')}
                       value={qty}
                       onChange={(e) => setQtyMap((m) => ({ ...m, [row.id]: e.target.value }))}

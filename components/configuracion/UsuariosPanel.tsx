@@ -143,13 +143,13 @@ const UsuarioFormModal: React.FC<{
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.nombre} onChange={(e) => setNombre(e.target.value)} aria-invalid={!!errors.nombre}
+              <Input value={form.nombre} onChange={(e) => setNombre(e.target.value)} aria-invalid={!!errors.nombre} placeholder="Nombre"
                 className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('nombre')}
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Apellido<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.apellido} onChange={(e) => setApellido(e.target.value)} aria-invalid={!!errors.apellido}
+              <Input value={form.apellido} onChange={(e) => setApellido(e.target.value)} aria-invalid={!!errors.apellido} placeholder="Apellido"
                 className={cn(errors.apellido && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('apellido')}
             </div>
@@ -165,7 +165,7 @@ const UsuarioFormModal: React.FC<{
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario<span className="text-destructive ml-0.5">*</span></label>
               <Input value={form.usuarioApp} onChange={(e) => { setUsuarioAppTocado(true); setForm((f) => ({ ...f, usuarioApp: e.target.value })); }}
-                aria-invalid={!!errors.usuarioApp} className={cn(errors.usuarioApp && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                aria-invalid={!!errors.usuarioApp} placeholder="Ej: jperez" className={cn(errors.usuarioApp && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('usuarioApp')}
             </div>
             <div>
@@ -175,7 +175,7 @@ const UsuarioFormModal: React.FC<{
             <div className="sm:col-span-3">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>
               <Input type="email" value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} aria-invalid={!!errors.mail}
-                className={cn(errors.mail && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                placeholder="correo@ejemplo.com" className={cn(errors.mail && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('mail')}
             </div>
           </div>

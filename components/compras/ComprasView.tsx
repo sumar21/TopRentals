@@ -329,7 +329,7 @@ const ComprasView: React.FC = () => {
         onClose={() => setEnviarTarget(null)}
         onConfirm={handleEnviarAprobacion}
         title="Enviar a aprobación"
-        description={`¿Enviar la compra ${enviarTarget?.id_compra ?? ''} al circuito de aprobación?`}
+        description={`¿Enviar la compra N° ${enviarTarget?.id ?? ''} al circuito de aprobación?`}
         confirmText="Enviar"
         cancelText="Cancelar"
       />
@@ -338,7 +338,7 @@ const ComprasView: React.FC = () => {
         onClose={() => setAnularTarget(null)}
         onConfirm={handleAnular}
         title="Anular compra"
-        description={`¿Anular la compra ${anularTarget?.id_compra ?? ''}? Esta acción no se puede deshacer.`}
+        description={`¿Anular la compra N° ${anularTarget?.id ?? ''}? Esta acción no se puede deshacer.`}
         confirmText="Anular"
         cancelText="Cancelar"
         variant="danger"

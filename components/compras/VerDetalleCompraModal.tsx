@@ -44,7 +44,7 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Detalle de compra</h2>
-            {compra && <p className="text-xs text-muted-foreground">{compra.id_compra}</p>}
+            {compra && <p className="text-xs text-muted-foreground">N° {compra.id}</p>}
           </div>
           <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />

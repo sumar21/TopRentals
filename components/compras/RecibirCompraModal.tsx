@@ -4,7 +4,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Save, Trash2, Upload, X, XCircle } from 'lucide-react';
-import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
@@ -112,7 +113,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Recibir compra</h2>
-            {compra && <p className="text-xs text-muted-foreground">{compra.id_compra}</p>}
+            {compra && <p className="text-xs text-muted-foreground">N° {compra.id}</p>}
           </div>
           <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
@@ -148,7 +149,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                       </div>
                       <div>
                         <label className="text-[11px] text-muted-foreground mb-1 block">Recibido</label>
-                        <Input type="number" min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
+                        <NumberInput min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
                           onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 text-right" />
                       </div>
                     </div>
@@ -174,7 +175,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{l.cantidad}</TableCell>
                         <TableCell className="text-right">
-                          <Input type="number" min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
+                          <NumberInput min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
                             onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 w-20 text-right ml-auto" />
                         </TableCell>
                         <TableCell className="text-center">
@@ -192,6 +193,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas de recepción</label>
                 <textarea rows={3} maxLength={1000} value={obs} onChange={(e) => setObs(e.target.value)}
+                  placeholder="Notas de recepción (opcional)"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
               </div>
 

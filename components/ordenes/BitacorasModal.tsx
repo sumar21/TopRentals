@@ -131,6 +131,7 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripción *</label>
                 <textarea rows={3} maxLength={500} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} autoFocus
+                  placeholder="Descripción de la bitácora…"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
               </div>
               <div>

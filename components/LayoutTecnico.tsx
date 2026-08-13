@@ -50,8 +50,8 @@ const LayoutTecnico = () => {
       {/* Desktop sidebar — hidden on mobile; each view owns its own mobile header/nav. */}
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-card md:flex">
         <div className="flex h-16 items-center gap-2 border-b px-4">
-          <img src="/logo.png" alt="TopRentals" className="h-8 w-8 shrink-0 rounded-md" />
-          <span className="truncate text-sm font-bold tracking-tight">TopRentals</span>
+          <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 shrink-0 rounded-md" />
+          <span className="truncate text-sm font-bold tracking-tight">Top Rentals</span>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {entries.map((entry) => {

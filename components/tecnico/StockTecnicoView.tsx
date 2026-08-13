@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowLeftRight, Plus, Search, Pencil, Package, Loader2 } from 'lucide-react';
 import { Button, Input, Combobox } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
@@ -243,7 +244,7 @@ const StockTecnicoView: React.FC = () => {
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
-          <Input type="number" inputMode="numeric" min={1} value={addCantidad} onChange={(e) => setAddCantidad(e.target.value)} />
+          <NumberInput min={1} value={addCantidad} onChange={(e) => setAddCantidad(e.target.value)} placeholder="Ej: 10" />
         </div>
       </BottomSheet>
 
@@ -265,7 +266,7 @@ const StockTecnicoView: React.FC = () => {
       >
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
-          <Input type="number" inputMode="numeric" min={0} value={editCantidad} onChange={(e) => setEditCantidad(e.target.value)} />
+          <NumberInput min={0} value={editCantidad} onChange={(e) => setEditCantidad(e.target.value)} placeholder="Ej: 10" />
         </div>
       </BottomSheet>
     </div>

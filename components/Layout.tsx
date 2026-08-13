@@ -50,11 +50,15 @@ const Layout = () => {
       .filter((row) => canAccessModule(user.perfil, row.modulo, permisos))
       .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
       .map((row) => ({ modulo: row.modulo, route: moduleRoute(row.modulo, 'Desktop') }));
-    // Dashboard is Admin-only and not backed by a perfiles_permisos row — prepend it for Admins.
-    return user.perfil === 'Admin' ? [{ modulo: 'Dashboard', route: '/dashboard' }, ...base] : base;
+    if (user.perfil !== 'Admin') return base;
+    // Dashboard is Admin-only and not backed by a perfiles_permisos row — insert it right
+    // above Configuración (ABM), not at the top, so Home stays the first item.
+    const dash = { modulo: 'Dashboard', route: '/dashboard' };
+    const cfgIdx = base.findIndex((e) => e.modulo === 'ABM');
+    return cfgIdx === -1 ? [...base, dash] : [...base.slice(0, cfgIdx), dash, ...base.slice(cfgIdx)];
   }, [user, permisos]);
 
-  const activeModule = entries.find((e) => location.pathname.startsWith(e.route))?.modulo ?? 'TopRentals';
+  const activeModule = entries.find((e) => location.pathname.startsWith(e.route))?.modulo ?? 'Top Rentals';
   const initials = user ? `${user.nombre?.[0] ?? ''}${user.apellido?.[0] ?? ''}`.toUpperCase() || 'TR' : 'TR';
 
   const doLogout = () => {
@@ -75,8 +79,8 @@ const Layout = () => {
       {/* Aside desktop */}
       <aside className={cn('hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out z-20', collapsed ? 'w-16' : 'w-64')}>
         <div className="flex h-16 items-center gap-2 border-b px-4">
-          <img src="/logo.png" alt="TopRentals" className="h-8 w-8 rounded-md shrink-0" />
-          {!collapsed && <span className="text-sm font-bold tracking-tight truncate">TopRentals</span>}
+          <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 rounded-md shrink-0" />
+          {!collapsed && <span className="text-sm font-bold tracking-tight truncate">Top Rentals</span>}
           <button
             onClick={() => setCollapsed((c) => !c)}
             aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
@@ -119,8 +123,8 @@ const Layout = () => {
         <div className="fixed inset-0 z-50 bg-black/60 md:hidden" onClick={() => setDrawerOpen(false)}>
           <div className="drawer-enter-left flex h-full w-72 max-w-[85vw] flex-col bg-card" onClick={(e) => e.stopPropagation()}>
             <div className="flex h-16 items-center gap-2 border-b px-4">
-              <img src="/logo.png" alt="TopRentals" className="h-8 w-8 rounded-md" />
-              <span className="text-sm font-bold tracking-tight">TopRentals</span>
+              <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 rounded-md" />
+              <span className="text-sm font-bold tracking-tight">Top Rentals</span>
               <button onClick={() => setDrawerOpen(false)} aria-label="Cerrar menú" className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted">
                 <X className="h-4 w-4" />
               </button>

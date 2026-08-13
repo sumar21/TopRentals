@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Loader2, Pencil, PackageSearch, Save, Search, X } from 'lucide-react';
 import { Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
 import { FilterPopover } from '../ui/FilterPopover';
 import { backdropClose } from '../ui/backdropClose';
 import { Loader } from '../ui/Loader';
@@ -326,7 +327,7 @@ const EditarSalidaModal: React.FC<{
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
             Cantidad{maxCantidad != null && <> · Disponible <span className="font-semibold text-foreground">{maxCantidad}</span></>}
           </label>
-          <Input autoFocus inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value.replace(/[^\d]/g, ''))} />
+          <NumberInput autoFocus value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 5" />
           {cantidad !== '' && parsed <= 0 && (
             <p className="mt-1 text-xs text-red-600" role="alert">Ingresá una cantidad mayor a cero.</p>
           )}

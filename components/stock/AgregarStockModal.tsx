@@ -2,9 +2,10 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, PackagePlus, X } from 'lucide-react';
-import { Button, Combobox, Input, cn, useModalAnimation } from '../ui/UIComponents';
+import { Button, Combobox, cn, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
 import { api } from '../../services/index.ts';
@@ -115,7 +116,7 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
-              <Input type="number" min={1} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" />
+              <NumberInput min={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 10" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Costo unitario</label>
