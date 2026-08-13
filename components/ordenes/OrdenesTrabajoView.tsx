@@ -342,7 +342,7 @@ const OrdenesTrabajoView: React.FC = () => {
                   <TableHead className={cn(FZ_TH, FZ_COL.id)}>ID</TableHead>
                   <TableHead className={cn(FZ_TH, FZ_COL.idf, 'whitespace-nowrap')}>ID F</TableHead>
                   <TableHead>Detalle</TableHead>
-                  <TableHead className="whitespace-nowrap">Ubicación</TableHead>
+                  <TableHead className="whitespace-nowrap">Torre</TableHead>
                   <TableHead>Prioridad</TableHead>
                   <TableHead className="whitespace-nowrap">Requiere parada</TableHead>
                   <TableHead className="whitespace-nowrap">F. inicio</TableHead>
@@ -364,7 +364,7 @@ const OrdenesTrabajoView: React.FC = () => {
                     <TableCell className="whitespace-nowrap align-middle">
                       <div className="leading-tight">
                         <div className="font-medium">{ot.torre ?? '—'}</div>
-                        <div className="text-xs text-muted-foreground">{ot.departamento ?? '—'}</div>
+                        <div className="text-xs text-muted-foreground">Depto: {ot.departamento ?? '—'}</div>
                       </div>
                     </TableCell>
                     <TableCell><StatusBadge status={ot.prioridad} /></TableCell>
