@@ -163,7 +163,7 @@ const SalidasStockView: React.FC = () => {
             {visible.map((s) => {
               const tecnico = s.tecnico_id != null ? tecnicosById.get(s.tecnico_id)?.concat_name : null;
               const puedeDevolver = s.tipo === 'DEVOLUCION' && !s.fecha_reingreso;
-              const puedeEditar = !s.fecha_reingreso;
+              const puedeEditar = !s.fecha_reingreso && s.stock_id != null; // record-only (consumo de OT) no es editable
               return (
                 <div key={s.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
                   <div className="flex items-start justify-between gap-2">
@@ -203,7 +203,7 @@ const SalidasStockView: React.FC = () => {
                 {visible.map((s) => {
                   const tecnico = s.tecnico_id != null ? tecnicosById.get(s.tecnico_id)?.concat_name : null;
                   const puedeDevolver = s.tipo === 'DEVOLUCION' && !s.fecha_reingreso;
-                  const puedeEditar = !s.fecha_reingreso;
+                  const puedeEditar = !s.fecha_reingreso && s.stock_id != null; // record-only (consumo de OT) no es editable
                   return (
                     <TableRow key={s.id}>
                       <TableCell><StatusBadge status={s.tipo} /></TableCell>

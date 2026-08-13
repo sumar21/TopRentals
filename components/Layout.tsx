@@ -78,13 +78,14 @@ const Layout = () => {
     <div className="flex h-screen bg-background text-foreground">
       {/* Aside desktop */}
       <aside className={cn('hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out z-20', collapsed ? 'w-16' : 'w-64')}>
-        <div className="flex h-16 items-center gap-2 border-b px-4">
+        {/* Colapsado (w-16): logo + toggle no entran en una fila → se apilan centrados en lugar de desbordar. */}
+        <div className={cn('flex h-16 border-b', collapsed ? 'flex-col items-center justify-center gap-1 px-2' : 'items-center gap-2 px-4')}>
           <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 rounded-md shrink-0" />
           {!collapsed && <span className="text-sm font-bold tracking-tight truncate">Top Rentals</span>}
           <button
             onClick={() => setCollapsed((c) => !c)}
             aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-            className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+            className={cn('rounded-md text-muted-foreground hover:bg-muted', collapsed ? 'p-1' : 'ml-auto p-1.5')}
           >
             <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
           </button>

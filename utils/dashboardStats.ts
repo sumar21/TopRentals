@@ -20,6 +20,7 @@ export interface DashboardSources {
 export interface DashboardStats {
   ingreso: Grouped[];
   ingresoTotal: number;
+  ingresoArticulo: Grouped[]; // desglose de ingreso por artículo (item), en paralelo al consumo por artículo
   consumo: Grouped[];
   consumoTotal: number;
   incidencias: Grouped[];
@@ -31,7 +32,14 @@ export interface DashboardStats {
 }
 
 const OT_CERRADA = new Set(['Cerrada', 'Cerrada V', 'Cerrada F']);
-const CONSUMO_TIPOS = new Set(['CONSUMIBLE', 'ASIGNACION']); // salidas that left the shelf (not returns/transfers)
+// Consumo = stock that physically left the shelf, read from the append-only movimientos_stock ledger
+// (CLAUDE.md: "Toda mutación de stock escribe una fila en movimientos_stock"). This is the symmetric
+// mirror of `ingreso` (positive deltas) and — crucially — includes 'Asignacion Repuesto', the movement
+// written when a repuesto is assigned to an OT. Reading salidas_stock instead missed repuestos of OPEN
+// OTs (their CONSUMIBLE salida is only written at close), so consumo under-reported. No double count:
+// the close-time CONSUMIBLE salida writes NO movimiento, so a repuesto is counted once, at assign time.
+// TRASLADO (internal relocation) and DEVOLUCION/DEVUELTO (returns) are not consumption → excluded.
+const CONSUMO_MOV_TIPOS = new Set(['CONSUMIBLE', 'ASIGNACION', 'Asignacion Repuesto']);
 const daysBetween = (from: string, to: string) => Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000);
 
 // Month attribution → 'YYYY-MM'. Plain SQL `date` values arrive as a bare 'YYYY-MM-DD' (already the local
@@ -54,7 +62,9 @@ export function monthKey(iso: string): string {
 // text is dirty), silently producing a blank, invisible, self-merging category. `|| fallback` after a trim fixes it.
 const named = (value: string | null | undefined, fallback: string) => value?.trim() || fallback;
 
-export function buildDashboardStats(mes: string, { movimientos, salidas, ots, ventilaciones }: DashboardSources): DashboardStats {
+// `salidas` stays in DashboardSources (DashboardView still uses it for the month picker), but the
+// stats no longer read it — consumo now derives from movimientos_stock (see CONSUMO_MOV_TIPOS).
+export function buildDashboardStats(mes: string, { movimientos, ots, ventilaciones }: DashboardSources): DashboardStats {
   const inMonth = (iso: string | null | undefined) => !!iso && monthKey(iso) === mes;
   const bump = (map: Map<string, Grouped>, key: string, a: number, b: number) => {
     const g = map.get(key) ?? { key, a: 0, b: 0 };
@@ -62,24 +72,29 @@ export function buildDashboardStats(mes: string, { movimientos, salidas, ots, ve
     g.b += b;
     map.set(key, g);
   };
+  const articuloKey = (concat: string | null | undefined, id: number | null | undefined) =>
+    named(concat, id != null ? `#${id}` : 'Sin artículo');
 
-  // 1. Ingreso de stock por edificio: positive-delta movements (altas + reposiciones).
+  // 1. Ingreso de stock: positive-delta movements (altas + reposiciones), grouped both by edificio
+  //    (which building restocked) and by artículo (which item came in — the "desglose x item").
   const ingresoMap = new Map<string, Grouped>();
+  const ingresoArtMap = new Map<string, Grouped>();
   for (const m of movimientos) {
     if (!inMonth(m.fecha)) continue;
     const delta = (m.cant_posterior ?? 0) - (m.cant_anterior ?? 0);
     if (delta <= 0) continue;
     bump(ingresoMap, named(m.edificio, 'Sin edificio'), delta, 0);
+    bump(ingresoArtMap, articuloKey(m.concat_articulo, m.articulo_id), delta, 0);
   }
   const ingreso = [...ingresoMap.values()].sort((x, y) => y.a - x.a);
+  const ingresoArticulo = [...ingresoArtMap.values()].sort((x, y) => y.a - x.a);
   const ingresoTotal = ingreso.reduce((s, r) => s + r.a, 0);
 
-  // 2. Consumo por artículo: salidas that left the shelf (CONSUMIBLE/ASIGNACION).
+  // 2. Consumo por artículo: consumption-type movements from movimientos_stock (incl. OT repuestos).
   const consumoMap = new Map<string, Grouped>();
-  for (const s of salidas) {
-    if (!inMonth(s.fecha_salida) || !CONSUMO_TIPOS.has(s.tipo)) continue;
-    const key = named(s.concat_articulo, s.articulo_id != null ? `#${s.articulo_id}` : 'Sin artículo');
-    bump(consumoMap, key, s.cantidad, 0);
+  for (const m of movimientos) {
+    if (!inMonth(m.fecha) || !CONSUMO_MOV_TIPOS.has(m.tipo_movimiento)) continue;
+    bump(consumoMap, articuloKey(m.concat_articulo, m.articulo_id), m.cantidad ?? 0, 0);
   }
   const consumo = [...consumoMap.values()].sort((x, y) => y.a - x.a);
   const consumoTotal = consumo.reduce((s, r) => s + r.a, 0);
@@ -125,6 +140,7 @@ export function buildDashboardStats(mes: string, { movimientos, salidas, ots, ve
   return {
     ingreso,
     ingresoTotal,
+    ingresoArticulo,
     consumo,
     consumoTotal,
     incidencias,
@@ -184,7 +200,7 @@ export interface MonthlyPoint {
  * predicates are byte-identical to buildDashboardStats, and a cross-check test pins the two together so
  * the trend can never diverge from the single-month view. Feeds the trend line and the per-tile deltas.
  */
-export function buildMonthlyTrend(mes: string, { movimientos, salidas, ots, ventilaciones }: DashboardSources, count = 12): MonthlyPoint[] {
+export function buildMonthlyTrend(mes: string, { movimientos, ots, ventilaciones }: DashboardSources, count = 12): MonthlyPoint[] {
   interface Acc { ingreso: number; consumo: number; incidencias: number; resolDays: number; resolCount: number; ventilaciones: number }
   const buckets = new Map<string, Acc>();
   const at = (ym: string): Acc => {
@@ -192,13 +208,13 @@ export function buildMonthlyTrend(mes: string, { movimientos, salidas, ots, vent
     if (!a) { a = { ingreso: 0, consumo: 0, incidencias: 0, resolDays: 0, resolCount: 0, ventilaciones: 0 }; buckets.set(ym, a); }
     return a;
   };
+  // Single pass over the ledger: positive deltas → ingreso, consumption-type movements → consumo
+  // (byte-identical predicates to buildDashboardStats so the trend can never diverge from it).
   for (const m of movimientos) {
     if (!m.fecha) continue;
     const delta = (m.cant_posterior ?? 0) - (m.cant_anterior ?? 0);
     if (delta > 0) at(monthKey(m.fecha)).ingreso += delta;
-  }
-  for (const s of salidas) {
-    if (s.fecha_salida && CONSUMO_TIPOS.has(s.tipo)) at(monthKey(s.fecha_salida)).consumo += s.cantidad;
+    if (CONSUMO_MOV_TIPOS.has(m.tipo_movimiento)) at(monthKey(m.fecha)).consumo += m.cantidad ?? 0;
   }
   for (const o of ots) {
     if (o.fecha_inicio) at(monthKey(o.fecha_inicio)).incidencias += 1;

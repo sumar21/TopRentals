@@ -341,7 +341,22 @@ const concatArt = (id: number): string | null => {
   return a ? (a.codigo ? `${a.codigo} - ${a.nombre}` : a.nombre) : null;
 };
 
-export const movimientosStock: MovimientoStock[] = stock.slice(0, 6).map((row, i) => ({
+// Audit row for a repuesto assigned to an OT (mirror of adapter.asignarRepuesto): debits stock and
+// stamps tipo_movimiento 'Asignacion Repuesto'. This is what the dashboard now reads as consumo, so the
+// seed's OT repuestos actually show up as consumo (no longer 0). cant_anterior is illustrative.
+function repuestoMov(id: number, articuloId: number, edificioId: number, cantidad: number, cantAnterior: number, usuarioId: number, fecha: string): MovimientoStock {
+  const a = articulos.find((x) => x.id === articuloId);
+  return {
+    id, articulo_id: articuloId, articulo_raw: String(articuloId), concat_articulo: concatArt(articuloId), articulo: a?.nombre ?? null,
+    cant_anterior: cantAnterior, cant_posterior: cantAnterior - cantidad,
+    costo_anterior: a?.precio_unitario ?? null, costo_posterior: a?.precio_unitario ?? null,
+    stock_min_anterior: a?.corte ?? null, stock_min_posterior: a?.corte ?? null,
+    edificio_id: edificioId, edificio_raw: null, edificio: edificios.find((e) => e.id === edificioId)?.nombre ?? null, edificio_traslado: null,
+    desde: 'Mobile - OT', tipo_movimiento: 'Asignacion Repuesto', cantidad, usuario_id: usuarioId, fecha, version_app: 'v20260622_1.3.2',
+  };
+}
+
+export const movimientosStock: MovimientoStock[] = stock.slice(0, 6).map((row, i): MovimientoStock => ({
   id: i + 1,
   articulo_id: row.articulo_id,
   articulo_raw: String(row.articulo_id),
@@ -363,7 +378,12 @@ export const movimientosStock: MovimientoStock[] = stock.slice(0, 6).map((row, i
   usuario_id: 1,
   fecha: '2026-06-01T09:00:00Z',
   version_app: 'v20260622_1.3.2',
-}));
+})).concat([
+  // Repuestos asignados a OTs (edificios: Palermo Soho=2, Jaramillo=8) — descuentan stock al asignarse
+  // y cuentan como consumo. Matchean repuestosOT id 1 (OT4) y id 2 (OT12).
+  repuestoMov(7, 1, 2, 3, 20, 2, '2026-07-18T10:15:00Z'),  // OT4 · Lámpara LED 9W
+  repuestoMov(8, 9, 8, 2, 15, 10, '2026-07-05T11:00:00Z'), // OT12 · Filtro de Aire Split
+]);
 
 /** First stock row for an articulo — deterministic reference for the salida seeds. */
 const stockIdFor = (articuloId: number) => stock.find((s) => s.articulo_id === articuloId)?.id ?? null;
@@ -375,6 +395,9 @@ export const salidasStock: SalidaStock[] = [
   { id: 3, articulo_id: 2, stock_id: stockIdFor(2), edificio_destino_id: null, concat_articulo: concatArt(2), tecnico_id: 10, tipo: 'DEVOLUCION', fecha_salida: '2026-07-05', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 1, usuario_id: 10, fecha: '2026-07-05T09:30:00Z', version_app: 'v20260622_1.3.2' },
   { id: 4, articulo_id: 5, stock_id: stockIdFor(5), edificio_destino_id: 1, concat_articulo: concatArt(5), tecnico_id: 2, tipo: 'TRASLADO', fecha_salida: '2026-07-08', fecha_reingreso: null, uso: 'Consumo Diario', centro_de_costo: 'Palermo Chico', cantidad: 2, usuario_id: 1, fecha: '2026-07-08T09:00:00Z', version_app: 'v20260622_1.3.2' },
   { id: 5, articulo_id: 9, stock_id: stockIdFor(9), edificio_destino_id: null, concat_articulo: concatArt(9), tecnico_id: 10, tipo: 'DEVUELTO', fecha_salida: '2026-07-05', fecha_reingreso: '2026-07-06', uso: 'Consumo Diario', centro_de_costo: 'Jaramillo', cantidad: 2, usuario_id: 10, fecha: '2026-07-05T11:00:00Z', version_app: 'v20260622_1.3.2' },
+  // Consumo de repuesto volcado al cerrar la OT12 (registrarSalidasDeRepuestos): record-only (stock_id null,
+  // no editable/devolvible), uso = id_univoco de la OT. Así el consumo de la OT aparece en Salidas de Stock.
+  { id: 6, articulo_id: 9, stock_id: null, edificio_destino_id: null, concat_articulo: concatArt(9), tecnico_id: 10, tipo: 'CONSUMIBLE', fecha_salida: '2026-07-05', fecha_reingreso: null, uso: '(OT)-TR-012202607220900', centro_de_costo: null, cantidad: 2, usuario_id: 10, fecha: '2026-07-05T11:05:00Z', version_app: 'v20260622_1.3.2' },
 ];
 
 // ---------------------------------------------------------------------------

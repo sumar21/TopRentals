@@ -420,9 +420,10 @@ const DashboardView: React.FC = () => {
 
           {/* Secondary metrics — smaller equal tiles, a size step down from the hero. */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard title="Ingreso de stock" value={num(data.ingresoTotal)} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades'} />
-            <StatCard title="Consumo" value={num(data.consumoTotal)} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades'} />
-            <StatCard title="Tiempo de resolución" value={oneDecimal(data.resolProm)} icon={Clock} subtext={prev ? deltaChip(data.resolProm, prev.resolProm) : 'días promedio'} />
+            {/* Unidad SIEMPRE junto al número (no solo en el subtext): un "1,3" pelado no dice si son horas/días/meses. */}
+            <StatCard title="Ingreso de stock" value={`${num(data.ingresoTotal)} u`} icon={PackagePlus} subtext={prev ? deltaChip(data.ingresoTotal, prev.ingreso) : 'unidades'} />
+            <StatCard title="Consumo" value={`${num(data.consumoTotal)} u`} icon={PackageMinus} subtext={prev ? deltaChip(data.consumoTotal, prev.consumo) : 'unidades'} />
+            <StatCard title="Tiempo de resolución" value={`${oneDecimal(data.resolProm)} días`} icon={Clock} subtext={prev ? deltaChip(data.resolProm, prev.resolProm) : 'días promedio'} />
             <StatCard title="Aires limpiados" value={num(data.ventTotal)} icon={Fan} subtext={prev ? deltaChip(data.ventTotal, prev.ventilaciones) : 'ventilaciones'} />
           </div>
 
@@ -447,12 +448,22 @@ const DashboardView: React.FC = () => {
             <EmptyState icon={BarChart3} title="Sin datos este mes" message="No hay movimientos, OTs ni ventilaciones registrados en el mes seleccionado." />
           ) : (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              {/* Desglose x item — ingreso y consumo, en paralelo, ambos por artículo. */}
+              <ChartCard title="Ingreso de stock por artículo" subtitle="Participación por artículo (item)" empty={data.ingresoArticulo.length === 0} emptyMsg="Sin ingresos de stock este mes.">
+                <Donut rows={data.ingresoArticulo} valueKey="a" label={num} unit="u" />
+              </ChartCard>
+
+              <ChartCard title="Consumo por artículo" subtitle="Participación por artículo (incluye repuestos de OT)" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
+                <Donut rows={data.consumo} valueKey="a" label={num} unit="u" />
+              </ChartCard>
+
+              {/* Mismo dato por edificio — qué edificio recibió stock / dónde se limpiaron aires. */}
               <ChartCard title="Ingreso de stock por edificio" subtitle="Participación por edificio" empty={data.ingreso.length === 0} emptyMsg="Sin ingresos de stock este mes.">
                 <Donut rows={data.ingreso} valueKey="a" label={num} unit="u" />
               </ChartCard>
 
-              <ChartCard title="Consumo por artículo" subtitle="Participación por artículo" empty={data.consumo.length === 0} emptyMsg="Sin consumo registrado este mes.">
-                <Donut rows={data.consumo} valueKey="a" label={num} unit="u" />
+              <ChartCard title="Ventilaciones limpiadas por edificio" subtitle="Participación por edificio" empty={data.ventilacionesLimpiadas.length === 0} emptyMsg="No se limpiaron aires este mes.">
+                <Donut rows={data.ventilacionesLimpiadas} valueKey="a" label={num} unit="limpiezas" />
               </ChartCard>
 
               <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre (promedios no van en torta)" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
@@ -464,10 +475,6 @@ const DashboardView: React.FC = () => {
                   tooltipExtra={(g) => `${oneDecimal(g.b)} días · ${num(g.a)} OTs`}
                   allowDecimals
                 />
-              </ChartCard>
-
-              <ChartCard title="Ventilaciones limpiadas por edificio" subtitle="Participación por edificio" empty={data.ventilacionesLimpiadas.length === 0} emptyMsg="No se limpiaron aires este mes.">
-                <Donut rows={data.ventilacionesLimpiadas} valueKey="a" label={num} unit="limpiezas" />
               </ChartCard>
             </div>
           )}

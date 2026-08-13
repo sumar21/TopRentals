@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Inbox, Loader2 } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import type { OrdenTrabajo, Usuario } from '../../services/types.ts';
-import { Badge, Card, cn, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
+import { Badge, cn, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -234,9 +234,10 @@ const HomeView: React.FC = () => {
                 return (
                   <div key={key} className="flex flex-col gap-2 min-w-0 min-h-0">
                     <ColumnHeader title={title} count={items.length} column={key} />
-                    <Card className="border shadow-sm p-2 flex flex-col gap-2 min-h-[10rem] md:h-full overflow-y-auto">
+                    {/* Columna = superficie sutil que recede (no otra card): evita el "card dentro de otra caja". */}
+                    <div className="rounded-lg bg-muted/20 p-2 flex flex-col gap-2 min-h-[10rem] md:h-full overflow-y-auto">
                       {items.length === 0 ? <ColumnEmpty label={title.toLowerCase()} /> : items.map(renderCard)}
-                    </Card>
+                    </div>
                   </div>
                 );
               })}

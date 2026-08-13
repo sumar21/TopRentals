@@ -251,15 +251,13 @@ async function main() {
   await check('dashboard stats: monthly aggregations (intake/consumo/incidencias/resolución/ventilaciones)', () => {
     const stats = buildDashboardStats('2026-07', {
       movimientos: [
-        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 5, costo_posterior: 10, fecha: '2026-07-03T10:00:00Z' },
-        { edificio: 'Torre A', cant_anterior: 5, cant_posterior: 2, costo_posterior: 10, fecha: '2026-07-04T10:00:00Z' }, // salida (delta<0) -> excluida
-        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 9, costo_posterior: 10, fecha: '2026-06-03T10:00:00Z' }, // otro mes -> excluida
+        { edificio: 'Torre A', concat_articulo: 'Cloro', articulo_id: 1, cant_anterior: 0, cant_posterior: 5, costo_posterior: 10, tipo_movimiento: 'Nuevo', cantidad: 5, fecha: '2026-07-03T10:00:00Z' }, // ingreso +5
+        { edificio: 'Torre A', concat_articulo: 'Cloro', articulo_id: 1, cant_anterior: 0, cant_posterior: 9, costo_posterior: 10, tipo_movimiento: 'Nuevo', cantidad: 9, fecha: '2026-06-03T10:00:00Z' }, // otro mes -> excluida
+        { concat_articulo: 'Cloro', articulo_id: 1, cant_anterior: 5, cant_posterior: 2, tipo_movimiento: 'CONSUMIBLE', cantidad: 3, fecha: '2026-07-05T10:00:00Z' }, // consumo directo 3
+        { concat_articulo: 'Cloro', articulo_id: 1, cant_anterior: 2, cant_posterior: 0, tipo_movimiento: 'Asignacion Repuesto', cantidad: 2, fecha: '2026-07-06T10:00:00Z' }, // repuesto de OT -> AHORA cuenta como consumo
+        { concat_articulo: 'Lija', articulo_id: 2, cant_anterior: 9, cant_posterior: 0, tipo_movimiento: 'TRASLADO', cantidad: 9, fecha: '2026-07-06T10:00:00Z' }, // traslado -> no es consumo
       ],
-      salidas: [
-        { articulo_id: 1, concat_articulo: 'Cloro', tipo: 'CONSUMIBLE', fecha_salida: '2026-07-05', cantidad: 3 },
-        { articulo_id: 1, concat_articulo: 'Cloro', tipo: 'CONSUMIBLE', fecha_salida: '2026-07-06', cantidad: 2 },
-        { articulo_id: 2, concat_articulo: 'Lija', tipo: 'DEVOLUCION', fecha_salida: '2026-07-06', cantidad: 9 }, // no es consumo -> excluida
-      ],
+      salidas: [], // consumo ya no se lee de salidas
       ots: [
         { torre: 'Torre A', status: 'Pendiente', fecha_inicio: '2026-07-01', fecha_cierre: null },
         { torre: 'Torre A', status: 'Cerrada', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-05' }, // 4 días
@@ -272,9 +270,11 @@ async function main() {
       ],
     } as any);
 
-    assert.equal(stats.ingresoTotal, 5); // solo la entrada +5 del mes
+    assert.equal(stats.ingresoTotal, 5); // solo la entrada +5 del mes (Torre A)
     assert.equal(stats.ingreso[0].key, 'Torre A');
-    assert.equal(stats.consumoTotal, 5); // Cloro 3+2; DEVOLUCION excluida
+    assert.equal(stats.ingresoArticulo[0].key, 'Cloro'); // desglose x item del ingreso
+    assert.equal(stats.ingresoArticulo[0].a, 5);
+    assert.equal(stats.consumoTotal, 5); // Cloro: CONSUMIBLE 3 + Asignacion Repuesto 2; TRASLADO excluido
     assert.equal(stats.consumo[0].key, 'Cloro');
     assert.equal(stats.incidenciasTotal, 3); // 3 OTs iniciadas en el mes
     assert.equal(stats.resolProm, 5); // (4 + 6) / 2 cerradas
@@ -285,10 +285,11 @@ async function main() {
   await check('dashboard trend: single-pass window matches per-month totals (all metrics + year-wrap)', () => {
     const sources = {
       movimientos: [
-        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 5, costo_posterior: 10, fecha: '2026-07-03T10:00:00Z' },
-        { edificio: 'Torre A', cant_anterior: 0, cant_posterior: 4, costo_posterior: 10, fecha: '2026-06-03T10:00:00Z' },
+        { edificio: 'Torre A', concat_articulo: 'Cloro', articulo_id: 1, cant_anterior: 0, cant_posterior: 5, costo_posterior: 10, tipo_movimiento: 'Nuevo', cantidad: 5, fecha: '2026-07-03T10:00:00Z' },
+        { edificio: 'Torre A', concat_articulo: 'Cloro', articulo_id: 1, cant_anterior: 0, cant_posterior: 4, costo_posterior: 10, tipo_movimiento: 'Nuevo', cantidad: 4, fecha: '2026-06-03T10:00:00Z' },
+        { concat_articulo: 'Cloro', articulo_id: 1, cant_anterior: 5, cant_posterior: 3, tipo_movimiento: 'CONSUMIBLE', cantidad: 2, fecha: '2026-07-06T10:00:00Z' }, // jul consumo 2
       ],
-      salidas: [{ articulo_id: 1, concat_articulo: 'Cloro', tipo: 'CONSUMIBLE', fecha_salida: '2026-07-06', cantidad: 2 }],
+      salidas: [],
       ots: [
         { torre: 'Torre A', status: 'Pendiente', fecha_inicio: '2026-07-01', fecha_cierre: null },
         { torre: 'Torre A', status: 'Cerrada', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-05' },
