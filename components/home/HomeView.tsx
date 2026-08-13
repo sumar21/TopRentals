@@ -48,17 +48,17 @@ const TipoTag: React.FC<{ tipo: OrdenTrabajo['tipo'] }> = ({ tipo }) =>
     </span>
   );
 
-// Left-accent + priority pill so each card reads its urgency at a glance (Alta rojo,
-// Media ámbar, Baja slate) — the board's meaningful "state" here is priority, since every
-// card is already either Pendiente (its column) or Asignada (the section).
-const PRIORITY_ACCENT: Record<string, string> = {
+// Left-accent colored by board column so each card reads at a glance: Pendiente azul, Alta rojo,
+// Media ámbar, Baja verde. The priority pill still shows each OT's actual priority.
+const COLUMN_ACCENT: Record<BoardColumn, string> = {
+  pendiente: 'border-l-blue-400',
   alta: 'border-l-red-400',
   media: 'border-l-amber-400',
-  baja: 'border-l-slate-300',
+  baja: 'border-l-green-400',
 };
 
-const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; onClick: () => void }> = ({ ot, asignador, onClick }) => {
-  const accent = PRIORITY_ACCENT[String(ot.prioridad ?? '').trim().toLowerCase()] ?? 'border-l-slate-200';
+const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColumn; onClick: () => void }> = ({ ot, asignador, column, onClick }) => {
+  const accent = COLUMN_ACCENT[column] ?? 'border-l-slate-200';
   return (
     <button
       type="button"
@@ -159,6 +159,7 @@ const HomeView: React.FC = () => {
       key={ot.id}
       ot={ot}
       asignador={ot.asignador_id ? nombreById.get(ot.asignador_id) ?? 'Sin asignar' : 'Sin asignar'}
+      column={bucketOf(ot) ?? 'pendiente'}
       onClick={goToDetail}
     />
   );
