@@ -19,6 +19,7 @@ import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
 import { formatDate } from '../../utils/dates';
+import { capitalizeFirst } from '../../utils/strings';
 import { otResueltaEmail } from '../../emails/templates';
 import { resolveRecipients, sendEmail } from '../../emails/send';
 import { FEATURES } from '../../config/features';
@@ -307,7 +308,7 @@ const OrdenesTrabajoView: React.FC = () => {
                     <StatusBadge status={ot.prioridad} />
                   </div>
                 </div>
-                <p className="text-sm">{truncate(ot.detalle, 90)}</p>
+                <p className="text-sm">{truncate(capitalizeFirst(ot.detalle), 90)}</p>
                 <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
                   <span>{ot.tipo_trabajo ?? '—'} · {ot.tipo_tarea ?? '—'}</span>
                   <span>· Días: {ot.dias_estimado ?? '—'} est. / {diasReales(ot) ?? '—'} real</span>
@@ -353,7 +354,7 @@ const OrdenesTrabajoView: React.FC = () => {
                     <TableCell className={cn(FZ_TD, FZ_COL.id, 'whitespace-nowrap font-medium')}>#{ot.id}</TableCell>
                     <TableCell className={cn(FZ_TD, FZ_COL.idf, 'whitespace-nowrap text-muted-foreground')}>{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
                     {/* Detalle: columna ancha, 2 renglones con clamp — más texto legible sin agrandar la fila (ya son 2 líneas por las columnas apiladas). */}
-                    <TableCell className="w-[380px] min-w-[320px] max-w-[420px] align-middle"><span className="line-clamp-2 whitespace-normal leading-snug" title={ot.detalle ?? ''}>{ot.detalle || '—'}</span></TableCell>
+                    <TableCell className="w-[380px] min-w-[320px] max-w-[420px] align-middle"><span className="line-clamp-2 whitespace-normal leading-snug" title={ot.detalle ?? ''}>{capitalizeFirst(ot.detalle) || '—'}</span></TableCell>
                     <TableCell className="whitespace-nowrap align-middle">
                       <div className="leading-tight">
                         <div className="font-medium">{ot.torre ?? '—'}</div>

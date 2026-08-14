@@ -13,6 +13,7 @@ import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
 import { formatDate } from '../../utils/dates.ts';
+import { capitalizeFirst } from '../../utils/strings.ts';
 import { bucketOf, matchesSearch, type BoardColumn } from './otBoard.ts';
 import HomeAlerts from './HomeAlerts';
 
@@ -67,7 +68,7 @@ const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColum
       className={cn('w-full text-left rounded-lg border border-l-4 bg-card p-3 shadow-sm hover:shadow-md active:scale-[0.99] transition-all', accent)}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium leading-snug line-clamp-2">{ot.detalle || 'Sin detalle'}</p>
+        <p className="text-sm font-medium leading-snug line-clamp-2">{capitalizeFirst(ot.detalle) || 'Sin detalle'}</p>
         <StatusBadge status={ot.prioridad} className="shrink-0" />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -76,9 +77,9 @@ const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColum
       <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
         <p>Inicio: {formatDate(ot.fecha_inicio) || '-'}</p>
         <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
-        <p>{ot.tipo_tarea || 'Sin tipo de tarea'}</p>
-        <p>{ot.tipo_trabajo || '-'}</p>
-        <p>Asignador: {asignador}</p>
+        <p>{capitalizeFirst(ot.tipo_tarea) || 'Sin tipo de tarea'}</p>
+        <p>{capitalizeFirst(ot.tipo_trabajo) || '-'}</p>
+        <p>Asignador: {capitalizeFirst(asignador) || '-'}</p>
       </div>
     </button>
   );
