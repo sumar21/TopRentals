@@ -36,7 +36,9 @@ qué dice el kit, qué hace TopRentals, dónde vive el cambio real y por qué.
     (un daltónico no separa hues casi-grises), por eso son profundos-pero-ricos, no desaturados. Total al
     centro, % directos + leyenda (identidad nunca solo por color; releva el WARN de contraste),
     `paddingAngle` = gap de superficie. **Los promedios NO son part-to-whole** (no suman a un total) →
-    barra, nunca torta.
+    barra, nunca torta. Cada gajo **desglosa al hover** (tooltip con sub-ítems, top 6 + "+N más…"); el gajo
+    **"Otros"** revela los ítems que se plegaron (`foldTopN.members` → `DonutBase` en `DashboardView.tsx`),
+    así el fold no esconde información.
   - **Cambio en el tiempo** → **línea** (una serie navy, crosshair al hover).
   - **Validar la paleta con `scripts/checks/validate_palette.js` antes de shipear** (vendoreado del skill
     `dataviz` para que el equipo pueda re-correrlo): `node scripts/checks/validate_palette.js "<hex,hex,…>" --mode light --surface "#ffffff"`.
