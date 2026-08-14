@@ -99,7 +99,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
 
   return createPortal(
     <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(close)}>
-      <div className={cn(modalClass, 'bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]')}>
+      <div className={cn(modalClass, 'bg-background w-full max-w-3xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]')}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Salida de Stock</h2>
