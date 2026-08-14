@@ -199,6 +199,7 @@ export interface Share {
   value: number;
   pct: number; // integer share of the total; the slices' pcts sum to exactly 100 (largest-remainder)
   rest?: boolean; // true for the folded "Otros" bucket
+  members?: { key: string; value: number }[]; // items folded into "Otros" (desc) — feeds the hover breakdown
 }
 
 /**
@@ -213,7 +214,7 @@ export function foldTopN(rows: Grouped[], valueKey: 'a' | 'b', n = 5): { slices:
   const slices: Share[] = sorted.slice(0, n).map((r) => ({ key: r.key, value: r[valueKey], pct: 0 }));
   const rest = sorted.slice(n);
   const restSum = rest.reduce((s, r) => s + r[valueKey], 0);
-  if (restSum > 0) slices.push({ key: `Otros (${rest.length})`, value: restSum, pct: 0, rest: true });
+  if (restSum > 0) slices.push({ key: `Otros (${rest.length})`, value: restSum, pct: 0, rest: true, members: rest.map((r) => ({ key: r.key, value: r[valueKey] })) });
   if (total > 0) {
     // Largest-remainder rounding: floor every share, then hand the leftover points to the biggest fractions.
     const raw = slices.map((s) => (s.value / total) * 100);

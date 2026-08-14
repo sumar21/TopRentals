@@ -195,30 +195,29 @@ const DonutBase: React.FC<{
   const colored = slices.map((s, i) => ({ ...s, fill: s.rest ? OTROS_GREY : DONUT_HUES[i] }));
   const top = colored[0];
 
-  // Tooltip enriquecido: total del slice + desglose de sub-ítems (top 6). El bucket "Otros" no tiene
-  // desglose propio (agrupa varios edificios) → cae al mensaje "sin desglose".
-  const DetailTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: { key: string; value: number } }[] }) => {
+  // Tooltip enriquecido, para TODO donut: total del slice + desglose (top 6). Para el bucket "Otros"
+  // el desglose son los ítems que se plegaron (foldTopN.members); para un slice normal, el desglose
+  // propio del gráfico si lo trae (p. ej. consumo por edificio → artículos). Sin desglose → sólo el total.
+  const DetailTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: { key: string; value: number; rest?: boolean; members?: { key: string; value: number }[] } }[] }) => {
     if (!active || !payload?.length) return null;
     const p = payload[0].payload;
-    const items = detail?.[p.key] ?? [];
+    const items = p.rest ? (p.members ?? []) : (detail?.[p.key] ?? []).map((g) => ({ key: g.key, value: g.a }));
     return (
       <div style={{ ...TOOLTIP_STYLE, background: '#fff', padding: '8px 10px', maxWidth: 240 }}>
-        <div className="mb-1 flex items-center justify-between gap-3">
+        <div className={items.length > 0 ? 'mb-1 flex items-center justify-between gap-3' : 'flex items-center justify-between gap-3'}>
           <span className="font-semibold">{p.key}</span>
           <span className="tabular-nums text-muted-foreground">{label(p.value)}{unit ? ` ${unit}` : ''}</span>
         </div>
-        {items.length > 0 ? (
+        {items.length > 0 && (
           <ul className="space-y-0.5">
             {items.slice(0, 6).map((it) => (
               <li key={it.key} className="flex items-center justify-between gap-3 text-[11px]">
                 <span className="min-w-0 truncate text-muted-foreground">{it.key}</span>
-                <span className="tabular-nums">{label(it.a)}</span>
+                <span className="tabular-nums">{label(it.value)}</span>
               </li>
             ))}
             {items.length > 6 && <li className="text-[11px] text-muted-foreground">+{items.length - 6} más…</li>}
           </ul>
-        ) : (
-          <p className="text-[11px] text-muted-foreground">Sin desglose por artículo.</p>
         )}
       </div>
     );
@@ -236,13 +235,10 @@ const DonutBase: React.FC<{
                 {colored.map((s) => <Cell key={sliceKey(s)} fill={s.fill} />)}
               </Pie>
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
                 // El total central del donut es un div absolute posterior en el DOM → se pinta encima del
-                // tooltip. Elevamos el wrapper del tooltip para que quede por arriba (no transparente).
+                // tooltip. Elevamos el wrapper para que quede por arriba (no transparente).
                 wrapperStyle={{ zIndex: 50 }}
-                {...(detail
-                  ? { content: <DetailTooltip /> }
-                  : { formatter: ((v: number, n: string) => [`${label(v)}${unit ? ` ${unit}` : ''}`, n]) as any })}
+                content={<DetailTooltip />}
               />
             </PieChart>
           </ResponsiveContainer>

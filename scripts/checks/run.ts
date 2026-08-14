@@ -345,6 +345,8 @@ async function main() {
     assert.equal(slices[5].key, 'Otros (2)'); // F + G folded
     assert.equal(slices[5].value, 2);
     assert.equal(slices[5].rest, true);
+    assert.equal(slices[5].members?.length, 2); // "Otros" expone F + G para el tooltip de desglose
+    assert.deepEqual(slices[5].members?.map((m) => m.key).sort(), ['F', 'G']);
     // percentages are integers summing to exactly 100 (largest-remainder)
     assert.equal(slices.reduce((s, x) => s + x.pct, 0), 100);
     // ≤5 real categories → no "Otros" bucket; zero-value rows dropped
