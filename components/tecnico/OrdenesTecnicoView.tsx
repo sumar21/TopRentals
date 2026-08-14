@@ -23,6 +23,7 @@ import type { StockRowWithEdificios } from '../../services/api.ts';
 import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
 import { formatDate, todayISO } from '../../utils/dates';
+import { capitalizeFirst } from '../../utils/strings';
 import { BottomSheet, edificioOptions, fileToCompressedDataUrl, torresEnZona, zonaKey } from './shared';
 
 type ActiveSheet = 'detalle' | 'repuestos' | 'nuevaSolicitud' | 'agregarRepuesto' | 'cambiarEdificio' | null;
@@ -354,7 +355,7 @@ const OrdenesTecnicoView: React.FC = () => {
                 <p className="text-sm font-semibold">{ot.torre} - {ot.departamento}</p>
                 <StatusBadge status={ot.prioridad} />
               </div>
-              <p className="text-xs text-muted-foreground">{ot.tipo_trabajo ?? 'Sin tipo'} | {formatDate(ot.fecha_asignada) || 'Sin fecha'}</p>
+              <p className="text-xs text-muted-foreground">{capitalizeFirst(ot.tipo_trabajo) || 'Sin tipo'} | {formatDate(ot.fecha_asignada) || 'Sin fecha'}</p>
               <div className="flex items-center gap-2 pt-1">
                 <Button size="sm" className="flex-1" onClick={() => openDetalle(ot)}>Ver Detalle</Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openRepuestos(ot)}>Repuestos</Button>
@@ -397,13 +398,13 @@ const OrdenesTecnicoView: React.FC = () => {
               <dt className="text-xs text-muted-foreground uppercase tracking-wide">Prioridad</dt>
               <dd><StatusBadge status={selectedOt.prioridad} /></dd>
             </div>
-            <DetailRow label="Requiere parada de equipo" value={selectedOt.tipo_prioridad ?? '—'} />
-            <DetailRow label="Tipo de trabajo" value={selectedOt.tipo_trabajo ?? '—'} />
+            <DetailRow label="Requiere parada de equipo" value={capitalizeFirst(selectedOt.tipo_prioridad) || '—'} />
+            <DetailRow label="Tipo de trabajo" value={capitalizeFirst(selectedOt.tipo_trabajo) || '—'} />
             <DetailRow label="Días estimado" value={selectedOt.dias_estimado != null ? String(selectedOt.dias_estimado) : '—'} />
             <DetailRow label="Personas requeridas" value={selectedOt.personas_requeridas != null ? String(selectedOt.personas_requeridas) : '—'} />
             <div>
               <dt className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Detalle</dt>
-              <dd className="text-sm whitespace-pre-wrap">{selectedOt.detalle || 'Sin detalle.'}</dd>
+              <dd className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt.detalle) || 'Sin detalle.'}</dd>
             </div>
           </dl>
         )}

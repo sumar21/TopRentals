@@ -12,6 +12,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Edificio, OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
+import { capitalizeFirst } from '../../utils/strings.ts';
 import { BottomSheet } from './shared';
 
 type ActiveSheet = 'filter' | 'obs' | 'repuestos' | null;
@@ -159,7 +160,7 @@ const ActivosView: React.FC = () => {
         subtitle={selectedOt?.concat_activo ?? undefined}
         footer={<Button className="flex-1" onClick={() => setActiveSheet(null)}>Cerrar</Button>}
       >
-        <p className="text-sm whitespace-pre-wrap">{selectedOt?.detalle || 'Sin observaciones.'}</p>
+        <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt?.detalle) || 'Sin observaciones.'}</p>
       </BottomSheet>
 
       {/* Ver repuestos */}
