@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader
 import { Button, Input } from '../ui/UIComponents';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
-import { StatusBadge } from '../ui/StatusBadge';
+import { EstadoVentilacionCell } from '../ventilaciones/EstadoVentilacionCell';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
@@ -231,7 +231,7 @@ const VentilacionesTecnicoView: React.FC = () => {
             return (
               <div key={v.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <StatusBadge status={v.estado} />
+                  <EstadoVentilacionCell v={v} />
                   <div className="flex items-center gap-1.5">
                     <button aria-label="Programar" onClick={() => openProgramar(v)} className="h-8 w-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
                       <Calendar className="h-4 w-4" />

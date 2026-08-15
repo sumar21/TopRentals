@@ -8,7 +8,6 @@ import type { Edificio, Frecuencia, Perfil, Unidad, Usuario, Ventilacion } from 
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input } from '../ui/UIComponents';
 import { CategoryMultiSelect } from '../ui/CategoryMultiSelect';
 import { FilterPopover } from '../ui/FilterPopover';
-import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
@@ -16,7 +15,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/dates.ts';
-import { estadoLimpieza } from '../../utils/ventilacion.ts';
+import { EstadoVentilacionCell } from './EstadoVentilacionCell';
 import { FEATURES } from '../../config/features.ts';
 import { CrearVentilacionModal, AsignarVentilacionModal } from './VentilacionesModals';
 
@@ -28,28 +27,6 @@ const ESTADOS_DEFAULT: string[] = ['Pendiente', 'Asignada', 'Programada'];
 
 /** Admin + 'Supervisor Ventilaciones' — gate ad-hoc del dominio (no encaja en canAccessModule). */
 const puedeGestionar = (perfil: Perfil) => perfil === 'Admin' || perfil === 'Supervisor Ventilaciones';
-
-/**
- * Celda de estado: el estado de LIMPIEZA por días (Limpio/A vencer/Sucio) como badge principal —
- * lo que el negocio quiere leer de un vistazo — con el estado OPERATIVO (Pendiente/Asignada/Programada/
- * Realizada) como chip chico al lado (sigue rigiendo las acciones). Sin datos para la limpieza → cae
- * al operativo como principal.
- */
-const EstadoVentilacionCell: React.FC<{ v: Ventilacion }> = ({ v }) => {
-  const limpieza = estadoLimpieza(v);
-  if (!limpieza) return <StatusBadge status={v.estado} />;
-  return (
-    <>
-      <StatusBadge status={limpieza} />
-      <span
-        className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-500"
-        title={`Estado operativo: ${v.estado}`}
-      >
-        {v.estado}
-      </span>
-    </>
-  );
-};
 
 function fechaRelevante(v: Ventilacion): string | null {
   return v.fecha_programada ?? v.proxima_limpieza ?? v.fecha_finalizacion ?? null;
