@@ -10,6 +10,7 @@ import {
   articuloFromDb, compraFromDb, detalleCompraFromDb, perfilPermisoFromDb, stockFromDb, unidadFromDb, usuarioFromDb,
 } from '../../services/supabase/rows.ts';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, trendExtremes } from '../../utils/dashboardStats.ts';
+import { estadoLimpieza } from '../../utils/ventilacion.ts';
 
 let passed = 0;
 
@@ -360,6 +361,18 @@ async function main() {
     assert.equal(zero.slices.length, 0);
     // three equal thirds still sum to 100 (largest-remainder, not 99)
     assert.equal(foldTopN([{ key: 'A', a: 1, b: 0 }, { key: 'B', a: 1, b: 0 }, { key: 'C', a: 1, b: 0 }] as any, 'a').slices.reduce((s, x) => s + x.pct, 0), 100);
+  });
+
+  await check('estadoLimpieza: días desde la última limpieza (<60 Limpio / 60-90 A vencer / >90 Sucio)', () => {
+    const hoy = new Date('2026-08-15T12:00:00');
+    const base = '2026-08-15';
+    assert.equal(estadoLimpieza({ fecha_ultima: addDays(base, -30), proxima_limpieza: null, frecuencia_dias: 90 }, hoy), 'Limpio');
+    assert.equal(estadoLimpieza({ fecha_ultima: addDays(base, -75), proxima_limpieza: null, frecuencia_dias: 90 }, hoy), 'A vencer');
+    assert.equal(estadoLimpieza({ fecha_ultima: addDays(base, -100), proxima_limpieza: null, frecuencia_dias: 90 }, hoy), 'Sucio');
+    // sin última limpieza → derivado de la próxima + frecuencia (transcurridos = 90 - 10 = 80 → A vencer)
+    assert.equal(estadoLimpieza({ fecha_ultima: null, proxima_limpieza: addDays(base, 10), frecuencia_dias: 90 }, hoy), 'A vencer');
+    // sin datos → null (la UI cae al estado operativo)
+    assert.equal(estadoLimpieza({ fecha_ultima: null, proxima_limpieza: null, frecuencia_dias: null }, hoy), null);
   });
 
   await check('dashboard stats: empty input yields zeros, no NaN', () => {

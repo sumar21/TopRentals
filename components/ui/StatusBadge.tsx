@@ -25,10 +25,14 @@ const STATUS_COLORS: Record<string, string> = {
   'aprobada supervision': 'bg-emerald-100 text-emerald-700',
   'rechazada': 'bg-red-100 text-red-700',
   'recibida': 'bg-sky-100 text-sky-700',
-  // Ventilaciones
+  // Ventilaciones (estado operativo del workflow)
   'programada': 'bg-blue-100 text-blue-700',
   'realizada': 'bg-emerald-100 text-emerald-700',
   'eliminada': 'bg-slate-100 text-slate-600',
+  // Ventilaciones — estado de LIMPIEZA (derivado por días; semántico: limpio=ok, a vencer=warning, sucio=serio)
+  'limpio': 'bg-emerald-100 text-emerald-700',
+  'a vencer': 'bg-amber-100 text-amber-700',
+  'sucio': 'bg-red-100 text-red-700',
   // Salidas de stock (tipo)
   'asignacion': 'bg-emerald-100 text-emerald-700',
   'consumible': 'bg-amber-100 text-amber-700',
