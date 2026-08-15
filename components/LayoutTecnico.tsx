@@ -3,11 +3,12 @@
 // hub-and-spoke where each view owns its own header/back button. <TooltipHost/> once here.
 import { useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { LogOut, Moon, Sun } from 'lucide-react';
 import { cn } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { canAccessModule, moduleRoute } from '../utils/permissions';
 import { moduleIcon, moduleLabel } from '../config/moduleIcons';
 
@@ -24,6 +25,7 @@ const TECNICO_LABELS: Record<string, string> = {
 
 const LayoutTecnico = () => {
   const { user, permisos, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [confirmLogout, setConfirmLogout] = useState(false);
 
@@ -74,11 +76,19 @@ const LayoutTecnico = () => {
             );
           })}
         </nav>
-        <div className="border-t p-3">
+        <div className="space-y-1 border-t p-3">
           {user && <p className="truncate px-3 pb-2 text-xs text-muted-foreground">{user.nombre} {user.apellido}</p>}
           <button
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+          >
+            {theme === 'dark' ? <Sun className="mr-3 h-4 w-4 shrink-0" /> : <Moon className="mr-3 h-4 w-4 shrink-0" />}
+            {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+          </button>
+          <button
             onClick={() => setConfirmLogout(true)}
-            className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-red-50"
+            className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/10"
           >
             <LogOut className="mr-3 h-4 w-4 shrink-0" /> Cerrar sesión
           </button>

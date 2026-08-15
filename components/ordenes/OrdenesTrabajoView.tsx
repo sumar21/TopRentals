@@ -217,7 +217,7 @@ const OrdenesTrabajoView: React.FC = () => {
           </Button>
         )}
         {canFinalizar(ot, perfil) && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Finalizar" aria-label="Finalizar" onClick={() => setConfirmAction({ type: 'finalizar', ot })}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" title="Finalizar" aria-label="Finalizar" onClick={() => setConfirmAction({ type: 'finalizar', ot })}>
             <CheckCircle2 className="h-4 w-4" />
           </Button>
         )}

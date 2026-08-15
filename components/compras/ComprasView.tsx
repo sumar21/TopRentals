@@ -194,7 +194,7 @@ const ComprasView: React.FC = () => {
         </button>
       )}
       {c.status === 'Aprobada' && (
-        <button title="Recibir" aria-label="Recibir compra" onClick={() => setRecibirId(c.id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center">
+        <button title="Recibir" aria-label="Recibir compra" onClick={() => setRecibirId(c.id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center">
           <FileCheck2 className="h-4 w-4" />
         </button>
       )}
@@ -204,7 +204,7 @@ const ComprasView: React.FC = () => {
         </button>
       )}
       {c.status === 'Pendiente' && (
-        <button title="Enviar a aprobación" aria-label="Enviar a aprobación" onClick={() => setEnviarTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center">
+        <button title="Enviar a aprobación" aria-label="Enviar a aprobación" onClick={() => setEnviarTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center justify-center">
           <SendHorizonal className="h-4 w-4" />
         </button>
       )}

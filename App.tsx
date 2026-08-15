@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './components/ui/Toast';
 import { Loader } from './components/ui/Loader';
 import { canAccessModule, canAccessTecnico, isTecnicoOnly } from './utils/permissions';
@@ -78,9 +79,10 @@ const RootRedirect = () => {
 };
 
 const App = () => (
-  <BrowserRouter>
-    <AuthProvider>
-      <ToastProvider>
+  <ThemeProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
 
@@ -117,9 +119,10 @@ const App = () => (
           <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<RootRedirect />} />
         </Routes>
-      </ToastProvider>
-    </AuthProvider>
-  </BrowserRouter>
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </ThemeProvider>
 );
 
 export default App;

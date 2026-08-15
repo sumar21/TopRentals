@@ -13,7 +13,7 @@ export interface LoadErrorStateProps {
 
 export const LoadErrorState: React.FC<LoadErrorStateProps> = ({ message = 'No se pudieron cargar los datos.', onRetry }) => (
   <div className="flex flex-col items-center justify-center p-12 rounded-xl bg-muted/5 text-center">
-    <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center mb-4">
+    <div className="h-16 w-16 rounded-full bg-red-50 dark:bg-red-950/40 flex items-center justify-center mb-4">
       <AlertCircle className="w-8 h-8 text-red-500" />
     </div>
     <p className="text-muted-foreground font-medium text-sm mb-4">{message}</p>

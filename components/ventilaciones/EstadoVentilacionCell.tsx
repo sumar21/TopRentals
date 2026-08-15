@@ -17,7 +17,7 @@ export const EstadoVentilacionCell: React.FC<{ v: Ventilacion }> = ({ v }) => {
     <span className="inline-flex items-center gap-1.5">
       <StatusBadge status={limpieza} />
       <span
-        className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-500"
+        className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground"
         title={`Estado operativo: ${v.estado}`}
       >
         {v.estado}

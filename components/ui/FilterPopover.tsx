@@ -58,7 +58,7 @@ export const FilterPopover: React.FC<{
         className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 h-9 text-sm font-medium transition-colors ${open || activeCount > 0 ? 'border-brand/30 bg-brand/[0.06] text-brand' : 'bg-background text-muted-foreground hover:text-foreground'} ${className || ''}`}
       >
         <SlidersHorizontal className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{label}</span>
-        {activeCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">{activeCount}</span>}
+        {activeCount > 0 && <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-brand-foreground">{activeCount}</span>}
         {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
       </button>
       {open && rect && createPortal(

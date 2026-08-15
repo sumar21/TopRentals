@@ -162,7 +162,7 @@ const StockView: React.FC = () => {
               const articulo = articulosById.get(r.articulo_id);
               const low = isLowStock(r);
               return (
-                <div key={r.id} className={cn('rounded-lg border bg-card p-3 shadow-sm space-y-2', low && 'bg-red-50 border-red-200')}>
+                <div key={r.id} className={cn('rounded-lg border bg-card p-3 shadow-sm space-y-2', low && 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50')}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="font-medium text-sm">{artLabel(articulo)}</div>
@@ -210,7 +210,7 @@ const StockView: React.FC = () => {
                   const articulo = articulosById.get(r.articulo_id);
                   const low = isLowStock(r);
                   return (
-                    <TableRow key={r.id} className={cn(low && 'bg-red-50 hover:bg-red-50/80')}>
+                    <TableRow key={r.id} className={cn(low && 'bg-red-50 hover:bg-red-50/80 dark:bg-red-950/30 dark:hover:bg-red-950/40')}>
                       <TableCell className="text-muted-foreground tabular-nums">{r.id}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

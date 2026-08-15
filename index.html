@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Top Rentals</title>
   <link rel="icon" type="image/png" href="/logo.png" />
+  <!-- Anti-flash: aplica el tema guardado ANTES del primer paint (evita el destello claro). -->
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('toprentals-theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     body { font-family: 'Inter', sans-serif; background-color: hsl(var(--background)); color: hsl(var(--foreground)); }

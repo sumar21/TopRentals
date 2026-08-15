@@ -51,6 +51,34 @@ qué dice el kit, qué hace TopRentals, dónde vive el cambio real y por qué.
 - **Por qué**: convención de equipo — todos los dashboards se hacen con `dataviz`. El catálogo
   del kit precede a esa decisión; se mantiene el kit intacto y se pisa acá.
 
+## 3. Modo oscuro — implementado (el kit lo dejaba a medias)
+
+- **Kit**: `darkMode: 'class'` está seteado pero **el dark mode nunca se activa** (no hay toggle ni
+  bloque `.dark {}`); DESIGN.md §1.4 explícitamente dice "no lo dejes a medias — implementalo de verdad
+  con un `.dark {}` en `index.css` + un toggle que haga `classList.toggle('dark')`".
+- **TopRentals**: implementado tal cual lo pide el kit.
+  - **Tokens**: `tailwind.config.js` pasó TODOS los semánticos (`card/popover/primary/secondary/muted/
+    accent/destructive` + `-foreground`) a `hsl(var(--…))` — antes estaban hardcodeados en hex y no
+    invertían. `index.css` define el set completo en `:root` (claro) y lo invierte en `.dark` (paleta zinc;
+    `primary` se vuelve blanco, `card/popover` quedan elevados sobre el fondo, y el navy de marca `--brand`
+    se **aclara** — el `#23313E` se pierde sobre fondo oscuro).
+  - **Mecanismo**: `contexts/ThemeContext.tsx` (persist en `localStorage['toprentals-theme']`, aplica la clase
+    `dark` en `<html>`); un script anti-flash en `index.html` la aplica ANTES del primer paint (sin destello).
+  - **Toggle**: ícono luna/sol arriba de "Cerrar sesión" en la sidebar (back-office `Layout.tsx` desktop +
+    drawer mobile, y `LayoutTecnico.tsx`).
+  - **Charts** (`DashboardView.tsx`): recharts pinta `fill`/`stroke` como ATRIBUTOS SVG donde `var(--x)` NO
+    resuelve → los colores van por el hook `useChartColors()` (navy aclarado, grid/labels invertidos,
+    superficie de card oscura para gaps del pie / anillo de dots / fondo de tooltip). Los `DONUT_HUES` jewel
+    se mantienen (categóricos, funcionan en ambos temas).
+  - **Decisión**: los pills de estado de color (`bg-emerald-100 text-emerald-700`, etc. en `StatusBadge`/
+    `CategoriaBadge`) se dejan como chips claros sobre fondo oscuro — son legibles y conservan identidad de
+    color; sólo los chips NEUTROS pasaron a `bg-muted text-muted-foreground`. Las superficies tintadas de
+    alertas/toasts/hover llevan variante `dark:` explícita.
+- **Dónde vive**: `tailwind.config.js`, `index.css` (`:root` + `.dark`), `index.html` (anti-flash),
+  `contexts/ThemeContext.tsx`, `components/Layout.tsx` + `components/LayoutTecnico.tsx` (toggle),
+  `components/dashboard/DashboardView.tsx` (`useChartColors`).
+- **Por qué**: pedido de producto (paridad con apps modernas); el kit ya bendecía el approach (§1.4).
+
 ---
 
 > Si aparece una divergencia nueva respecto del kit, se agrega como un bloque más en este

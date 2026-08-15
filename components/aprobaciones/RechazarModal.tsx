@@ -52,7 +52,7 @@ const RechazarModal: React.FC<RechazarModalProps> = ({ isOpen, onClose, idCompra
 
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+            <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}

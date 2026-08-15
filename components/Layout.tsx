@@ -2,11 +2,12 @@
 // header + left drawer on mobile, <TooltipHost/> mounted once here.
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, LogOut, Menu, X } from 'lucide-react';
+import { ChevronLeft, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { cn, Avatar, AvatarFallback } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../services/index';
 import { canAccessModule, moduleRoute } from '../utils/permissions';
 import { moduleIcon, moduleLabel } from '../config/moduleIcons';
@@ -49,6 +50,7 @@ const NavItem = ({ entry, collapsed, onClick, badge }: { entry: NavEntry; collap
 
 const Layout = () => {
   const { user, permisos, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -126,12 +128,26 @@ const Layout = () => {
           </button>
         </div>
         {nav(undefined, collapsed)}
-        <div className="border-t p-3">
+        <div className="space-y-1 border-t p-3">
+          <button
+            onClick={toggleTheme}
+            title={collapsed ? (theme === 'dark' ? 'Modo claro' : 'Modo oscuro') : undefined}
+            aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            className={cn(
+              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+              collapsed && 'justify-center',
+            )}
+          >
+            {theme === 'dark'
+              ? <Sun className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />
+              : <Moon className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />}
+            {!collapsed && (theme === 'dark' ? 'Modo claro' : 'Modo oscuro')}
+          </button>
           <button
             onClick={() => setConfirmLogout(true)}
             title={collapsed ? 'Cerrar sesión' : undefined}
             className={cn(
-              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-destructive hover:bg-red-50',
+              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-destructive hover:bg-destructive/10',
               collapsed && 'justify-center',
             )}
           >
@@ -166,13 +182,21 @@ const Layout = () => {
               </button>
             </div>
             {nav(() => setDrawerOpen(false))}
-            <div className="border-t p-3">
+            <div className="space-y-1 border-t p-3">
+              <button
+                onClick={toggleTheme}
+                aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+              >
+                {theme === 'dark' ? <Sun className="mr-3 h-4 w-4" /> : <Moon className="mr-3 h-4 w-4" />}
+                {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+              </button>
               <button
                 onClick={() => {
                   setDrawerOpen(false);
                   setConfirmLogout(true);
                 }}
-                className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-red-50"
+                className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/10"
               >
                 <LogOut className="mr-3 h-4 w-4" /> Cerrar sesión
               </button>

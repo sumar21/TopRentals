@@ -8,8 +8,8 @@ const STATUS_COLORS: Record<string, string> = {
   'listo para enviar': 'bg-emerald-100 text-emerald-700',
   'resuelto': 'bg-emerald-100 text-emerald-700',
   'despachado': 'bg-violet-100 text-violet-700',
-  'anulado': 'bg-slate-100 text-slate-600',
-  'cerrado': 'bg-slate-100 text-slate-600',
+  'anulado': 'bg-muted text-muted-foreground',
+  'cerrado': 'bg-muted text-muted-foreground',
 
   // ── TopRentals domain statuses (semantic palette, DESIGN.md §1.4 / rule 11) ──
   // OT workflow
@@ -17,7 +17,7 @@ const STATUS_COLORS: Record<string, string> = {
   'cerrada': 'bg-emerald-100 text-emerald-700',
   'cerrada v': 'bg-blue-100 text-blue-700',
   'cerrada f': 'bg-violet-100 text-violet-700',
-  'anulada': 'bg-slate-100 text-slate-600',
+  'anulada': 'bg-muted text-muted-foreground',
   // Compras / Aprobaciones
   'aprobacion': 'bg-blue-100 text-blue-700',
   'en aprobacion': 'bg-blue-100 text-blue-700',
@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
   // Ventilaciones (estado operativo del workflow)
   'programada': 'bg-blue-100 text-blue-700',
   'realizada': 'bg-emerald-100 text-emerald-700',
-  'eliminada': 'bg-slate-100 text-slate-600',
+  'eliminada': 'bg-muted text-muted-foreground',
   // Ventilaciones — estado de LIMPIEZA (derivado por días; semántico: limpio=ok, a vencer=warning, sucio=serio)
   'limpio': 'bg-emerald-100 text-emerald-700',
   'a vencer': 'bg-amber-100 text-amber-700',
@@ -43,10 +43,10 @@ const STATUS_COLORS: Record<string, string> = {
   // NOTE: user active-state ALTA/BAJA must use <Badge>, not StatusBadge (key collision).
   'alta': 'bg-red-100 text-red-700',
   'media': 'bg-amber-100 text-amber-700',
-  'baja': 'bg-slate-100 text-slate-700',
+  'baja': 'bg-muted text-muted-foreground',
 };
 export const statusColor = (status: string): string =>
-  STATUS_COLORS[String(status || '').trim().toLowerCase()] || 'bg-slate-100 text-slate-600';
+  STATUS_COLORS[String(status || '').trim().toLowerCase()] || 'bg-muted text-muted-foreground';
 export const StatusBadge: React.FC<{ status: string; label?: string; className?: string }> = ({ status, label, className }) => (
   <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap', statusColor(status), className)}>
     {label ?? status}

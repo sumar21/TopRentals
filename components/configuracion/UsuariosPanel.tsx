@@ -251,7 +251,7 @@ const UsuariosPanel: React.FC = () => {
           <UserX className="h-4 w-4" />
         </Button>
       ) : (
-        <Button variant="ghost" size="icon" aria-label="Reactivar" title="Reactivar" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setToggleTarget(u)}>
+        <Button variant="ghost" size="icon" aria-label="Reactivar" title="Reactivar" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" onClick={() => setToggleTarget(u)}>
           <UserCheck2 className="h-4 w-4" />
         </Button>
       )}

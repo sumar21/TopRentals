@@ -102,7 +102,7 @@ export const TooltipHost: React.FC = () => {
   if (!tip) return null;
   return createPortal(
     <div ref={tipRef} role="tooltip"
-      className="kaut-tooltip pointer-events-none fixed z-[100000] max-w-xs rounded-md bg-neutral-900 px-2 py-1 text-xs font-medium leading-snug text-white shadow-lg"
+      className="kaut-tooltip pointer-events-none fixed z-[100000] max-w-xs rounded-md bg-foreground px-2 py-1 text-xs font-medium leading-snug text-background shadow-lg"
       style={{ left: tip.x, top: tip.y, transform: tip.placement === 'top' ? 'translate(-50%, -100%)' : 'translateX(-50%)' }}>
       {tip.text}
     </div>, document.body);

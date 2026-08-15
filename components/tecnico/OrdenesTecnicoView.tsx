@@ -362,7 +362,7 @@ const OrdenesTecnicoView: React.FC = () => {
                 <button
                   aria-label="Completar orden: repuestos y cierre"
                   onClick={() => openAgregarRepuesto(ot)}
-                  className="h-9 w-9 shrink-0 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center active:scale-95 transition-transform"
+                  className="h-9 w-9 shrink-0 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-400 flex items-center justify-center active:scale-95 transition-transform"
                 >
                   <CheckCircle2 className="h-5 w-5" />
                 </button>

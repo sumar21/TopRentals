@@ -78,7 +78,7 @@ const Login = () => {
       </div>
 
       {/* Panel de formulario */}
-      <div className="flex-1 flex flex-col relative bg-white">
+      <div className="flex-1 flex flex-col relative bg-background">
         <div className="flex-1 flex items-center justify-center p-6">
           <Card className="w-full max-w-sm border-0 shadow-none bg-transparent">
             <CardContent className="p-0">
@@ -87,7 +87,7 @@ const Login = () => {
               <p className="text-sm text-muted-foreground mb-6">Ingresá a tu cuenta</p>
 
               {error && (
-                <div className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm mb-4" role="alert">
+                <div className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm mb-4" role="alert">
                   <AlertCircle className="h-4 w-4 shrink-0" /> {error}
                 </div>
               )}

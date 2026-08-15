@@ -144,7 +144,7 @@ const AprobacionesView: React.FC = () => {
           <Eye className="h-4 w-4" />
         </button>
         {canApprove(user.perfil, a.status) && (
-          <button title="Aprobar" aria-label="Aprobar compra" onClick={() => setAprobarTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center">
+          <button title="Aprobar" aria-label="Aprobar compra" onClick={() => setAprobarTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center">
             <Check className="h-4 w-4" />
           </button>
         )}

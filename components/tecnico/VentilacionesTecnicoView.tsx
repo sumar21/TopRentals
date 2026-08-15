@@ -237,7 +237,7 @@ const VentilacionesTecnicoView: React.FC = () => {
                       <Calendar className="h-4 w-4" />
                     </button>
                     {canFinalizar && (
-                      <button aria-label="Finalizar" onClick={() => openFinalizar(v)} className="h-8 w-8 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <button aria-label="Finalizar" onClick={() => openFinalizar(v)} className="h-8 w-8 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-400 flex items-center justify-center">
                         <Check className="h-4 w-4" />
                       </button>
                     )}

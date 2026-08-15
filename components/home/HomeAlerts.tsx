@@ -11,8 +11,8 @@ import { api } from '../../services/index.ts';
 const VENT_TERMINALES = new Set(['Realizada', 'Eliminada']);
 
 const TONE = {
-  red: { wrap: 'border-l-red-400 bg-red-50/60', icon: 'text-red-600' },
-  amber: { wrap: 'border-l-amber-400 bg-amber-50/60', icon: 'text-amber-600' },
+  red: { wrap: 'border-l-red-400 bg-red-50/60 dark:bg-red-950/30', icon: 'text-red-600 dark:text-red-400' },
+  amber: { wrap: 'border-l-amber-400 bg-amber-50/60 dark:bg-amber-950/30', icon: 'text-amber-600 dark:text-amber-400' },
 } as const;
 
 const AlertCard: React.FC<{

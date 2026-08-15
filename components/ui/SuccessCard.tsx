@@ -22,7 +22,7 @@ export const SuccessCard: React.FC<SuccessCardProps> = ({ open, title, subtitle,
 
   if (variant === 'contained') {
     return (
-      <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-emerald-50/95 backdrop-blur-[2px] px-6 text-center animate-in fade-in duration-200" onClick={onDismiss}>
+      <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-emerald-50/95 dark:bg-emerald-950/90 backdrop-blur-[2px] px-6 text-center animate-in fade-in duration-200" onClick={onDismiss}>
         <style>{`@keyframes scz-shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}`}</style>
         <div className="flex flex-col items-center" onClick={e => e.stopPropagation()}>
           <div className="relative mb-5">

@@ -40,14 +40,31 @@ import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '..
 import type { Grouped, MonthlyPoint } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, monthKey, trendExtremes } from '../../utils/dashboardStats';
+import { useTheme } from '../../contexts/ThemeContext';
 
-// ── Chart chrome — brand navy series + recessive slate axes/grid (DESIGN.md §10) ──
-const BRAND = '#23313E';       // single-series fill (brand navy; contrast-validated on white)
-const GRID = '#eef0f2';        // hairline gridline, one shade off the surface
-const CAT_INK = '#475569';     // category names + direct value labels (readable slate)
-const AXIS_MUTED = '#94a3b8';  // numeric axis ticks (recessive)
-const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: '1px solid #e4e4e7', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' };
-const CURSOR = { fill: 'rgba(35,49,62,0.06)' };
+// ── Chart chrome — theme-aware (DESIGN.md §10). recharts pinta fill/stroke como ATRIBUTOS SVG, donde
+// `var(--x)` NO resuelve → los colores se eligen por tema con este hook. En claro: navy de marca + slate
+// recesivo; en oscuro: navy ACLARADO (el #23313E se pierde sobre fondo oscuro), grises invertidos y
+// superficie de card oscura para los gaps del pie / anillo de dots / fondo del tooltip. ──
+function useChartColors() {
+  const dark = useTheme().theme === 'dark';
+  return {
+    BRAND: dark ? '#6f9bc4' : '#23313E',    // single-series fill (aclarado en oscuro para verse)
+    GRID: dark ? '#27272a' : '#eef0f2',     // hairline gridline
+    CAT_INK: dark ? '#a1a1aa' : '#475569',  // category names + direct value labels
+    AXIS_MUTED: dark ? '#71717a' : '#94a3b8',
+    SURFACE: dark ? '#18181b' : '#ffffff',  // gaps del pie / anillo de dots / fondo del tooltip (= card)
+    TOOLTIP_STYLE: {
+      fontSize: 12,
+      borderRadius: 8,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+      border: `1px solid ${dark ? '#3f3f46' : '#e4e4e7'}`,
+      background: dark ? '#18181b' : '#ffffff',
+      color: dark ? '#e4e4e7' : '#18181b',
+    },
+    CURSOR: { fill: dark ? 'rgba(255,255,255,0.06)' : 'rgba(35,49,62,0.06)' },
+  };
+}
 // Donut/stacked-bar segments: a jewel-tone categorical palette tuned to the navy brand — deeper and
 // more editorial than the dataviz bright default, with slot 1 (the largest slice) an ocean blue in the
 // navy family for cohesion. ocean-blue / terracotta / emerald / amber / wine. Validated on white
@@ -130,7 +147,9 @@ const MagnitudeBar: React.FC<{
   tooltipName: string;                   // tooltip series name
   tooltipExtra?: (g: Grouped) => string; // optional richer tooltip (e.g. cost, last date)
   allowDecimals?: boolean;
-}> = ({ data, valueKey, label, tooltipName, tooltipExtra, allowDecimals = false }) => (
+}> = ({ data, valueKey, label, tooltipName, tooltipExtra, allowDecimals = false }) => {
+  const { GRID, AXIS_MUTED, CAT_INK, CURSOR, TOOLTIP_STYLE, BRAND } = useChartColors();
+  return (
   <ResponsiveContainer width="100%" height={Math.max(180, data.length * 40)}>
     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 4 }} barCategoryGap="24%">
       <CartesianGrid stroke={GRID} horizontal={false} />
@@ -146,7 +165,8 @@ const MagnitudeBar: React.FC<{
       </Bar>
     </BarChart>
   </ResponsiveContainer>
-);
+  );
+};
 
 /**
  * Change-over-time line — one navy series over the rolling 12-month window. No legend
@@ -158,7 +178,9 @@ const TrendLine: React.FC<{
   fmt: (v: number) => string;
   name: string;
   allowDecimals?: boolean;
-}> = ({ data, fmt, name, allowDecimals = false }) => (
+}> = ({ data, fmt, name, allowDecimals = false }) => {
+  const { GRID, AXIS_MUTED, BRAND, TOOLTIP_STYLE, SURFACE } = useChartColors();
+  return (
   <ResponsiveContainer width="100%" height={260}>
     <LineChart data={data} margin={{ top: 12, right: 20, left: 4, bottom: 4 }}>
       <CartesianGrid stroke={GRID} vertical={false} />
@@ -170,10 +192,11 @@ const TrendLine: React.FC<{
         labelFormatter={((_l: string, p: any) => (p?.[0]?.payload ? mesLabel(p[0].payload.mes) : _l)) as any}
         formatter={((v: number) => [fmt(v), name]) as any}
       />
-      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={{ r: 4, fill: BRAND, stroke: '#fff', strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+      <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={{ r: 4, fill: BRAND, stroke: SURFACE, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} />
     </LineChart>
   </ResponsiveContainer>
-);
+  );
+};
 
 /**
  * Part-to-whole donut — share of a total across categories. Folded to top-5 + "Otros" (≤6 slices),
@@ -190,6 +213,7 @@ const DonutBase: React.FC<{
   // (p. ej. "qué productos se consumieron" en el edificio bajo el mouse) en vez del valor pelado.
   detail?: Record<string, Grouped[]>;
 }> = ({ rows, valueKey, label, unit, detail }) => {
+  const { SURFACE, TOOLTIP_STYLE } = useChartColors();
   const { slices, total } = useMemo(() => foldTopN(rows, valueKey, 5), [rows, valueKey]);
   if (slices.length === 0) return null;
   const colored = slices.map((s, i) => ({ ...s, fill: s.rest ? OTROS_GREY : DONUT_HUES[i] }));
@@ -203,7 +227,7 @@ const DonutBase: React.FC<{
     const p = payload[0].payload;
     const items = p.rest ? (p.members ?? []) : (detail?.[p.key] ?? []).map((g) => ({ key: g.key, value: g.a }));
     return (
-      <div style={{ ...TOOLTIP_STYLE, background: '#fff', padding: '8px 10px', maxWidth: 240 }}>
+      <div style={{ ...TOOLTIP_STYLE, padding: '8px 10px', maxWidth: 240 }}>
         <div className={items.length > 0 ? 'mb-1 flex items-center justify-between gap-3' : 'flex items-center justify-between gap-3'}>
           <span className="font-semibold">{p.key}</span>
           <span className="tabular-nums text-muted-foreground">{label(p.value)}{unit ? ` ${unit}` : ''}</span>
@@ -231,7 +255,7 @@ const DonutBase: React.FC<{
         <div className="relative h-[200px] w-[200px] shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={colored} dataKey="value" nameKey="key" cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+              <Pie data={colored} dataKey="value" nameKey="key" cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} stroke={SURFACE} strokeWidth={2} isAnimationActive={false}>
                 {colored.map((s) => <Cell key={sliceKey(s)} fill={s.fill} />)}
               </Pie>
               <Tooltip
@@ -264,13 +288,16 @@ const DonutBase: React.FC<{
 const Donut = React.memo(DonutBase); // props are stable refs (memoized data + module-const formatters) → skips re-render on metric change
 
 /** Tiny axis-less navy trend for the hero header — shape at a glance, no exact reads (the big number carries those). */
-const Sparkline: React.FC<{ data: number[] }> = ({ data }) => (
+const Sparkline: React.FC<{ data: number[] }> = ({ data }) => {
+  const { BRAND } = useChartColors();
+  return (
   <ResponsiveContainer width="100%" height={48}>
     <LineChart data={data.map((value, i) => ({ i, value }))} margin={{ top: 4, right: 2, left: 2, bottom: 4 }}>
       <Line type="monotone" dataKey="value" stroke={BRAND} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dot={false} isAnimationActive={false} />
     </LineChart>
   </ResponsiveContainer>
-);
+  );
+};
 
 /**
  * 100%-stacked share bar — the colorful part-to-whole strip for the hero (top-5 + "Otros").
