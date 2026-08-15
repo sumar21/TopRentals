@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from './UIComponents';
+import { NEUTRAL_CHIP } from './StatusBadge';
 
 // Pill categórico para valores que vienen de un desplegable (tipo de OT, tipo de trabajo,
 // tipo de tarea, ocupación de la unidad). Misma forma y tamaño que StatusBadge, pero el color
@@ -19,7 +20,7 @@ const CATEGORIA_COLORS: Record<string, string> = {
   electrico: 'bg-amber-100 text-amber-800',
   pintura: 'bg-fuchsia-100 text-fuchsia-700',
   ventilacion: 'bg-cyan-100 text-cyan-700',
-  otros: 'bg-muted text-muted-foreground',
+  otros: NEUTRAL_CHIP,
   // ocupación de la unidad (columna "Requiere parada")
   vacante: 'bg-emerald-100 text-emerald-700',
   'vacante con ingreso': 'bg-lime-100 text-lime-700',

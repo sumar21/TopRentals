@@ -28,12 +28,20 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setThemeState] = useState<Theme>(initialTheme);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    const root = document.documentElement;
+    // Matar transiciones mientras aplicamos el tema → swap instantáneo (ver index.css .theme-switching).
+    root.classList.add('theme-switching');
+    root.classList.toggle('dark', theme === 'dark');
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {
       /* persistencia best-effort */
     }
+    // Re-habilitar transiciones recién después de pintar el frame con el tema ya cambiado.
+    const raf = requestAnimationFrame(() =>
+      requestAnimationFrame(() => root.classList.remove('theme-switching')),
+    );
+    return () => cancelAnimationFrame(raf);
   }, [theme]);
 
   const setTheme = useCallback((t: Theme) => setThemeState(t), []);

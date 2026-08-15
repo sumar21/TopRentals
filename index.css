@@ -101,3 +101,11 @@ body { margin: 0; padding: 0; overflow-x: hidden; max-width: 100vw; }
 /* ── Scrollbar en oscuro (el thumb claro de index.html no se ve sobre fondo oscuro) ── */
 .dark ::-webkit-scrollbar-thumb { background: #3f3f46; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+/* ── Swap de tema INSTANTÁNEO ────────────────────────────────────────────────────────
+   Sin esto, al togglear `.dark` los cientos de elementos con `transition-colors` (cada fila
+   de tabla, botones, inputs) animan su color a la vez: el fondo salta a oscuro al instante
+   pero el TEXTO se queda animando negro→blanco ~150ms que, con listas largas (OTs: 643 filas
+   sin paginar), se estira a 1-2s de jank = texto negro sobre fondo negro. ThemeContext pone
+   `.theme-switching` en <html> justo durante el cambio para que el tema aplique de una. */
+.theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Ventilacion } from '../../services/types.ts';
-import { StatusBadge } from '../ui/StatusBadge';
+import { cn } from '../ui/UIComponents';
+import { StatusBadge, NEUTRAL_CHIP } from '../ui/StatusBadge';
 import { estadoLimpieza } from '../../utils/ventilacion.ts';
 
 /**
@@ -17,7 +18,7 @@ export const EstadoVentilacionCell: React.FC<{ v: Ventilacion }> = ({ v }) => {
     <span className="inline-flex items-center gap-1.5">
       <StatusBadge status={limpieza} />
       <span
-        className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground"
+        className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide', NEUTRAL_CHIP)}
         title={`Estado operativo: ${v.estado}`}
       >
         {v.estado}
