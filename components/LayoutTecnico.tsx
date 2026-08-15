@@ -83,8 +83,8 @@ const LayoutTecnico = () => {
             aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
           >
-            {theme === 'dark' ? <Sun className="mr-3 h-4 w-4 shrink-0" /> : <Moon className="mr-3 h-4 w-4 shrink-0" />}
-            {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            {theme === 'dark' ? <Moon className="mr-3 h-4 w-4 shrink-0" /> : <Sun className="mr-3 h-4 w-4 shrink-0" />}
+            {theme === 'dark' ? 'Modo oscuro' : 'Modo claro'}
           </button>
           <button
             onClick={() => setConfirmLogout(true)}
