@@ -161,7 +161,7 @@ const HomeTecnicoView: React.FC = () => {
         ) : loadError ? (
           <LoadErrorState onRetry={loadAll} />
         ) : ots.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Sin tareas asignadas" message="No tenés órdenes de trabajo en curso." />
+          <EmptyState icon={ClipboardList} title="Sin tareas asignadas" message="No tenés órdenes de trabajo en curso." className="!p-6" />
         ) : (
           <div className="flex gap-3 overflow-x-auto pb-1 snap-x">
             {ots.map((ot) => (
@@ -191,7 +191,7 @@ const HomeTecnicoView: React.FC = () => {
       {/* Módulos */}
       <div>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Módulos</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {TECNICO_SPOKES.map((tile) => {
             const Icon = moduleIcon(tile.modulo);
             return (
