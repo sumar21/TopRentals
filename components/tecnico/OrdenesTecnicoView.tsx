@@ -307,7 +307,7 @@ const OrdenesTecnicoView: React.FC = () => {
           <BuildingChip />
           {/* ponytail: gated on `zona` — solicitudTorreOptions is zone-scoped, an empty picker with no building isn't useful. */}
           {zona && (
-            <button onClick={openNuevaSolicitud} aria-label="Agregar solicitud" title="Agregar solicitud" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+            <button onClick={openNuevaSolicitud} aria-label="Agregar solicitud" title="Agregar solicitud" className="p-2 rounded-full text-primary hover:bg-primary/10 transition-colors">
               <Plus className="h-5 w-5" />
             </button>
           )}

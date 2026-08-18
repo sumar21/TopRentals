@@ -10,6 +10,38 @@ import { cn, useModalAnimation } from '../ui/UIComponents';
 import { backdropClose } from '../ui/backdropClose';
 import type { Edificio } from '../../services/types.ts';
 
+// Banderitas inline (SVG) — NO emoji: Windows no renderiza el emoji de bandera (muestra "AR"/"EC");
+// el SVG se ve igual en desktop y en el celular del técnico. Fallback a Globe para países sin bandera.
+const FLAGS: Record<string, React.ReactNode> = {
+  Argentina: (
+    <svg viewBox="0 0 30 20" preserveAspectRatio="xMidYMid slice" className="h-full w-full" aria-hidden>
+      <rect width="30" height="20" fill="#fff" />
+      <rect width="30" height="6.667" fill="#74ACDF" />
+      <rect y="13.333" width="30" height="6.667" fill="#74ACDF" />
+      <circle cx="15" cy="10" r="2" fill="#F6B40E" stroke="#843511" strokeWidth="0.25" />
+    </svg>
+  ),
+  Ecuador: (
+    <svg viewBox="0 0 30 20" preserveAspectRatio="xMidYMid slice" className="h-full w-full" aria-hidden>
+      <rect width="30" height="10" fill="#FFDD00" />
+      <rect y="10" width="30" height="5" fill="#034EA2" />
+      <rect y="15" width="30" height="5" fill="#EF3340" />
+    </svg>
+  ),
+};
+
+const FlagIcon: React.FC<{ pais: string | null; className?: string }> = ({ pais, className }) => {
+  const flag = pais ? FLAGS[pais] : undefined;
+  if (!flag) {
+    return (
+      <span className={cn('flex items-center justify-center rounded-full bg-secondary text-secondary-foreground', className)}>
+        <Globe className="h-5 w-5" />
+      </span>
+    );
+  }
+  return <span className={cn('overflow-hidden rounded-md border', className)}>{flag}</span>;
+};
+
 export interface EdificioPickerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -64,7 +96,7 @@ const EdificioPicker: React.FC<EdificioPickerProps> = ({ isOpen, onClose, edific
     >
       <div
         className={cn(
-          'w-full max-w-md bg-background rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[90dvh]',
+          'w-full max-w-md sm:max-w-2xl bg-background rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[90dvh]',
           closing ? 'animate-out fade-out zoom-out-95 duration-200' : 'animate-in fade-in zoom-in-95 duration-200',
         )}
       >
@@ -106,9 +138,7 @@ const EdificioPicker: React.FC<EdificioPickerProps> = ({ isOpen, onClose, edific
                   onClick={() => { setPais(nombre); setStep('edificio'); }}
                   className="flex items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-accent"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
-                    <Globe className="h-5 w-5" />
-                  </span>
+                  <FlagIcon pais={nombre} className="h-9 w-9 shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold">{nombre}</span>
                     <span className="block text-xs text-muted-foreground">
@@ -129,7 +159,7 @@ const EdificioPicker: React.FC<EdificioPickerProps> = ({ isOpen, onClose, edific
                   ← Cambiar país
                 </button>
               )}
-              <div className="grid gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {edificiosDelPais.map((e) => {
                   const isSelected = selected?.id === e.id;
                   return (

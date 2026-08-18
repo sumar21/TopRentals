@@ -84,7 +84,17 @@ const LayoutTecnico = () => {
           })}
         </nav>
         <div className="space-y-1 border-t p-3">
-          {user && <p className="truncate px-3 pb-2 text-xs text-muted-foreground">{user.nombre} {user.apellido}</p>}
+          {user && (
+            <div className="mb-1 flex items-center gap-2.5 rounded-lg bg-secondary/50 px-2.5 py-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                {`${user.nombre?.[0] ?? ''}${user.apellido?.[0] ?? ''}`.toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold leading-tight">{user.nombre} {user.apellido}</p>
+                <p className="truncate text-xs text-muted-foreground leading-tight">{user.perfil}</p>
+              </div>
+            </div>
+          )}
           <button
             onClick={toggleTheme}
             aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}

@@ -231,10 +231,10 @@ const VentilacionesTecnicoView: React.FC = () => {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <BuildingChip />
-          <button onClick={openAgregar} aria-label="Agregar ventilación" title="Agregar ventilación" disabled={!selected} className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:pointer-events-none">
+          <button onClick={openAgregar} aria-label="Agregar ventilación" title="Agregar ventilación" disabled={!selected} className="p-2 rounded-full text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none">
             <Plus className="h-5 w-5" />
           </button>
-          <button onClick={openAdelantar} aria-label="Adelantar ventilación" title="Adelantar ventilación" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={openAdelantar} aria-label="Adelantar ventilación" title="Adelantar ventilación" className="p-2 rounded-full text-primary hover:bg-primary/10 transition-colors">
             <FastForward className="h-5 w-5" />
           </button>
         </div>

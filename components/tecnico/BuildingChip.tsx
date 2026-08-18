@@ -17,7 +17,7 @@ const BuildingChip: React.FC<BuildingChipProps> = ({ className }) => {
       title="Cambiar edificio"
       onClick={openPicker}
       className={cn(
-        'inline-flex max-w-full items-center gap-1.5 rounded-full border bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground transition-colors hover:bg-accent',
+        'inline-flex max-w-full items-center gap-1.5 rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90',
         className,
       )}
     >
