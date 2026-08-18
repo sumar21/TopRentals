@@ -2,7 +2,7 @@
 // docs/analysis/mobile_Screen_Ventilaciones.md react_mapping.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader2, RefreshCw, Search, Trash2, Fan } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Calendar, Camera, Check, FastForward, Loader2, Search, Trash2, Fan } from 'lucide-react';
 import { Button, Input } from '../ui/UIComponents';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
@@ -196,9 +196,6 @@ const VentilacionesTecnicoView: React.FC = () => {
           <h1 className="text-lg font-bold tracking-tight truncate">Ventilaciones</h1>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => (zonaFilter ? loadZona(zonaFilter) : loadVentilaciones())} disabled={loading} aria-label="Actualizar" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-50">
-            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
           <button onClick={openAdelantar} aria-label="Adelantar ventilación" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
             <FastForward className="h-5 w-5" />
           </button>

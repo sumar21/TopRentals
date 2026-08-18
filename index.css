@@ -61,6 +61,13 @@
   --brand-foreground: 240 10% 5%;
 }
 
+/* Technician module accent — celeste, scoped so it never leaks into the back-office. */
+.tecnico-theme {
+  --primary: 221 83% 53%;            /* #2563eb */
+  --primary-foreground: 0 0% 100%;
+  --ring: 221 83% 53%;
+}
+
 /* Clamp del documento al ancho del viewport: sin esto, un elemento que
    desborda horizontal en mobile hace que un backdrop `fixed inset-0` no
    cubra todo el ancho (queda una franja blanca a la derecha). */

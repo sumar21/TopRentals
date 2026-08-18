@@ -3,7 +3,7 @@
 // Layout.tsx (out of scope here); the dead "Planificaciones" toggle is intentionally dropped.
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, Inbox, Loader2 } from 'lucide-react';
+import { Search, Inbox } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import type { OrdenTrabajo, Usuario } from '../../services/types.ts';
 import { Badge, cn, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
@@ -184,16 +184,6 @@ const HomeView: React.FC = () => {
               className="flex h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
-          <button
-            type="button"
-            aria-label="Actualizar tablero"
-            title="Actualizar"
-            disabled={refreshing || loading}
-            onClick={() => load(true)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
-          >
-            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          </button>
         </div>
       </div>
 

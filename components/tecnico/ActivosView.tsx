@@ -13,7 +13,7 @@ import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Edificio, OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
 import { capitalizeFirst } from '../../utils/strings.ts';
-import { BottomSheet } from './shared';
+import { BottomSheet, groupRepuestos } from './shared';
 
 type ActiveSheet = 'filter' | 'obs' | 'repuestos' | null;
 
@@ -169,10 +169,10 @@ const ActivosView: React.FC = () => {
           <p className="text-sm text-muted-foreground text-center py-6">Sin repuestos asignados.</p>
         ) : (
           <div className="space-y-2">
-            {repuestosSel.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
-                <span className="text-sm">{r.repuesto}</span>
-                <Badge>{r.cantidad}</Badge>
+            {groupRepuestos(repuestosSel).map((g) => (
+              <div key={g.key} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
+                <span className="text-sm">{g.nombre}</span>
+                <Badge>{g.cantidad}</Badge>
               </div>
             ))}
           </div>

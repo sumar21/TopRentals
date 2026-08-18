@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Ban, CheckCircle2,
-  Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, RefreshCw, Search,
+  Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, Search,
   UserCog,
 } from 'lucide-react';
 import { Button, Card, cn, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
@@ -70,7 +70,6 @@ const OrdenesTrabajoView: React.FC = () => {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   const [search, setSearch] = useState('');
@@ -97,8 +96,6 @@ const OrdenesTrabajoView: React.FC = () => {
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
   // Live updates: silent refetch whenever an OT changes in the backend.
   useEffect(() => api.realtime.subscribe(['ots'], () => { void load(); }), []);
-
-  const handleRefresh = () => { setRefreshing(true); load().finally(() => setRefreshing(false)); };
 
   const upsertOt = (saved: OrdenTrabajo) => setOts((prev) => {
     const exists = prev.some((o) => o.id === saved.id);
@@ -249,9 +246,6 @@ const OrdenesTrabajoView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" title="Actualizar" aria-label="Actualizar" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
           <FilterPopover activeCount={activeCount} onClear={limpiarFiltros}>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</label>

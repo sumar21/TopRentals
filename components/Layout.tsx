@@ -2,7 +2,7 @@
 // header + left drawer on mobile, <TooltipHost/> mounted once here.
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { ChevronLeft, LogOut, Menu, Moon, Smartphone, Sun, X } from 'lucide-react';
 import { cn, Avatar, AvatarFallback } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
@@ -144,6 +144,20 @@ const Layout = () => {
               : <Sun className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />}
             {!collapsed && (theme === 'dark' ? 'Modo oscuro' : 'Modo claro')}
           </button>
+          {user?.perfil === 'Admin' && (
+            <button
+              onClick={() => navigate('/tecnico')}
+              title="Ir a la app de técnicos"
+              aria-label="Ir a la app de técnicos"
+              className={cn(
+                'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                collapsed && 'justify-center',
+              )}
+            >
+              <Smartphone className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />
+              {!collapsed && 'App técnicos'}
+            </button>
+          )}
           <button
             onClick={() => setConfirmLogout(true)}
             title={collapsed ? 'Cerrar sesión' : undefined}
@@ -192,6 +206,16 @@ const Layout = () => {
                 {theme === 'dark' ? <Moon className="mr-3 h-4 w-4" /> : <Sun className="mr-3 h-4 w-4" />}
                 {theme === 'dark' ? 'Modo oscuro' : 'Modo claro'}
               </button>
+              {user?.perfil === 'Admin' && (
+                <button
+                  onClick={() => { setDrawerOpen(false); navigate('/tecnico'); }}
+                  title="Ir a la app de técnicos"
+                  aria-label="Ir a la app de técnicos"
+                  className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Smartphone className="mr-3 h-4 w-4" /> App técnicos
+                </button>
+              )}
               <button
                 onClick={() => {
                   setDrawerOpen(false);

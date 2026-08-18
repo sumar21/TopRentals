@@ -24,7 +24,7 @@ import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
 import { formatDate, todayISO } from '../../utils/dates';
 import { capitalizeFirst } from '../../utils/strings';
-import { BottomSheet, edificioOptions, fileToCompressedDataUrl, torresEnZona, zonaKey } from './shared';
+import { BottomSheet, edificioOptions, fileToCompressedDataUrl, groupRepuestos, torresEnZona, zonaKey } from './shared';
 
 type ActiveSheet = 'detalle' | 'repuestos' | 'nuevaSolicitud' | 'agregarRepuesto' | 'cambiarEdificio' | null;
 interface NavState { zona?: string; edificioNombre?: string }
@@ -416,10 +416,10 @@ const OrdenesTecnicoView: React.FC = () => {
           <p className="text-sm text-muted-foreground text-center py-6">Sin repuestos asignados.</p>
         ) : (
           <div className="space-y-2">
-            {repuestosSel.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
-                <span className="text-sm">{r.repuesto}</span>
-                <Badge>{r.cantidad}</Badge>
+            {groupRepuestos(repuestosSel).map((g) => (
+              <div key={g.key} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
+                <span className="text-sm">{g.nombre}</span>
+                <Badge>{g.cantidad}</Badge>
               </div>
             ))}
           </div>
@@ -442,9 +442,9 @@ const OrdenesTecnicoView: React.FC = () => {
         {repuestosSel.length > 0 && (
           <div className="rounded-md border bg-muted/20 p-2 space-y-1">
             <p className="text-xs font-medium text-muted-foreground">Repuestos ya asignados</p>
-            {repuestosSel.map((r) => (
-              <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate">{r.repuesto}</span><Badge className="shrink-0">{r.cantidad}</Badge>
+            {groupRepuestos(repuestosSel).map((g) => (
+              <div key={g.key} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{g.nombre}</span><Badge className="shrink-0">{g.cantidad}</Badge>
               </div>
             ))}
           </div>

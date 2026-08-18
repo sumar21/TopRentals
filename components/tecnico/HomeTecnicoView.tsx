@@ -2,7 +2,7 @@
 // docs/analysis/mobile_Home_Tecnico.md react_mapping.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, RefreshCw, Wrench, ClipboardList } from 'lucide-react';
+import { LogOut, Wrench, ClipboardList } from 'lucide-react';
 import { Button } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -37,7 +37,6 @@ const HomeTecnicoView: React.FC = () => {
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [loadingOts, setLoadingOts] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [pickerTarget, setPickerTarget] = useState<'ot' | 've' | null>(null);
@@ -71,12 +70,6 @@ const HomeTecnicoView: React.FC = () => {
   // Realtime: a back-office assignment pushes the new OT to the technician's carousel
   // without a manual refresh. loadOts doesn't touch the loader, so the update is silent.
   useEffect(() => api.realtime.subscribe(['ots'], () => { void loadOts().catch(() => {}); }), [loadOts]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadOts().catch(() => {});
-    setRefreshing(false);
-  };
 
   const closeSheet = () => { setActiveSheet(null); setPickerTarget(null); setPickerValue(''); };
 
@@ -143,14 +136,6 @@ const HomeTecnicoView: React.FC = () => {
           className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors"
         >
           <LogOut className="h-5 w-5" />
-        </button>
-        <button
-          onClick={handleRefresh}
-          aria-label="Actualizar"
-          disabled={refreshing}
-          className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
 

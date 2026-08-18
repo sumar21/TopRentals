@@ -7,6 +7,7 @@ import { backdropClose } from '../ui/backdropClose';
 import { Loader } from '../ui/Loader';
 import { api } from '../../services/index';
 import type { OrdenTrabajo, RepuestoOT } from '../../services/types';
+import { groupRepuestos } from '../tecnico/shared';
 
 export interface VerRepuestosModalProps {
   isOpen: boolean;
@@ -50,10 +51,10 @@ const VerRepuestosModal: React.FC<VerRepuestosModalProps> = ({ isOpen, onClose, 
             </div>
           ) : (
             <ul className="space-y-2">
-              {repuestos.map((r) => (
-                <li key={r.id} className="rounded-lg border bg-card p-3 flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium truncate">{r.repuesto ?? `Artículo #${r.articulo_id ?? '?'}`}</span>
-                  <Badge variant="secondary" className="shrink-0">x{r.cantidad}</Badge>
+              {groupRepuestos(repuestos).map((g) => (
+                <li key={g.key} className="rounded-lg border bg-card p-3 flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium truncate">{g.nombre}</span>
+                  <Badge variant="secondary" className="shrink-0">x{g.cantidad}</Badge>
                 </li>
               ))}
             </ul>

@@ -3,7 +3,7 @@
 // hub-and-spoke where each view owns its own header/back button. <TooltipHost/> once here.
 import { useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LogOut, Moon, Sun } from 'lucide-react';
+import { LogOut, Monitor, Moon, Sun } from 'lucide-react';
 import { cn } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
@@ -48,7 +48,7 @@ const LayoutTecnico = () => {
   const doLogout = () => { logout(); navigate('/login', { replace: true }); };
 
   return (
-    <div className="min-h-dvh bg-secondary/30 md:flex md:h-screen md:bg-background">
+    <div className="tecnico-theme min-h-dvh bg-secondary/30 md:flex md:h-screen md:bg-background">
       {/* Desktop sidebar — hidden on mobile; each view owns its own mobile header/nav. */}
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-card md:flex">
         <div className="flex h-16 items-center gap-2 border-b px-4">
@@ -86,6 +86,16 @@ const LayoutTecnico = () => {
             {theme === 'dark' ? <Moon className="mr-3 h-4 w-4 shrink-0" /> : <Sun className="mr-3 h-4 w-4 shrink-0" />}
             {theme === 'dark' ? 'Modo oscuro' : 'Modo claro'}
           </button>
+          {user?.perfil === 'Admin' && (
+            <button
+              onClick={() => navigate('/home')}
+              title="Volver al escritorio"
+              aria-label="Volver al escritorio"
+              className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+            >
+              <Monitor className="mr-3 h-4 w-4 shrink-0" /> Escritorio
+            </button>
+          )}
           <button
             onClick={() => setConfirmLogout(true)}
             className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/10"
