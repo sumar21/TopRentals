@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, PackageSearch, Search } from 'lucide-react';
 import { Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
+import { CategoriaBadge } from '../ui/CategoriaBadge';
 import { FilterPopover } from '../ui/FilterPopover';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
@@ -122,9 +123,11 @@ const ConsumoOTView: React.FC = () => {
             {visible.map((r) => (
               <div key={r.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <div className="font-medium text-sm">{r.repuesto ?? '—'}</div>
-                    <div className="text-[11px] text-muted-foreground">{formatDate(r.fecha)} · {r.edificio ?? '—'}</div>
+                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      {formatDate(r.fecha)} <CategoriaBadge value={r.edificio} />
+                    </div>
                   </div>
                   <OTChip id={r.orden_trabajo_id} />
                 </div>
@@ -156,7 +159,7 @@ const ConsumoOTView: React.FC = () => {
                     <TableCell><OTChip id={r.orden_trabajo_id} /></TableCell>
                     <TableCell>{r.repuesto ?? '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.cantidad}</TableCell>
-                    <TableCell>{r.edificio ?? '—'}</TableCell>
+                    <TableCell><CategoriaBadge value={r.edificio} /></TableCell>
                     <TableCell>{tecnicoName(r) ?? '—'}</TableCell>
                   </TableRow>
                 ))}
