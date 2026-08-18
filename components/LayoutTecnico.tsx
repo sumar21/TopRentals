@@ -120,7 +120,7 @@ const LayoutTecnico = () => {
 
       {/* Content: mobile keeps the phone column (white); desktop uses the remaining width. */}
       <main className="md:flex-1 md:overflow-y-auto md:bg-secondary/30">
-        <div className="mx-auto w-full max-w-md bg-background md:max-w-6xl md:bg-transparent">
+        <div className="mx-auto w-full max-w-md min-h-dvh bg-background md:min-h-0 md:max-w-6xl md:bg-transparent">
           <Outlet />
         </div>
       </main>
