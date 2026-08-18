@@ -58,6 +58,20 @@ export function moduleRoute(modulo: string, aplicacion: AplicacionApp = 'Desktop
   return table[modulo] ?? '/home';
 }
 
+/**
+ * The technician app is a fixed 4-spoke set. Its nav (sidebar + Home tiles) is defined HERE,
+ * not derived from perfiles_permisos, because the migrated permission data can be missing the
+ * Mantenimiento rows for some spokes — deriving from it dropped core modules (OT/Activos) from
+ * the tech nav on real data. Access to /tecnico is already gated by canAccessTecnico
+ * (Tecnico + Admin only), and every such user gets all 4 spokes.
+ */
+export const TECNICO_SPOKES: { modulo: string; route: string; label: string }[] = [
+  { modulo: 'OT', route: '/tecnico/ot', label: 'Órdenes de Trabajo' },
+  { modulo: 'Activos', route: '/tecnico/activos', label: 'Activos' },
+  { modulo: 'Ventilaciones', route: '/tecnico/ventilaciones', label: 'Ventilaciones' },
+  { modulo: 'Stock', route: '/tecnico/stock', label: 'Stock' },
+];
+
 /** Tecnico is confined to the mobile-first /tecnico module (blocked from desktop login entirely). */
 export function isTecnicoOnly(perfil: Perfil): boolean {
   return perfil === 'Tecnico';

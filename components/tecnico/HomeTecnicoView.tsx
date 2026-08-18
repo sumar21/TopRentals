@@ -2,7 +2,7 @@
 // docs/analysis/mobile_Home_Tecnico.md react_mapping.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Wrench, ClipboardList, Fan, AlertTriangle, Loader2 } from 'lucide-react';
+import { LogOut, Wrench, ClipboardList, Fan, AlertTriangle, CalendarClock, Loader2, type LucideIcon } from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
@@ -12,9 +12,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Edificio, OrdenTrabajo } from '../../services/types.ts';
-import { canAccessModule, moduleRoute } from '../../utils/permissions';
+import { TECNICO_SPOKES } from '../../utils/permissions';
 import { moduleIcon } from '../../config/moduleIcons';
-import { formatDate } from '../../utils/dates';
+import { formatDate, todayISO } from '../../utils/dates';
 import { useBuilding } from '../../contexts/BuildingContext';
 import BuildingChip from './BuildingChip';
 import { edificioIdsEnGrupoStock, torresEnZona, zonaKey } from './shared';
@@ -39,9 +39,13 @@ const TILE_SUBTITLES: Record<string, string> = {
 // status migrates verbatim from Status_OT, so real data may carry an "en curso"-style label
 // that isn't literally 'Asignada'; keying off the terminal set catches those too.
 const OT_TERMINALES = new Set(['Cerrada', 'Cerrada F', 'Cerrada V', 'Anulada']);
+const VENT_TERMINALES = new Set(['Realizada', 'Eliminada']);
+
+interface Stats { ventPend: number; ventVencidas: number; otsAbiertas: number; bajoStock: number }
+const EMPTY_STATS: Stats = { ventPend: 0, ventVencidas: 0, otsAbiertas: 0, bajoStock: 0 };
 
 const HomeTecnicoView: React.FC = () => {
-  const { user, permisos, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { edificios: edificiosGlobal, selected, setSelected } = useBuilding();
@@ -52,9 +56,8 @@ const HomeTecnicoView: React.FC = () => {
   const [loadError, setLoadError] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
 
-  // Mini-cards de pulso del edificio seleccionado (ventilaciones pendientes + bajo stock).
-  const [ventPend, setVentPend] = useState(0);
-  const [bajoStock, setBajoStock] = useState(0);
+  // KPIs de pulso del edificio seleccionado.
+  const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   const [loadingStats, setLoadingStats] = useState(false);
 
   const loadOts = useCallback(async () => {
@@ -86,47 +89,50 @@ const HomeTecnicoView: React.FC = () => {
   // without a manual refresh. loadOts doesn't touch the loader, so the update is silent.
   useEffect(() => api.realtime.subscribe(['ots'], () => { void loadOts().catch(() => {}); }), [loadOts]);
 
-  // Mini-cards de pulso: ventilaciones pendientes/programadas + bajo stock del edificio
-  // seleccionado. Mismos helpers/predicados que VentilacionesTecnicoView/StockTecnicoView/HomeAlerts.
+  // KPIs del edificio: ventilaciones pendientes/vencidas, OT abiertas y bajo stock.
+  // Mismos helpers/predicados que las vistas técnicas (torresEnZona / edificioIdsEnGrupoStock / HomeAlerts).
   useEffect(() => {
-    if (!selected) { setVentPend(0); setBajoStock(0); return; }
+    if (!selected) { setStats(EMPTY_STATS); return; }
     let cancelled = false;
     setLoadingStats(true);
     const towers = torresEnZona(edificiosGlobal, zonaKey(selected));
     const poolIds = edificioIdsEnGrupoStock(edificiosGlobal, selected.id);
-    Promise.all([api.ventilaciones.list(), api.stock.list()])
-      .then(([vents, stock]) => {
+    const hoy = todayISO();
+    Promise.all([api.ventilaciones.list(), api.stock.list(), api.ots.list()])
+      .then(([vents, stock, otsAll]) => {
         if (cancelled) return;
-        setVentPend(vents.filter((v) => towers.includes(v.edificio ?? '') && (v.estado === 'Pendiente' || v.estado === 'Programada')).length);
-        setBajoStock(stock.filter((s) => s.edificio_ids.some((id) => poolIds.includes(id)) && s.cantidad > 0 && s.condicion_corte != null && s.cantidad < s.condicion_corte).length);
+        const ventsEd = vents.filter((v) => towers.includes(v.edificio ?? ''));
+        setStats({
+          ventPend: ventsEd.filter((v) => v.estado === 'Pendiente' || v.estado === 'Programada').length,
+          ventVencidas: ventsEd.filter((v) => v.proxima_limpieza != null && v.proxima_limpieza < hoy && !VENT_TERMINALES.has(v.estado)).length,
+          otsAbiertas: otsAll.filter((o) => towers.includes(o.torre ?? '') && !OT_TERMINALES.has(o.status)).length,
+          bajoStock: stock.filter((s) => s.edificio_ids.some((id) => poolIds.includes(id)) && s.cantidad > 0 && s.condicion_corte != null && s.cantidad < s.condicion_corte).length,
+        });
       })
-      .catch(() => { if (!cancelled) { setVentPend(0); setBajoStock(0); } })
+      .catch(() => { if (!cancelled) setStats(EMPTY_STATS); })
       .finally(() => { if (!cancelled) setLoadingStats(false); });
     return () => { cancelled = true; };
   }, [selected, edificiosGlobal]);
 
   const handleOtCardClick = (ot: OrdenTrabajo) => {
-    // ponytail: the OT's own building may differ from the currently selected one — sync the
-    // global selection to it before jumping, so OrdenesTecnicoView (which now reads
-    // useBuilding().selected instead of router state) lands on the right building's list.
+    // ponytail: sync the global building to the OT's own before jumping, so OrdenesTecnicoView
+    // (which reads useBuilding().selected instead of router state) lands on the right building's list.
     const ed = edificios.find((e) => e.nombre === ot.torre);
     if (ed) setSelected(ed);
     navigate('/tecnico/ot');
   };
-
-  const handleTileClick = (modulo: string) => navigate(moduleRoute(modulo, 'Mantenimiento'));
 
   const handleLogout = async () => {
     logout();
     navigate('/login');
   };
 
-  // Solo módulos de la app técnica (Mantenimiento). Sin este filtro, Admin —que pasa
-  // canAccessModule para todo— veía tiles de módulos Desktop (Home/Compras/Aprobaciones/ABM)
-  // que no tienen vista acá y no navegaban a nada. Mismo criterio que el sidebar de LayoutTecnico.
-  const tiles = permisos
-    .filter((p) => p.aplicacion === 'Mantenimiento' && canAccessModule(user!.perfil, p.modulo, permisos))
-    .sort((a, b) => a.orden - b.orden);
+  const kpis: { icon: LucideIcon; label: string; value: number; route: string }[] = [
+    { icon: Fan, label: 'Ventilaciones pendientes', value: stats.ventPend, route: '/tecnico/ventilaciones' },
+    { icon: CalendarClock, label: 'Ventilaciones vencidas', value: stats.ventVencidas, route: '/tecnico/ventilaciones' },
+    { icon: Wrench, label: 'OT abiertas', value: stats.otsAbiertas, route: '/tecnico/ot' },
+    { icon: AlertTriangle, label: 'Bajo stock', value: stats.bajoStock, route: '/tecnico/stock' },
+  ];
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
@@ -148,97 +154,95 @@ const HomeTecnicoView: React.FC = () => {
         <p className="text-sm text-muted-foreground mt-0.5">Tus tareas asignadas</p>
       </div>
 
-      {/* Mini-cards de pulso del edificio seleccionado */}
-      {selected && (
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => navigate('/tecnico/ventilaciones')}
-            className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm active:scale-[0.98] transition-all text-left"
-          >
-            <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-              <Fan className="h-5 w-5 text-primary" />
-            </div>
-            <div className="min-w-0">
-              {loadingStats ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : (
-                <p className="text-2xl font-bold tabular-nums">{ventPend}</p>
-              )}
-              <p className="text-xs text-muted-foreground truncate">Ventilaciones pendientes</p>
-            </div>
-          </button>
-          <button
-            onClick={() => navigate('/tecnico/stock')}
-            className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm active:scale-[0.98] transition-all text-left"
-          >
-            <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-              <AlertTriangle className="h-5 w-5 text-primary" />
-            </div>
-            <div className="min-w-0">
-              {loadingStats ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : (
-                <p className="text-2xl font-bold tabular-nums">{bajoStock}</p>
-              )}
-              <p className="text-xs text-muted-foreground truncate">Bajo stock</p>
-            </div>
-          </button>
-        </div>
-      )}
-
-      {/* Carousel de OT asignadas */}
-      {loadingOts ? (
-        <div className="py-8"><Loader size="sm" /></div>
-      ) : loadError ? (
-        <LoadErrorState onRetry={loadAll} />
-      ) : ots.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="Sin tareas asignadas" message="No tenés órdenes de trabajo en curso." className="p-6" />
-      ) : (
-        <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x">
-          {ots.map((ot) => (
-            <button
-              key={ot.id}
-              onClick={() => handleOtCardClick(ot)}
-              className="shrink-0 w-64 snap-start text-left rounded-lg border bg-card p-3 shadow-sm active:scale-[0.99] transition-all"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="h-9 w-9 shrink-0 rounded-lg bg-brand/10 flex items-center justify-center">
-                    <Wrench className="h-4 w-4 text-brand" />
+      {/* Tareas asignadas — dentro de un contenedor */}
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
+        {loadingOts ? (
+          <div className="flex justify-center py-8"><Loader size="sm" /></div>
+        ) : loadError ? (
+          <LoadErrorState onRetry={loadAll} />
+        ) : ots.length === 0 ? (
+          <EmptyState icon={ClipboardList} title="Sin tareas asignadas" message="No tenés órdenes de trabajo en curso." />
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-1 snap-x">
+            {ots.map((ot) => (
+              <button
+                key={ot.id}
+                onClick={() => handleOtCardClick(ot)}
+                className="shrink-0 w-64 snap-start text-left rounded-lg border bg-background p-3 shadow-sm active:scale-[0.99] transition-all"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="h-9 w-9 shrink-0 rounded-lg bg-brand/10 flex items-center justify-center">
+                      <Wrench className="h-4 w-4 text-brand" />
+                    </div>
+                    <p className="text-sm font-semibold truncate">{ot.concat_activo ?? `${ot.torre ?? ''} - ${ot.departamento ?? ''}`}</p>
                   </div>
-                  <p className="text-sm font-semibold truncate">{ot.concat_activo ?? `${ot.torre ?? ''} - ${ot.departamento ?? ''}`}</p>
+                  <StatusBadge status={ot.prioridad} />
                 </div>
-                <StatusBadge status={ot.prioridad} />
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {formatDate(ot.fecha_asignada)} {ot.dias_estimado != null ? `| ${ot.dias_estimado} días` : ''}
-              </p>
-            </button>
-          ))}
+                <p className="text-xs text-muted-foreground mt-2">
+                  {formatDate(ot.fecha_asignada)} {ot.dias_estimado != null ? `| ${ot.dias_estimado} días` : ''}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Módulos */}
+      <div>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Módulos</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {TECNICO_SPOKES.map((tile) => {
+            const Icon = moduleIcon(tile.modulo);
+            return (
+              <button
+                key={tile.modulo}
+                onClick={() => navigate(tile.route)}
+                className="flex flex-col items-start gap-3 rounded-xl border bg-card p-4 shadow-sm active:scale-[0.98] transition-all text-left"
+              >
+                <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Icon className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0 w-full">
+                  <p className="text-sm font-bold truncate">{TILE_LABELS[tile.modulo] ?? tile.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">{TILE_SUBTITLES[tile.modulo] ?? ''}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Resumen del edificio (KPIs) — abajo de los módulos */}
+      {selected && (
+        <div>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resumen del edificio</h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {kpis.map((kpi) => {
+              const Icon = kpi.icon;
+              return (
+                <button
+                  key={kpi.label}
+                  onClick={() => navigate(kpi.route)}
+                  className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm active:scale-[0.98] transition-all text-left"
+                >
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    {loadingStats ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <p className="text-2xl font-bold tabular-nums">{kpi.value}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground truncate">{kpi.label}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
-
-      {/* Grid de módulos — estilo referencia: 2 columnas, ícono + título + aclaración. */}
-      <div className="grid grid-cols-2 gap-3">
-        {tiles.map((tile) => {
-          const Icon = moduleIcon(tile.modulo);
-          return (
-            <button
-              key={tile.id}
-              onClick={() => handleTileClick(tile.modulo)}
-              className="flex flex-col items-start gap-3 rounded-xl border bg-card p-4 shadow-sm active:scale-[0.98] transition-all text-left"
-            >
-              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Icon className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0 w-full">
-                <p className="text-sm font-bold truncate">{TILE_LABELS[tile.modulo] ?? tile.modulo}</p>
-                <p className="text-xs text-muted-foreground truncate">{TILE_SUBTITLES[tile.modulo] ?? ''}</p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
 
       {/* Logout confirm */}
       <ConfirmModal

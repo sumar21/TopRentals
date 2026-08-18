@@ -12,8 +12,8 @@ import BuildingChip from './tecnico/BuildingChip';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useBuilding } from '../contexts/BuildingContext';
-import { canAccessModule, moduleRoute } from '../utils/permissions';
-import { moduleIcon, moduleLabel } from '../config/moduleIcons';
+import { TECNICO_SPOKES } from '../utils/permissions';
+import { moduleIcon } from '../config/moduleIcons';
 
 interface TecnicoNav { modulo: string; route: string; label: string }
 
@@ -27,27 +27,23 @@ const TECNICO_LABELS: Record<string, string> = {
 };
 
 const LayoutTecnico = () => {
-  const { user, permisos, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { edificios, selected, setSelected, pickerOpen, closePicker } = useBuilding();
   const navigate = useNavigate();
   const [confirmLogout, setConfirmLogout] = useState(false);
 
-  // Only mantenimiento modules the user can access — the `/tecnico` route filter drops
-  // back-office modules that leak in for Admin (who passes canAccessModule for everything).
-  const entries = useMemo<TecnicoNav[]>(() => {
-    if (!user) return [];
-    const seen = new Set<string>();
-    const mods: TecnicoNav[] = [];
-    for (const row of [...permisos].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))) {
-      if (!canAccessModule(user.perfil, row.modulo, permisos)) continue;
-      const route = moduleRoute(row.modulo, 'Mantenimiento');
-      if (!route.startsWith('/tecnico') || seen.has(route)) continue;
-      seen.add(route);
-      mods.push({ modulo: row.modulo, route, label: TECNICO_LABELS[row.modulo] ?? moduleLabel(row.modulo) });
-    }
-    return [{ modulo: 'Home', route: '/tecnico', label: 'Inicio' }, ...mods];
-  }, [user, permisos]);
+  // Fixed nav for the technician app (see TECNICO_SPOKES). NOT derived from perfiles_permisos:
+  // the migrated data can miss the Mantenimiento rows for some spokes, which dropped core
+  // modules (OT/Activos) from the nav on real data. Access to /tecnico is already gated by
+  // canAccessTecnico (Tecnico + Admin only), and every such user gets all 4 spokes.
+  const entries = useMemo<TecnicoNav[]>(
+    () => [
+      { modulo: 'Home', route: '/tecnico', label: 'Inicio' },
+      ...TECNICO_SPOKES.map((s) => ({ modulo: s.modulo, route: s.route, label: TECNICO_LABELS[s.modulo] ?? s.label })),
+    ],
+    [],
+  );
 
   const doLogout = () => { logout(); navigate('/login', { replace: true }); };
 
