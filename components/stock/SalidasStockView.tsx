@@ -120,7 +120,7 @@ const SalidasStockView: React.FC = () => {
     <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate('/stock')} aria-label="Volver a Stock">
+          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate('/stock')} title="Volver a Stock" aria-label="Volver a Stock">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="hidden md:block">
@@ -322,7 +322,7 @@ const EditarSalidaModal: React.FC<{
               {salida?.concat_articulo} · <span className="font-medium text-foreground">{salida?.tipo}</span>
             </p>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>

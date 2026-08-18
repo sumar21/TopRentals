@@ -185,10 +185,10 @@ const StockView: React.FC = () => {
                   </div>
                   {!readOnly && (
                     <div className="flex justify-end gap-1 pt-2 border-t">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} aria-label="Editar stock">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} title="Editar stock" aria-label="Editar stock">
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} aria-label="Registrar salida">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} title="Registrar salida" aria-label="Registrar salida">
                         <ArrowRightLeft className="h-4 w-4" />
                       </Button>
                     </div>
@@ -234,10 +234,10 @@ const StockView: React.FC = () => {
                       {!readOnly && (
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} aria-label="Editar stock">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} title="Editar stock" aria-label="Editar stock">
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} aria-label="Registrar salida">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} title="Registrar salida" aria-label="Registrar salida">
                               <ArrowRightLeft className="h-4 w-4" />
                             </Button>
                           </div>

@@ -121,6 +121,7 @@ const Layout = () => {
           {!collapsed && <span className="text-sm font-bold tracking-tight truncate">Top Rentals</span>}
           <button
             onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
             aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
             className={cn('rounded-md text-muted-foreground hover:bg-muted', collapsed ? 'p-1' : 'ml-auto p-1.5')}
           >
@@ -174,7 +175,7 @@ const Layout = () => {
 
       {/* Header mobile fijo */}
       <header className="fixed inset-x-0 top-0 z-20 flex h-16 items-center gap-3 border-b bg-card px-4 md:hidden">
-        <button onClick={() => setDrawerOpen(true)} aria-label="Abrir menú" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
+        <button onClick={() => setDrawerOpen(true)} title="Abrir menú" aria-label="Abrir menú" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <Menu className="h-5 w-5" />
         </button>
         <span className="text-sm font-bold tracking-tight">{moduleLabel(activeModule)}</span>
@@ -192,7 +193,7 @@ const Layout = () => {
             <div className="flex h-16 items-center gap-2 border-b px-4">
               <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 rounded-md" />
               <span className="text-sm font-bold tracking-tight">Top Rentals</span>
-              <button onClick={() => setDrawerOpen(false)} aria-label="Cerrar menú" className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+              <button onClick={() => setDrawerOpen(false)} title="Cerrar menú" aria-label="Cerrar menú" className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted">
                 <X className="h-4 w-4" />
               </button>
             </div>

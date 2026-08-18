@@ -89,7 +89,7 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
             <h2 className="text-xl font-bold tracking-tight">Bitácoras</h2>
             {ot && <p className="text-xs text-muted-foreground">OT <span className="font-medium text-foreground">#{ot.id}</span></p>}
           </div>
-          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" aria-label="Cerrar">
+          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" title="Cerrar" aria-label="Cerrar">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -139,7 +139,7 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
                 {fotoUrl ? (
                   <div className="flex items-center gap-3 rounded-lg border border-input bg-muted/20 p-2.5">
                     <img src={fotoUrl} alt="" className="h-12 w-12 rounded-md object-cover border shrink-0" />
-                    <button type="button" onClick={() => setFotoUrl('')} aria-label="Quitar foto"
+                    <button type="button" onClick={() => setFotoUrl('')} title="Quitar foto" aria-label="Quitar foto"
                       className="h-8 w-8 rounded-md border border-input flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto">
                       <X className="h-4 w-4" />
                     </button>

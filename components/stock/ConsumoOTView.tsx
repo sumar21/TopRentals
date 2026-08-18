@@ -84,7 +84,7 @@ const ConsumoOTView: React.FC = () => {
     <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate('/stock')} aria-label="Volver a Stock">
+          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate('/stock')} title="Volver a Stock" aria-label="Volver a Stock">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="hidden md:block">

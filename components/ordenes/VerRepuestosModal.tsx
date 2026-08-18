@@ -36,7 +36,7 @@ const VerRepuestosModal: React.FC<VerRepuestosModalProps> = ({ isOpen, onClose, 
             <h2 className="text-xl font-bold tracking-tight">Repuestos utilizados</h2>
             {ot && <p className="text-xs text-muted-foreground">OT <span className="font-medium text-foreground">#{ot.id}</span></p>}
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" aria-label="Cerrar">
+          <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" title="Cerrar" aria-label="Cerrar">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>

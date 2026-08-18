@@ -171,7 +171,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
             <h2 className="text-xl font-bold tracking-tight">{title}</h2>
             {ot && <p className="text-xs text-muted-foreground">OT <span className="font-medium text-foreground">#{ot.id}</span></p>}
           </div>
-          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" aria-label="Cerrar">
+          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" title="Cerrar" aria-label="Cerrar">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -251,7 +251,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
                   <div key={f.id} className="relative">
                     <img src={f.url} alt={f.file.name} className="h-16 w-16 rounded-md object-cover border" />
                     {!readOnly && (
-                      <button type="button" onClick={() => removeFoto(f.id)} aria-label={`Quitar ${f.file.name}`}
+                      <button type="button" onClick={() => removeFoto(f.id)} title={`Quitar ${f.file.name}`} aria-label={`Quitar ${f.file.name}`}
                         className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                         <X className="h-3 w-3" />
                       </button>

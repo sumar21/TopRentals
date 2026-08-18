@@ -115,7 +115,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
             <h2 className="text-xl font-bold tracking-tight">Recibir compra</h2>
             {compra && <p className="text-xs text-muted-foreground">N° {compra.id}</p>}
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -137,7 +137,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                   <div key={l.detalle_id} className="rounded-lg border bg-card p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm"><span className="text-muted-foreground">{l.edificio}</span> | {l.articulo}</p>
-                      <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
+                      <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} title={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
                         className={`p-1.5 -m-1.5 rounded-md shrink-0 transition-colors ${l.noRecibido ? 'text-destructive bg-destructive/10' : 'text-muted-foreground hover:bg-muted'}`}>
                         <XCircle className="h-4 w-4" />
                       </button>
@@ -179,7 +179,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                             onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 w-20 text-right ml-auto" />
                         </TableCell>
                         <TableCell className="text-center">
-                          <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
+                          <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} title={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
                             className={`p-1.5 rounded-md transition-colors ${l.noRecibido ? 'text-destructive bg-destructive/10' : 'text-muted-foreground hover:bg-muted'}`}>
                             <XCircle className="h-4 w-4" />
                           </button>
@@ -202,7 +202,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                 {comprobante ? (
                   <div className="flex items-center gap-3 rounded-lg border border-input bg-muted/20 p-2.5">
                     <span className="text-sm truncate flex-1">{comprobante.name}</span>
-                    <button type="button" aria-label="Quitar comprobante" onClick={() => setComprobante(null)} className="h-8 w-8 rounded-md border border-input hover:text-destructive hover:bg-destructive/10 flex items-center justify-center">
+                    <button type="button" title="Quitar comprobante" aria-label="Quitar comprobante" onClick={() => setComprobante(null)} className="h-8 w-8 rounded-md border border-input hover:text-destructive hover:bg-destructive/10 flex items-center justify-center">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>

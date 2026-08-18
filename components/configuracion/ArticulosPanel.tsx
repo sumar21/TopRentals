@@ -100,7 +100,7 @@ const ArticuloFormModal: React.FC<{
             <h2 className="text-xl font-bold tracking-tight">{articulo ? 'Editar artículo' : 'Nuevo artículo'}</h2>
             <p className="text-xs text-muted-foreground">Catálogo de precios</p>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">

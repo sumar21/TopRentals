@@ -77,7 +77,7 @@ export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onCl
               <span className="font-medium text-foreground">{edificioNombre}</span>
             </p>
           </div>
-          <button onClick={close} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={close} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>

@@ -91,7 +91,7 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
             <h2 className="text-xl font-bold tracking-tight">Ingresar Stock</h2>
             <p className="text-xs text-muted-foreground">Suma cantidad a un artículo en un edificio</p>
           </div>
-          <button onClick={close} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={close} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>

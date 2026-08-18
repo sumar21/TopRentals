@@ -203,7 +203,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
             <h2 className="text-xl font-bold tracking-tight">{title}</h2>
             {!headerEditable && <p className="text-xs text-muted-foreground">Solo se pueden editar los renglones de esta solicitud.</p>}
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -280,7 +280,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                         <div key={l.key} className="rounded-lg border bg-card p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-sm font-medium">{l.articulo_nombre}</p>
-                            <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 -m-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0">
+                            <button type="button" title="Quitar línea" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 -m-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0">
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -323,7 +323,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                               </TableCell>
                               <TableCell className="text-right text-sm font-medium tabular-nums whitespace-nowrap">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
                               <TableCell>
-                                <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                                <button type="button" title="Quitar línea" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                                   <Trash2 className="h-4 w-4" />
                                 </button>
                               </TableCell>

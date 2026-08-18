@@ -116,7 +116,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
             <h2 className="text-xl font-bold tracking-tight">Asignar Orden de Trabajo</h2>
             {ot && <p className="text-xs text-muted-foreground">OT <span className="font-medium text-foreground">#{ot.id}</span></p>}
           </div>
-          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" aria-label="Cerrar">
+          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" title="Cerrar" aria-label="Cerrar">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -151,7 +151,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
                 {staged.map((r, i) => (
                   <li key={`${r.articulo_id}-${i}`} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-sm">
                     <span className="truncate">{r.nombre} <span className="text-muted-foreground">x{r.cantidad}</span></span>
-                    <button type="button" onClick={() => removeStaged(i)} aria-label={`Quitar ${r.nombre}`} className="text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => removeStaged(i)} title={`Quitar ${r.nombre}`} aria-label={`Quitar ${r.nombre}`} className="text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-4 w-4" /></button>
                   </li>
                 ))}
               </ul>
