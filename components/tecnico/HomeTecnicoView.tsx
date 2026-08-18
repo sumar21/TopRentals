@@ -34,14 +34,6 @@ const TILE_SUBTITLES: Record<string, string> = {
   Stock: 'Repuestos disponibles',
 };
 
-// Color por módulo — identidad categórica (estilo referencia). Tints suaves, no el brand.
-const TILE_TONES: Record<string, string> = {
-  OT: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  Activos: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-  Ventilaciones: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-  Stock: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-};
-
 // "Tareas asignadas" mirrors PA's "Órdenes de Trabajo en Curso": every OT tied to this
 // technician that is still open — matched by NOT being terminal, not by an exact 'Asignada'.
 // status migrates verbatim from Status_OT, so real data may carry an "en curso"-style label
@@ -208,8 +200,8 @@ const HomeTecnicoView: React.FC = () => {
                 onClick={() => navigate(tile.route)}
                 className="flex flex-col items-start gap-3 rounded-xl border bg-card p-4 shadow-sm active:scale-[0.98] transition-all text-left"
               >
-                <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${TILE_TONES[tile.modulo] ?? 'bg-primary/10 text-primary'}`}>
-                  <Icon className="h-5 w-5" />
+                <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Icon className="h-5 w-5 text-primary" />
                 </div>
                 <div className="min-w-0 w-full">
                   <p className="text-sm font-bold truncate">{TILE_LABELS[tile.modulo] ?? tile.label}</p>
