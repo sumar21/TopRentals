@@ -1,6 +1,6 @@
 // mobile/Detalle Activos — read-only OT history for a chosen unit. No writes.
 // docs/analysis/mobile_Detalle_Activos.md react_mapping.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Filter, ClipboardList, Building2 } from 'lucide-react';
 import { Button, Badge } from '../ui/UIComponents';
@@ -9,37 +9,38 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
+import { useBuilding } from '../../contexts/BuildingContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
-import type { Edificio, OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
+import type { OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
 import { capitalizeFirst } from '../../utils/strings.ts';
+import { formatDate } from '../../utils/dates';
 import { BottomSheet, groupRepuestos } from './shared';
+import BuildingChip from './BuildingChip';
 
 type ActiveSheet = 'filter' | 'obs' | 'repuestos' | null;
 
 const ActivosView: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { selected, openPicker } = useBuilding();
 
-  const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
-  const [appliedUnidad, setAppliedUnidad] = useState<Unidad | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
-  const [filterEdificioId, setFilterEdificioId] = useState('');
-  const [filterUnidadId, setFilterUnidadId] = useState('');
+  const [filterUnidadId, setFilterUnidadId] = useState(''); // '' = todas las unidades del edificio
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
   const [repuestosSel, setRepuestosSel] = useState<RepuestoOT[]>([]);
 
   const loadInit = () => {
     setLoadError(false);
-    return Promise.all([api.edificios.list(), api.unidades.list(), api.usuarios.list()])
-      .then(([eds, uns, us]) => { setEdificios(eds); setUnidades(uns); setUsuarios(us); })
-      .catch(() => { showToast('No se pudieron cargar los edificios.', 'error'); setLoadError(true); });
+    return Promise.all([api.unidades.list(), api.usuarios.list()])
+      .then(([uns, us]) => { setUnidades(uns); setUsuarios(us); })
+      .catch(() => { showToast('No se pudieron cargar las unidades.', 'error'); setLoadError(true); });
   };
 
   useEffect(() => {
@@ -47,34 +48,48 @@ const ActivosView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const edificioOptions = useMemo(
-    () => edificios.filter((e) => e.status === 'Activo').sort((a, b) => a.nombre.localeCompare(b.nombre)).map((e) => ({ value: String(e.id), label: e.nombre })),
-    [edificios],
-  );
-  const unidadOptions = useMemo(
-    () => unidades
-      .filter((u) => String(u.edificio_id) === filterEdificioId && u.status === 'Alta')
-      .sort((a, b) => (a.depto ?? '').localeCompare(b.depto ?? ''))
-      .map((u) => ({ value: String(u.id), label: u.depto ?? `Unidad ${u.id}` })),
-    [unidades, filterEdificioId],
-  );
-  const usuariosMap = useMemo(() => new Map(usuarios.map((u) => [u.id, u.concat_name])), [usuarios]);
-
-  const handleAceptarFiltro = async () => {
-    const unidad = unidades.find((u) => String(u.id) === filterUnidadId);
-    if (!unidad) return;
-    setLoading(true);
+  // #11: el edificio (global) ya alcanza para ver algo — antes hacía falta elegir edificio Y
+  // unidad. El historial completo del edificio se carga solo; la unidad queda como recorte opcional.
+  const loadOts = useCallback(async (edificioId: number) => {
+    setLoading(true); setLoadError(false);
     try {
       const rows = await api.ots.list();
-      setOts(rows.filter((o) => o.unidad_id === unidad.id));
-      setAppliedUnidad(unidad);
-      setActiveSheet(null);
+      const idsUnidad = new Set(unidades.filter((u) => u.edificio_id === edificioId).map((u) => u.id));
+      setOts(
+        rows
+          .filter((o) => o.unidad_id != null && idsUnidad.has(o.unidad_id))
+          .sort((a, b) => b.id - a.id), // #12: más nuevas primero
+      );
     } catch {
-      showToast('No se pudo cargar el historial de la unidad.', 'error');
+      showToast('No se pudo cargar el historial de órdenes de trabajo.', 'error');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [unidades, showToast]);
+
+  useEffect(() => {
+    if (!selected || unidades.length === 0) return;
+    void loadOts(selected.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, unidades]);
+
+  // Cambiar de edificio (chip global) descarta el recorte por unidad del edificio anterior.
+  useEffect(() => { setFilterUnidadId(''); }, [selected]);
+
+  const unidadOptions = useMemo(
+    () => unidades
+      .filter((u) => u.edificio_id === selected?.id)
+      .sort((a, b) => (a.depto ?? '').localeCompare(b.depto ?? ''))
+      .map((u) => ({ value: String(u.id), label: u.depto ?? `Unidad ${u.id}` })),
+    [unidades, selected],
+  );
+  const usuariosMap = useMemo(() => new Map(usuarios.map((u) => [u.id, u.concat_name])), [usuarios]);
+  const visible = useMemo(() => {
+    if (!filterUnidadId) return ots;
+    const id = Number(filterUnidadId);
+    return ots.filter((o) => o.unidad_id === id);
+  }, [ots, filterUnidadId]);
 
   const openObs = (ot: OrdenTrabajo) => { setSelectedOt(ot); setActiveSheet('obs'); };
   const openRepuestos = async (ot: OrdenTrabajo) => {
@@ -92,33 +107,43 @@ const ActivosView: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
+          <button onClick={() => navigate('/tecnico')} aria-label="Volver" title="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Activos</h1>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setFilterEdificioId(appliedUnidad ? String(appliedUnidad.edificio_id ?? '') : ''); setFilterUnidadId(appliedUnidad ? String(appliedUnidad.id) : ''); setActiveSheet('filter'); }}>
-          <Filter className="h-3.5 w-3.5" />Filtrar
-        </Button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <BuildingChip />
+          {selected && (
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setActiveSheet('filter')}>
+              <Filter className="h-3.5 w-3.5" />Filtrar
+            </Button>
+          )}
+        </div>
       </div>
 
-      {loadError ? (
-        <LoadErrorState onRetry={loadInit} />
-      ) : !appliedUnidad ? (
-        <EmptyState icon={Building2} title="Elegí un edificio y una unidad" message="Usá 'Filtrar' para ver el historial de órdenes de trabajo de un activo." />
+      {!selected ? (
+        <div className="space-y-3">
+          <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver el historial de órdenes de trabajo de sus activos." />
+          <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>
+        </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
-      ) : ots.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="Esta unidad no tiene órdenes de trabajo registradas." />
+      ) : loadError ? (
+        <LoadErrorState onRetry={() => loadOts(selected.id)} />
+      ) : visible.length === 0 ? (
+        <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="Este edificio no tiene órdenes de trabajo registradas." />
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {ots.map((ot) => (
+          {visible.map((ot) => (
             <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-1.5">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold truncate">{ot.torre} - {ot.departamento} {ot.problema ? `| ${ot.problema}` : ''}</p>
                 <StatusBadge status={ot.status} />
               </div>
-              <p className="text-xs text-muted-foreground">{usuariosMap.get(ot.tecnico_id ?? -1) ?? 'Sin técnico asignado'}</p>
+              <p className="text-xs text-muted-foreground">
+                {usuariosMap.get(ot.tecnico_id ?? -1) ?? 'Sin técnico asignado'} · {formatDate(ot.fecha_asignada ?? ot.fecha_inicio ?? ot.created_at) || 'Sin fecha'}
+              </p>
               <div className="flex items-center gap-4 pt-1">
                 <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => openObs(ot)}>Ver observación</button>
                 <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => openRepuestos(ot)}>Ver repuestos</button>
@@ -128,27 +153,22 @@ const ActivosView: React.FC = () => {
         </div>
       )}
 
-      {/* Filtrar */}
+      {/* Filtrar — recorte opcional por unidad sobre el historial ya cargado del edificio. */}
       <BottomSheet
         isOpen={activeSheet === 'filter'}
         onClose={() => setActiveSheet(null)}
-        title="Filtrar activos"
+        title="Filtrar por unidad"
+        subtitle={selected?.nombre}
         footer={
           <>
-            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
-            <Button className="flex-1" disabled={!filterUnidadId} onClick={handleAceptarFiltro}>Aceptar</Button>
+            <Button variant="outline" className="flex-1" onClick={() => { setFilterUnidadId(''); setActiveSheet(null); }}>Ver todas</Button>
+            <Button className="flex-1" onClick={() => setActiveSheet(null)}>Cerrar</Button>
           </>
         }
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
-            <Select value={filterEdificioId} onChange={(v) => { setFilterEdificioId(v); setFilterUnidadId(''); }} options={edificioOptions} placeholder="Seleccioná un edificio" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidad</label>
-            <Select value={filterUnidadId} onChange={setFilterUnidadId} options={unidadOptions} placeholder="Seleccioná una unidad" disabled={!filterEdificioId} />
-          </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidad</label>
+          <Select value={filterUnidadId} onChange={setFilterUnidadId} options={unidadOptions} placeholder="Todas las unidades" />
         </div>
       </BottomSheet>
 

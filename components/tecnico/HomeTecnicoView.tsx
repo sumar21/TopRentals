@@ -3,8 +3,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Wrench, ClipboardList } from 'lucide-react';
-import { Button } from '../ui/UIComponents';
-import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
@@ -17,7 +15,8 @@ import type { Edificio, OrdenTrabajo } from '../../services/types.ts';
 import { canAccessModule } from '../../utils/permissions';
 import { moduleIcon } from '../../config/moduleIcons';
 import { formatDate } from '../../utils/dates';
-import { BottomSheet, zonaKey, grupoStockKey, edificioOptions } from './shared';
+import { useBuilding } from '../../contexts/BuildingContext';
+import BuildingChip from './BuildingChip';
 
 const TILE_LABELS: Record<string, string> = {
   OT: 'Órdenes de Trabajo',
@@ -26,27 +25,37 @@ const TILE_LABELS: Record<string, string> = {
   Stock: 'Stock',
 };
 
-type ActiveSheet = 'logout' | 'towerPicker' | 'stockPicker' | null;
+// Building is global now — every tile jumps straight to its route (no per-tile picker).
+const TILE_ROUTES: Record<string, string> = {
+  OT: '/tecnico/ot',
+  Activos: '/tecnico/activos',
+  Ventilaciones: '/tecnico/ventilaciones',
+  Stock: '/tecnico/stock',
+};
+
+// "Tareas asignadas" mirrors PA's "Órdenes de Trabajo en Curso": every OT tied to this
+// technician that is still open — matched by NOT being terminal, not by an exact 'Asignada'.
+// status migrates verbatim from Status_OT, so real data may carry an "en curso"-style label
+// that isn't literally 'Asignada'; keying off the terminal set catches those too.
+const OT_TERMINALES = new Set(['Cerrada', 'Cerrada F', 'Cerrada V', 'Anulada']);
 
 const HomeTecnicoView: React.FC = () => {
   const { user, permisos, logout } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const { setSelected } = useBuilding();
 
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [loadingOts, setLoadingOts] = useState(true);
   const [loadError, setLoadError] = useState(false);
-
-  const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
-  const [pickerTarget, setPickerTarget] = useState<'ot' | 've' | null>(null);
-  const [pickerValue, setPickerValue] = useState('');
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const loadOts = useCallback(async () => {
     if (!user) return;
     try {
       const rows = await api.ots.list();
-      setOts(rows.filter((o) => o.tecnico_id === user.id && o.status === 'Asignada'));
+      setOts(rows.filter((o) => o.tecnico_id === user.id && !OT_TERMINALES.has(o.status)));
     } catch {
       showToast('No se pudieron cargar tus órdenes de trabajo.', 'error');
       throw new Error('ots');
@@ -71,48 +80,16 @@ const HomeTecnicoView: React.FC = () => {
   // without a manual refresh. loadOts doesn't touch the loader, so the update is silent.
   useEffect(() => api.realtime.subscribe(['ots'], () => { void loadOts().catch(() => {}); }), [loadOts]);
 
-  const closeSheet = () => { setActiveSheet(null); setPickerTarget(null); setPickerValue(''); };
-
   const handleOtCardClick = (ot: OrdenTrabajo) => {
+    // ponytail: the OT's own building may differ from the currently selected one — sync the
+    // global selection to it before jumping, so OrdenesTecnicoView (which now reads
+    // useBuilding().selected instead of router state) lands on the right building's list.
     const ed = edificios.find((e) => e.nombre === ot.torre);
-    navigate('/tecnico/ot', ed ? { state: { zona: zonaKey(ed), edificioNombre: ed.nombre } } : undefined);
+    if (ed) setSelected(ed);
+    navigate('/tecnico/ot');
   };
 
-  const handleTileClick = (modulo: string) => {
-    switch (modulo) {
-      case 'Activos':
-        navigate('/tecnico/activos');
-        return;
-      case 'OT':
-        setPickerTarget('ot');
-        setActiveSheet('towerPicker');
-        return;
-      case 'Ventilaciones':
-        setPickerTarget('ve');
-        setActiveSheet('towerPicker');
-        return;
-      case 'Stock':
-        setActiveSheet('stockPicker');
-        return;
-      default:
-        return;
-    }
-  };
-
-  const handleTowerAccept = () => {
-    const ed = edificios.find((e) => String(e.id) === pickerValue);
-    if (!ed) return;
-    const state = { zona: zonaKey(ed), edificioNombre: ed.nombre };
-    navigate(pickerTarget === 've' ? '/tecnico/ventilaciones' : '/tecnico/ot', { state });
-    closeSheet();
-  };
-
-  const handleStockAccept = () => {
-    const ed = edificios.find((e) => String(e.id) === pickerValue);
-    if (!ed) return;
-    navigate('/tecnico/stock', { state: { grupo: grupoStockKey(ed), edificioNombre: ed.nombre, edificioId: ed.id } });
-    closeSheet();
-  };
+  const handleTileClick = (modulo: string) => navigate(TILE_ROUTES[modulo] ?? '/tecnico');
 
   const handleLogout = async () => {
     logout();
@@ -123,16 +100,15 @@ const HomeTecnicoView: React.FC = () => {
     .filter((p) => canAccessModule(user!.perfil, p.modulo, permisos))
     .sort((a, b) => a.orden - b.orden);
 
-  const towerOptions = edificioOptions(edificios.filter((e) => e.status === 'Activo'), zonaKey);
-  const stockOptions = edificioOptions(edificios.filter((e) => e.status === 'Activo'), grupoStockKey);
-
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
+        <BuildingChip />
         <button
-          onClick={() => setActiveSheet('logout')}
+          onClick={() => setConfirmLogout(true)}
           aria-label="Cerrar sesión"
+          title="Cerrar sesión"
           className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors"
         >
           <LogOut className="h-5 w-5" />
@@ -186,8 +162,8 @@ const HomeTecnicoView: React.FC = () => {
               onClick={() => handleTileClick(tile.modulo)}
               className="flex flex-col items-center gap-2 rounded-xl border bg-card p-4 shadow-sm active:scale-[0.98] transition-all"
             >
-              <div className="h-12 w-12 rounded-full bg-brand/10 flex items-center justify-center">
-                <Icon className="h-6 w-6 text-brand" />
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Icon className="h-6 w-6 text-primary" />
               </div>
               <span className="text-sm font-semibold text-center">{TILE_LABELS[tile.modulo] ?? tile.modulo}</span>
             </button>
@@ -197,8 +173,8 @@ const HomeTecnicoView: React.FC = () => {
 
       {/* Logout confirm */}
       <ConfirmModal
-        isOpen={activeSheet === 'logout'}
-        onClose={closeSheet}
+        isOpen={confirmLogout}
+        onClose={() => setConfirmLogout(false)}
         onConfirm={handleLogout}
         title="Cerrar sesión"
         description="¿Seguro que querés cerrar sesión?"
@@ -207,38 +183,6 @@ const HomeTecnicoView: React.FC = () => {
         variant="danger"
         icon={<LogOut className="h-6 w-6" />}
       />
-
-      {/* Tower picker (OT / Ventilaciones) */}
-      <BottomSheet
-        isOpen={activeSheet === 'towerPicker'}
-        onClose={closeSheet}
-        title="Elegí el edificio"
-        subtitle={pickerTarget === 've' ? 'Ventilaciones' : 'Órdenes de trabajo'}
-        footer={
-          <>
-            <Button variant="outline" className="flex-1" onClick={closeSheet}>Cancelar</Button>
-            <Button className="flex-1" disabled={!pickerValue} onClick={handleTowerAccept}>Aceptar</Button>
-          </>
-        }
-      >
-        <Select value={pickerValue} onChange={setPickerValue} options={towerOptions} placeholder="Seleccioná un edificio" />
-      </BottomSheet>
-
-      {/* Stock picker */}
-      <BottomSheet
-        isOpen={activeSheet === 'stockPicker'}
-        onClose={closeSheet}
-        title="Elegí el edificio"
-        subtitle="Stock"
-        footer={
-          <>
-            <Button variant="outline" className="flex-1" onClick={closeSheet}>Cancelar</Button>
-            <Button className="flex-1" disabled={!pickerValue} onClick={handleStockAccept}>Aceptar</Button>
-          </>
-        }
-      >
-        <Select value={pickerValue} onChange={setPickerValue} options={stockOptions} placeholder="Seleccioná un edificio" />
-      </BottomSheet>
     </div>
   );
 };

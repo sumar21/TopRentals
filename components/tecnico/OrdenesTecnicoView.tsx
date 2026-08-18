@@ -1,9 +1,9 @@
 // mobile/Ordenes de Trabajo — technician's OT list for a building/zone.
 // docs/analysis/mobile_Ordenes_de_Trabajo.md react_mapping.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, MoreVertical, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle,
+  ArrowLeft, Building2, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle,
 } from 'lucide-react';
 import { Button, Input, Badge, cn } from '../ui/UIComponents';
 import { NumberInput } from '../ui/NumberInput';
@@ -24,10 +24,11 @@ import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
 import { formatDate, todayISO } from '../../utils/dates';
 import { capitalizeFirst } from '../../utils/strings';
-import { BottomSheet, edificioOptions, fileToCompressedDataUrl, groupRepuestos, torresEnZona, zonaKey } from './shared';
+import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, torresEnZona, zonaKey } from './shared';
+import { useBuilding } from '../../contexts/BuildingContext';
+import BuildingChip from './BuildingChip';
 
-type ActiveSheet = 'detalle' | 'repuestos' | 'nuevaSolicitud' | 'agregarRepuesto' | 'cambiarEdificio' | null;
-interface NavState { zona?: string; edificioNombre?: string }
+type ActiveSheet = 'detalle' | 'repuestos' | 'nuevaSolicitud' | 'agregarRepuesto' | null;
 interface StagedPhoto { id: string; dataUrl: string }
 
 // EstadoOT has no 'Programada' literal (unlike EstadoVentilacion) — the original PA spec
@@ -45,9 +46,10 @@ const OrdenesTecnicoView: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
-  const navState = (location.state ?? {}) as NavState;
-
+  const { selected, openPicker } = useBuilding();
+  // ponytail: kept as its own fetch (not useBuilding().edificios) — that context list is
+  // Activo-only, while torresEnZona here must also match inactive siblings sharing a zona,
+  // same as before this integration.
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [articulos, setArticulos] = useState<Articulo[]>([]);
@@ -55,11 +57,8 @@ const OrdenesTecnicoView: React.FC = () => {
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [zona, setZona] = useState<string | null>(navState.zona ?? null);
-  const [pickerValue, setPickerValue] = useState('');
+  const zona = selected ? zonaKey(selected) : null;
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const repuestosReqRef = useRef<number | null>(null); // descarta respuestas de un OT ya no seleccionado
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
@@ -110,6 +109,7 @@ const OrdenesTecnicoView: React.FC = () => {
   useEffect(() => {
     if (!zona || edificios.length === 0) { setLoading(false); return; }
     loadOts(zona);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zona, edificios, loadOts]);
 
   // Realtime: silent refetch of the current zone's OTs when they change back-office side.
@@ -118,16 +118,8 @@ const OrdenesTecnicoView: React.FC = () => {
     return api.realtime.subscribe(['ots'], () => { void loadOts(zona, true); });
   }, [zona, loadOts]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [menuOpen]);
-
   const closeSheets = () => { setActiveSheet(null); setSelectedOt(null); };
 
-  const towerOptions = useMemo(() => edificioOptions(edificios.filter((e) => e.status === 'Activo'), zonaKey), [edificios]);
   const solicitudTorreOptions = useMemo(
     () => (zona ? torresEnZona(edificios, zona).sort().map((t) => ({ value: t, label: t })) : []),
     [edificios, zona],
@@ -190,14 +182,6 @@ const OrdenesTecnicoView: React.FC = () => {
     setDetalleText('');
     setStaged([]);
     setActiveSheet('nuevaSolicitud');
-  };
-
-  const handleTowerPick = () => {
-    const ed = edificios.find((e) => String(e.id) === pickerValue);
-    if (!ed) return;
-    setZona(zonaKey(ed));
-    setPickerValue('');
-    setActiveSheet(null);
   };
 
   const handleFinalizar = async (ot: OrdenTrabajo) => {
@@ -314,32 +298,26 @@ const OrdenesTecnicoView: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
+          <button onClick={() => navigate('/tecnico')} aria-label="Volver" title="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Órdenes de Trabajo</h1>
         </div>
-        {zona && (
-          <div className="relative shrink-0" ref={menuRef}>
-            <button onClick={() => setMenuOpen((o) => !o)} aria-label="Más opciones" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
-              <MoreVertical className="h-5 w-5" />
+        <div className="flex items-center gap-1 shrink-0">
+          <BuildingChip />
+          {/* ponytail: gated on `zona` — solicitudTorreOptions is zone-scoped, an empty picker with no building isn't useful. */}
+          {zona && (
+            <button onClick={openNuevaSolicitud} aria-label="Agregar solicitud" title="Agregar solicitud" className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+              <Plus className="h-5 w-5" />
             </button>
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 z-[90] w-52 rounded-md border bg-popover shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors" onClick={() => { setMenuOpen(false); setActiveSheet('cambiarEdificio'); }}>Cambiar edificio</button>
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors" onClick={() => { setMenuOpen(false); openNuevaSolicitud(); }}>Agregar solicitud</button>
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors" onClick={() => { setMenuOpen(false); if (zona) loadOts(zona); }}>Actualizar</button>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {!zona ? (
-        <div className="rounded-lg border bg-card p-4 space-y-3">
-          <p className="text-sm font-medium">Elegí un edificio para ver sus órdenes de trabajo</p>
-          <Select value={pickerValue} onChange={setPickerValue} options={towerOptions} placeholder="Seleccioná un edificio" />
-          <Button className="w-full" disabled={!pickerValue} onClick={handleTowerPick}>Ver órdenes</Button>
+      {!selected ? (
+        <div className="space-y-3">
+          <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver sus órdenes de trabajo." />
+          <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
@@ -361,6 +339,7 @@ const OrdenesTecnicoView: React.FC = () => {
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openRepuestos(ot)}>Repuestos</Button>
                 <button
                   aria-label="Completar orden: repuestos y cierre"
+                  title="Completar orden"
                   onClick={() => openAgregarRepuesto(ot)}
                   className="h-9 w-9 shrink-0 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-400 flex items-center justify-center active:scale-95 transition-transform"
                 >
@@ -371,21 +350,6 @@ const OrdenesTecnicoView: React.FC = () => {
           ))}
         </div>
       )}
-
-      {/* Cambiar edificio */}
-      <BottomSheet
-        isOpen={activeSheet === 'cambiarEdificio'}
-        onClose={() => setActiveSheet(null)}
-        title="Cambiar edificio"
-        footer={
-          <>
-            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
-            <Button className="flex-1" disabled={!pickerValue} onClick={handleTowerPick}>Aceptar</Button>
-          </>
-        }
-      >
-        <Select value={pickerValue} onChange={setPickerValue} options={towerOptions} placeholder="Seleccioná un edificio" />
-      </BottomSheet>
 
       {/* Ver detalle */}
       <BottomSheet isOpen={activeSheet === 'detalle'} onClose={closeSheets} title="Detalle de la orden" subtitle={selectedOt?.concat_activo ?? undefined}>
@@ -474,6 +438,7 @@ const OrdenesTecnicoView: React.FC = () => {
                     />
                     <button
                       aria-label="Asignar repuesto"
+                      title="Asignar repuesto"
                       disabled={!qty || invalid || assigningId !== null}
                       onClick={() => handleAsignarRepuesto(row)}
                       className="h-9 w-9 shrink-0 rounded-md bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50 transition-colors"
@@ -545,6 +510,7 @@ const OrdenesTecnicoView: React.FC = () => {
                   <img src={p.dataUrl} className="h-16 w-16 rounded-md object-cover border" alt="Foto adjunta" />
                   <button
                     aria-label="Quitar foto"
+                    title="Quitar foto"
                     onClick={() => setStaged((prev) => prev.filter((x) => x.id !== p.id))}
                     className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
                   >
