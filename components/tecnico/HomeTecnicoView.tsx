@@ -29,7 +29,7 @@ const TILE_LABELS: Record<string, string> = {
 // Subtítulos de los tiles de módulo (estilo referencia: ícono + título + aclaración).
 const TILE_SUBTITLES: Record<string, string> = {
   OT: 'Tareas del edificio',
-  Activos: 'Máquinas y unidades',
+  Activos: 'Historial de órdenes',
   Ventilaciones: 'Mantenimiento programado',
   Stock: 'Repuestos disponibles',
 };

@@ -50,14 +50,17 @@ const ActivosView: React.FC = () => {
 
   // #11: el edificio (global) ya alcanza para ver algo — antes hacía falta elegir edificio Y
   // unidad. El historial completo del edificio se carga solo; la unidad queda como recorte opcional.
-  const loadOts = useCallback(async (edificioId: number) => {
+  const loadOts = useCallback(async (edificioId: number, edificioNombre: string) => {
     setLoading(true); setLoadError(false);
     try {
       const rows = await api.ots.list();
       const idsUnidad = new Set(unidades.filter((u) => u.edificio_id === edificioId).map((u) => u.id));
+      // Match por unidad (preciso) O por torre = nombre del edificio (robusto). En la data migrada
+      // el `unidad_id` de la OT puede no haberse resuelto (FK por matching), pero `torre` viene como
+      // texto directo — mismo criterio que OrdenesTecnicoView, así no se pierden OTs del edificio.
       setOts(
         rows
-          .filter((o) => o.unidad_id != null && idsUnidad.has(o.unidad_id))
+          .filter((o) => (o.unidad_id != null && idsUnidad.has(o.unidad_id)) || (o.torre != null && o.torre === edificioNombre))
           .sort((a, b) => b.id - a.id), // #12: más nuevas primero
       );
     } catch {
@@ -69,8 +72,10 @@ const ActivosView: React.FC = () => {
   }, [unidades, showToast]);
 
   useEffect(() => {
-    if (!selected || unidades.length === 0) return;
-    void loadOts(selected.id);
+    // Sin guard por `unidades`: el match por torre funciona aunque las unidades no hayan cargado
+    // todavía (o falten en la data); cuando cargan, el efecto re-corre y suma el match por unidad.
+    if (!selected) return;
+    void loadOts(selected.id, selected.nombre);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, unidades]);
 
