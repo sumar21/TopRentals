@@ -594,6 +594,11 @@ export function createSupabaseAdapter(): DataApi {
           if (error) throw error;
           return (data ?? []).map(repuestoOTFromDb);
         },
+        async listAll() {
+          const { data, error } = await getSupabase().from('repuestos_ot').select('*').eq('activo', true);
+          if (error) throw error;
+          return (data ?? []).map(repuestoOTFromDb);
+        },
         async asignarRepuesto({ orden_trabajo_id, articulo_id, edificio_id, cantidad, usuario_id }) {
           const { data, error } = await getSupabase().rpc('ot_asignar_repuesto', {
             p_orden_trabajo_id: orden_trabajo_id,

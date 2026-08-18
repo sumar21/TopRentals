@@ -11,6 +11,7 @@ import Login from './components/Login';
 import HomeView from './components/home/HomeView';
 import StockView from './components/stock/StockView';
 import SalidasStockView from './components/stock/SalidasStockView';
+import ConsumoOTView from './components/stock/ConsumoOTView';
 import OrdenesTrabajoView from './components/ordenes/OrdenesTrabajoView';
 import ComprasView from './components/compras/ComprasView';
 import AprobacionesView from './components/aprobaciones/AprobacionesView';
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/home" element={<HomeView />} />
               <Route path="/stock" element={<RequireModule modulo="Stock"><StockView /></RequireModule>} />
               <Route path="/salidas-stock" element={<RequireModule modulo="Stock"><SalidasStockView /></RequireModule>} />
+              <Route path="/consumo-ot" element={<RequireModule modulo="Stock"><ConsumoOTView /></RequireModule>} />
               <Route path="/ordenes-trabajo" element={<RequireModule modulo="Ordenes de Trabajo"><OrdenesTrabajoView /></RequireModule>} />
               <Route path="/compras" element={<RequireModule modulo="Compras"><ComprasView /></RequireModule>} />
               <Route path="/aprobaciones" element={<RequireModule modulo="Aprobaciones"><AprobacionesView /></RequireModule>} />

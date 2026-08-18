@@ -862,6 +862,10 @@ export function createMockAdapter(): DataApi {
           await sleep();
           return structuredClone(db.repuestosOT.filter((r) => r.orden_trabajo_id === orden_trabajo_id && r.status === 'Activo'));
         },
+        async listAll() {
+          await sleep();
+          return structuredClone(db.repuestosOT.filter((r) => r.status === 'Activo'));
+        },
         async asignarRepuesto({ orden_trabajo_id, articulo_id, edificio_id, cantidad, usuario_id }) {
           await sleep();
           const stockRow = stockRowFor(articulo_id, edificio_id);

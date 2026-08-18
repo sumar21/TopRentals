@@ -186,6 +186,8 @@ export interface DataApi {
 
     repuestos: {
       list(orden_trabajo_id: number): Promise<RepuestoOT[]>;
+      /** Todos los repuestos activos consumidos en cualquier OT — alimenta el reporte "Consumo por OT". */
+      listAll(): Promise<RepuestoOT[]>;
       /** Assigns a spare part to the OT: decrements stock + writes movimientos_stock. */
       asignarRepuesto(input: {
         orden_trabajo_id: number;

@@ -2,7 +2,7 @@
 // Page skeleton per DESIGN.md §4.4 (header + toolbar + loader + mobile cards / desktop table).
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowRightLeft, Package, Pencil, Plus, Search } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Package, Pencil, Plus, Search, Wrench } from 'lucide-react';
 import { Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn } from '../ui/UIComponents';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -126,6 +126,14 @@ const StockView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar artículo o edificio…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
+          <Button
+            variant="secondary"
+            className="h-9 px-3 text-sm gap-1.5 shrink-0"
+            onClick={() => navigate('/consumo-ot')}
+            aria-label="Consumo por OT"
+          >
+            <Wrench className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Consumo OT</span>
+          </Button>
           <Button
             variant="secondary"
             className="h-9 px-3 text-sm gap-1.5 shrink-0"
