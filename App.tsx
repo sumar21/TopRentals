@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom
 import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { BuildingProvider } from './contexts/BuildingContext';
 import { ToastProvider } from './components/ui/Toast';
 import { Loader } from './components/ui/Loader';
 import { canAccessModule, canAccessTecnico, isTecnicoOnly } from './utils/permissions';
@@ -69,7 +70,11 @@ const RequireAdmin = ({ children }: { children: ReactNode }) => {
 const Tecnico = () => {
   const { user } = useAuth();
   if (user && !canAccessTecnico(user.perfil)) return <Navigate to="/home" replace />;
-  return <LayoutTecnico />;
+  return (
+    <BuildingProvider>
+      <LayoutTecnico />
+    </BuildingProvider>
+  );
 };
 
 const RootRedirect = () => {

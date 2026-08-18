@@ -7,8 +7,11 @@ import { LogOut, Monitor, Moon, Sun } from 'lucide-react';
 import { cn } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
+import EdificioPicker from './tecnico/EdificioPicker';
+import BuildingChip from './tecnico/BuildingChip';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useBuilding } from '../contexts/BuildingContext';
 import { canAccessModule, moduleRoute } from '../utils/permissions';
 import { moduleIcon, moduleLabel } from '../config/moduleIcons';
 
@@ -26,6 +29,7 @@ const TECNICO_LABELS: Record<string, string> = {
 const LayoutTecnico = () => {
   const { user, permisos, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { edificios, selected, setSelected, pickerOpen, closePicker } = useBuilding();
   const navigate = useNavigate();
   const [confirmLogout, setConfirmLogout] = useState(false);
 
@@ -54,6 +58,9 @@ const LayoutTecnico = () => {
         <div className="flex h-16 items-center gap-2 border-b px-4">
           <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 shrink-0 rounded-md" />
           <span className="truncate text-sm font-bold tracking-tight">Top Rentals</span>
+        </div>
+        <div className="border-b px-4 py-3">
+          <BuildingChip className="w-full" />
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {entries.map((entry) => {
@@ -113,6 +120,15 @@ const LayoutTecnico = () => {
       </main>
 
       <TooltipHost />
+      <EdificioPicker
+        isOpen={pickerOpen}
+        onClose={closePicker}
+        edificios={edificios}
+        selected={selected}
+        onSelect={setSelected}
+        onLogout={doLogout}
+        forced={selected == null}
+      />
       <ConfirmModal
         isOpen={confirmLogout}
         onClose={() => setConfirmLogout(false)}

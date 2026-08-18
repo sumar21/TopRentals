@@ -31,7 +31,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
   const guardedClose = () => { if (!locked) onClose(); };
   return createPortal(
     <div
-      className={cn('fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4', closing ? 'overlay-exit' : 'overlay-enter')}
+      className={cn('tecnico-theme fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4', closing ? 'overlay-exit' : 'overlay-enter')}
       {...backdropClose(guardedClose)}
     >
       {/* Always a centered card — bottom-anchored sheets fight the phone keyboard on mobile. */}
