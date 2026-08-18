@@ -135,7 +135,7 @@ const ActivosView: React.FC = () => {
       ) : loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
       ) : loadError ? (
-        <LoadErrorState onRetry={() => loadOts(selected.id)} />
+        <LoadErrorState onRetry={() => loadOts(selected.id, selected.nombre)} />
       ) : visible.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="Este edificio no tiene órdenes de trabajo registradas." />
       ) : (
