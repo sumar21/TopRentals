@@ -239,26 +239,24 @@ const HomeTecnicoView: React.FC = () => {
       {selected && (
         <div>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resumen del edificio</h2>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3">
             {kpis.map((kpi) => {
               const Icon = kpi.icon;
               return (
                 <button
                   key={kpi.label}
                   onClick={() => navigate(kpi.route)}
-                  className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm active:scale-[0.98] transition-all text-left"
+                  className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm active:scale-[0.98] transition-all text-left"
                 >
                   <div className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center ${kpi.tone}`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0">
-                    {loadingStats ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <p className="text-2xl font-bold tabular-nums">{kpi.value}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground truncate">{kpi.label}</p>
-                  </div>
+                  <p className="flex-1 text-sm font-medium text-foreground">{kpi.label}</p>
+                  {loadingStats ? (
+                    <Loader2 className="h-5 w-5 shrink-0 animate-spin text-muted-foreground" />
+                  ) : (
+                    <p className="text-2xl font-bold tabular-nums shrink-0">{kpi.value}</p>
+                  )}
                 </button>
               );
             })}
