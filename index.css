@@ -73,6 +73,14 @@
   --ring: 221 83% 53%;
 }
 
+/* La clase `border` (a secas) setea solo el ANCHO; el color por defecto de Tailwind es un
+   gris-200 FIJO (#e5e7eb) que ignora el tema → en oscuro se veía como un rim claro. Atamos
+   el color de borde por defecto al token `--border` para que responda a claro/oscuro en toda
+   la app. Los `border-<color>` explícitos (border-primary, border-red-500…) siguen ganando. */
+@layer base {
+  *, ::before, ::after { border-color: hsl(var(--border)); }
+}
+
 /* Clamp del documento al ancho del viewport: sin esto, un elemento que
    desborda horizontal en mobile hace que un backdrop `fixed inset-0` no
    cubra todo el ancho (queda una franja blanca a la derecha). */
