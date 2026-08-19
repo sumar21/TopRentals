@@ -89,7 +89,7 @@ const EdificioPicker: React.FC<EdificioPickerProps> = ({ isOpen, onClose, edific
   return createPortal(
     <div
       className={cn(
-        'tecnico-theme fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4',
+        'tecnico-theme fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh]',
         closing ? 'overlay-exit' : 'overlay-enter',
       )}
       {...backdropClose(guardedClose)}

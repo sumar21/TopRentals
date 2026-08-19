@@ -50,8 +50,8 @@ const DocumentoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
   const { visible, overlayClass, modalClass } = useModalAnimation(isOpen);
   if (!visible) return null;
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
-      <div className={`${modalClass} bg-background w-full max-w-md max-h-[90vh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(onClose)}>
+      <div className={`${modalClass} bg-background w-full max-w-md max-h-[90dvh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col`}>
         <div className="px-6 py-4 border-b bg-secondary/20"><h2 className="text-lg font-bold tracking-tight">Documento adjunto</h2></div>
         <div className="p-6 overflow-y-auto">
           <EmptyState icon={FileText} title="Documentos disponibles con el backend definitivo" />

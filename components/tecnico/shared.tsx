@@ -31,13 +31,13 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
   const guardedClose = () => { if (!locked) onClose(); };
   return createPortal(
     <div
-      className={cn('tecnico-theme fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4', closing ? 'overlay-exit' : 'overlay-enter')}
+      className={cn('tecnico-theme fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh]', closing ? 'overlay-exit' : 'overlay-enter')}
       {...backdropClose(guardedClose)}
     >
       {/* Always a centered card — bottom-anchored sheets fight the phone keyboard on mobile. */}
       <div
         className={cn(
-          'w-full max-w-md bg-background rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[85dvh] sm:max-h-[90vh]',
+          'w-full max-w-md bg-background rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[85dvh] sm:max-h-[90dvh]',
           closing ? 'animate-out fade-out zoom-out-95 duration-200' : 'animate-in fade-in zoom-in-95 duration-200',
         )}
       >

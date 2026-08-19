@@ -43,7 +43,7 @@ export const SuccessCard: React.FC<SuccessCardProps> = ({ open, title, subtitle,
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={onDismiss}>
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 h-[100dvh] animate-in fade-in duration-200" onClick={onDismiss}>
       <style>{`@keyframes scz-shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}`}</style>
       <div className="bg-background w-full max-w-sm rounded-2xl shadow-2xl border overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         <div className="p-8 flex flex-col items-center text-center">
