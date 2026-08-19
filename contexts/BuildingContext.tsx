@@ -40,13 +40,17 @@ export function BuildingProvider({ children }: { children: ReactNode }) {
         const activos = rows.filter((e) => e.status === 'Activo');
         setEdificios(activos);
 
-        const storedRaw = sessionStorage.getItem(STORAGE_KEY);
+        // Memoria POR USUARIO: sin esto la elección quedaba en una key global que se arrastraba
+        // entre logins de la misma pestaña — un admin/técnico heredaba el edificio del usuario
+        // anterior en vez de ver el selector. Keyeada por id, cada sesión arranca limpia.
+        const key = user ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
+        const storedRaw = sessionStorage.getItem(key);
         const stored = storedRaw != null ? activos.find((e) => e.id === Number(storedRaw)) ?? null : null;
         const seeded = activos.find((e) => e.id === user?.edificio_id) ?? null;
         // Único edificio activo → se autoselecciona (nunca hace falta el picker).
         const initial = stored ?? seeded ?? (activos.length === 1 ? activos[0] : null);
 
-        if (initial) sessionStorage.setItem(STORAGE_KEY, String(initial.id));
+        if (initial) sessionStorage.setItem(key, String(initial.id));
         setSelectedState(initial);
         // Primera entrada sin selección resuelta y con más de un edificio → forzar el picker.
         if (!initial && activos.length > 1) setPickerOpen(true);
@@ -57,8 +61,9 @@ export function BuildingProvider({ children }: { children: ReactNode }) {
 
   const setSelected = useCallback((e: Edificio) => {
     setSelectedState(e);
-    sessionStorage.setItem(STORAGE_KEY, String(e.id));
-  }, []);
+    const key = user ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
+    sessionStorage.setItem(key, String(e.id));
+  }, [user]);
 
   const openPicker = useCallback(() => setPickerOpen(true), []);
   const closePicker = useCallback(() => setPickerOpen(false), []);
