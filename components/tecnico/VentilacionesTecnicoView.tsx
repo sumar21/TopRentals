@@ -261,7 +261,7 @@ const VentilacionesTecnicoView: React.FC = () => {
           <EmptyState icon={Fan} title="Sin ventilaciones asignadas" message="No tenés tareas de ventilación pendientes en este edificio." />
         )
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((v) => {
             const nextDate = v.estado === 'Programada' ? v.fecha_programada : v.proxima_limpieza;
             const canFinalizar = v.estado === 'Programada' && !!v.fecha_programada && v.fecha_programada <= today;

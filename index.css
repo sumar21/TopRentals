@@ -40,8 +40,11 @@
 .dark {
   --background: 216 33% 8%;       /* navy profundo, levantado del negro puro */
   --foreground: 210 20% 96%;
-  --border: 216 22% 24%;          /* rim nítido pero suave, por encima de la card */
-  --input: 216 22% 24%;
+  /* Hairline apenas sobre la card (L=14): la elevación separa la card del fondo, el
+     borde NO debe agregar un rim blanco encima. `--input` sí queda visible aparte para
+     que los campos de formulario no desaparezcan. */
+  --border: 216 16% 17%;
+  --input: 216 18% 26%;
   --ring: 216 16% 48%;
 
   --card: 216 28% 14%;            /* +6 pts de luz sobre el fondo → elevación visible */

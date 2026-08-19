@@ -139,7 +139,7 @@ const ActivosView: React.FC = () => {
       ) : visible.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="Este edificio no tiene órdenes de trabajo registradas." />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((ot) => (
             <div key={ot.id} className="rounded-xl border bg-card p-3.5 shadow-sm">
               <div className="flex items-start justify-between gap-2">

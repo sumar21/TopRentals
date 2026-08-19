@@ -37,8 +37,12 @@ export const TooltipHost: React.FC = () => {
     return () => observer.disconnect();
   }, []);
 
-  // 2) Hover / focus → mostrar el pill.
+  // 2) Hover / focus → mostrar el pill. SOLO en dispositivos con hover real (mouse):
+  // en touch, tocar un botón le da foco + sintetiza `mouseover` sin `mouseout` → el pill
+  // quedaba pegado (feo, sin sentido en mobile). Los tooltips de gráficos son de recharts
+  // (mecanismo aparte) y no dependen de esto.
   useEffect(() => {
+    if (!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return;
     const clearTimer = () => { if (timer.current) { window.clearTimeout(timer.current); timer.current = null; } };
     const hide = () => { clearTimer(); activeEl.current = null; setTip(null); };
     const resolve = (target: HTMLElement | null) => {

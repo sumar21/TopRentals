@@ -171,7 +171,7 @@ const StockTecnicoView: React.FC = () => {
           ) : filteredRows.length === 0 ? (
             <EmptyState icon={Package} title="Sin stock" message="No hay artículos con stock disponible en este edificio." />
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filteredRows.map((row) => (
                 <div key={row.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 shadow-sm">
                   <span className="inline-flex items-center justify-center min-w-[2.25rem] h-7 px-2 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold shrink-0">{row.cantidad}</span>

@@ -326,7 +326,7 @@ const OrdenesTecnicoView: React.FC = () => {
       ) : ots.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="No hay órdenes pendientes, asignadas o programadas en este edificio." />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ots.map((ot) => (
             <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
               <div className="flex items-start justify-between gap-2">
