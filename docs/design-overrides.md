@@ -59,9 +59,16 @@ qué dice el kit, qué hace TopRentals, dónde vive el cambio real y por qué.
 - **TopRentals**: implementado tal cual lo pide el kit.
   - **Tokens**: `tailwind.config.js` pasó TODOS los semánticos (`card/popover/primary/secondary/muted/
     accent/destructive` + `-foreground`) a `hsl(var(--…))` — antes estaban hardcodeados en hex y no
-    invertían. `index.css` define el set completo en `:root` (claro) y lo invierte en `.dark` (paleta zinc;
+    invertían. `index.css` define el set completo en `:root` (claro) y lo invierte en `.dark`;
     `primary` se vuelve blanco, `card/popover` quedan elevados sobre el fondo, y el navy de marca `--brand`
-    se **aclara** — el `#23313E` se pierde sobre fondo oscuro).
+    se **aclara** — el `#23313E` se pierde sobre fondo oscuro.
+  - **Paleta oscura por ELEVACIÓN (no zinc plano)**: la primera versión usaba zinc con `background` L=5%
+    (casi negro puro) y `card` L=10% — solo 5 puntos de diferencia en la zona más oscura, donde el ojo casi
+    no la percibe → las tarjetas se fundían con el fondo (feedback de producto: "no da el contraste"). Se
+    reescribió a un **navy-charcoal escalonado** (hue ~216): `background` L=8%, `card` L=14% (+6 pts, se
+    despega), `popover` L=16% (flota más alto), `border` L=24% (rim sutil). El tinte navy da cohesión con la
+    marca y "más impacto", inspirado en dashboards dark modernos. Es UN cambio de tokens → se propaga a toda
+    la app (mobile + desktop, back-office + técnico) sin tocar componentes.
   - **Mecanismo**: `contexts/ThemeContext.tsx` (persist en `localStorage['toprentals-theme']`, aplica la clase
     `dark` en `<html>`); un script anti-flash en `index.html` la aplica ANTES del primer paint (sin destello).
   - **Toggle**: ícono luna/sol arriba de "Cerrar sesión" en la sidebar (back-office `Layout.tsx` desktop +

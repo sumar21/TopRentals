@@ -32,33 +32,35 @@
   --brand-foreground: 0 0% 100%;
 }
 
-/* ── Tema OSCURO (paleta zinc; se activa con la clase `dark` en <html>, ver ThemeContext). ──
-   primary se invierte a blanco; card/popover quedan elevados sobre el fondo; el navy de marca se
-   aclara para seguir siendo visible sobre superficies oscuras. */
+/* ── Tema OSCURO (navy-charcoal elevado por capas; se activa con la clase `dark` en <html>). ──
+   NO negro puro: el fondo es navy profundo y las superficies suben por ELEVACIÓN — card 6 puntos
+   de luz por encima del fondo (se despega, no se funde), popover/modales aún más arriba (flotan),
+   borde como rim sutil. El tinte navy (hue ~216) da cohesión con la marca. primary se invierte a
+   blanco; el navy de marca `--brand` se aclara para seguir visible sobre superficies oscuras. */
 .dark {
-  --background: 240 10% 5%;
-  --foreground: 0 0% 95%;
-  --border: 240 4% 18%;
-  --input: 240 4% 18%;
-  --ring: 240 5% 45%;
+  --background: 216 33% 8%;       /* navy profundo, levantado del negro puro */
+  --foreground: 210 20% 96%;
+  --border: 216 22% 24%;          /* rim nítido pero suave, por encima de la card */
+  --input: 216 22% 24%;
+  --ring: 216 16% 48%;
 
-  --card: 240 6% 10%;
-  --card-foreground: 0 0% 95%;
-  --popover: 240 6% 10%;
-  --popover-foreground: 0 0% 95%;
+  --card: 216 28% 14%;            /* +6 pts de luz sobre el fondo → elevación visible */
+  --card-foreground: 210 20% 96%;
+  --popover: 216 30% 16%;         /* flota más alto que la card */
+  --popover-foreground: 210 20% 96%;
   --primary: 0 0% 98%;
-  --primary-foreground: 240 6% 10%;
-  --secondary: 240 4% 16%;
+  --primary-foreground: 216 30% 10%;
+  --secondary: 216 20% 19%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 240 4% 16%;
-  --muted-foreground: 240 5% 65%;
-  --accent: 240 4% 18%;
+  --muted: 216 19% 18%;
+  --muted-foreground: 215 16% 66%;
+  --accent: 216 20% 21%;
   --accent-foreground: 0 0% 98%;
   --destructive: 0 62% 50%;
   --destructive-foreground: 0 0% 98%;
 
   --brand: 209 45% 58%;           /* navy aclarado para contraste en oscuro */
-  --brand-foreground: 240 10% 5%;
+  --brand-foreground: 216 33% 8%;
 }
 
 /* Technician module accent — celeste, scoped so it never leaks into the back-office. */
@@ -106,8 +108,8 @@ body { margin: 0; padding: 0; overflow-x: hidden; max-width: 100vw; }
 .kaut-tooltip { animation: tooltip-in 120ms ease-out both; }
 
 /* ── Scrollbar en oscuro (el thumb claro de index.html no se ve sobre fondo oscuro) ── */
-.dark ::-webkit-scrollbar-thumb { background: #3f3f46; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+.dark ::-webkit-scrollbar-thumb { background: #2f3d4e; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #435368; }
 
 /* ── Swap de tema INSTANTÁNEO ────────────────────────────────────────────────────────
    Sin esto, al togglear `.dark` los cientos de elementos con `transition-colors` (cada fila
