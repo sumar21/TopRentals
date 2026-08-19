@@ -229,8 +229,11 @@ const HomeView: React.FC = () => {
                 return (
                   <div key={key} className="flex flex-col gap-2 min-w-0 min-h-0">
                     <ColumnHeader title={title} count={items.length} column={key} />
-                    {/* Columna = superficie sutil que recede (no otra card): evita el "card dentro de otra caja". */}
-                    <div className="rounded-lg bg-muted/20 p-2 flex flex-col gap-2 min-h-[10rem] md:h-full overflow-y-auto">
+                    {/* Columna = superficie sutil que recede (no otra card): evita el "card dentro de otra caja".
+                        En claro `bg-muted/20` sobre blanco es casi invisible; en oscuro se levantaría lo
+                        suficiente para leerse como caja, así que ahí la columna es transparente (las cards ya
+                        se despegan del fondo por elevación) y el efecto percibido es el mismo en ambos temas. */}
+                    <div className="rounded-lg bg-muted/20 dark:bg-transparent p-2 flex flex-col gap-2 min-h-[10rem] md:h-full overflow-y-auto">
                       {items.length === 0 ? <ColumnEmpty label={title.toLowerCase()} /> : items.map(renderCard)}
                     </div>
                   </div>
