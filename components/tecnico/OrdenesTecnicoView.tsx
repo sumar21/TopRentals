@@ -24,7 +24,7 @@ import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
 import { formatDate, todayISO } from '../../utils/dates';
 import { capitalizeFirst } from '../../utils/strings';
-import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, torresEnZona, zonaKey } from './shared';
+import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, iconBtnPrimary, torresEnZona, zonaKey } from './shared';
 import { useBuilding } from '../../contexts/BuildingContext';
 import BuildingChip from './BuildingChip';
 
@@ -36,7 +36,7 @@ interface StagedPhoto { id: string; dataUrl: string }
 const OT_STATUSES: OrdenTrabajo['status'][] = ['Pendiente', 'Asignada'];
 
 const DetailRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="flex items-center justify-between gap-3">
+  <div className="flex items-center justify-between gap-3 px-3 py-2">
     <dt className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">{label}</dt>
     <dd className="text-sm text-right">{value}</dd>
   </div>
@@ -303,11 +303,11 @@ const OrdenesTecnicoView: React.FC = () => {
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Órdenes de Trabajo</h1>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <BuildingChip />
           {/* ponytail: gated on `zona` — solicitudTorreOptions is zone-scoped, an empty picker with no building isn't useful. */}
           {zona && (
-            <button onClick={openNuevaSolicitud} aria-label="Agregar solicitud" title="Agregar solicitud" className="p-2 rounded-full text-primary hover:bg-primary/10 transition-colors">
+            <button onClick={openNuevaSolicitud} aria-label="Agregar solicitud" title="Agregar solicitud" className={iconBtnPrimary}>
               <Plus className="h-5 w-5" />
             </button>
           )}
@@ -354,23 +354,30 @@ const OrdenesTecnicoView: React.FC = () => {
       {/* Ver detalle */}
       <BottomSheet isOpen={activeSheet === 'detalle'} onClose={closeSheets} title="Detalle de la orden" subtitle={selectedOt?.concat_activo ?? undefined}>
         {selectedOt && (
-          <dl className="space-y-3">
-            <DetailRow label="Torre" value={selectedOt.torre ?? '—'} />
-            <DetailRow label="Departamento" value={selectedOt.departamento ?? '—'} />
-            <DetailRow label="Fecha asignada" value={formatDate(selectedOt.fecha_asignada) || '—'} />
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-xs text-muted-foreground uppercase tracking-wide">Prioridad</dt>
-              <dd><StatusBadge status={selectedOt.prioridad} /></dd>
+          <div className="space-y-4">
+            {/* Prioridad destacada arriba de todo (antes iba perdida en el medio de la lista). */}
+            <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prioridad</span>
+              <StatusBadge status={selectedOt.prioridad} />
             </div>
-            <DetailRow label="Requiere parada de equipo" value={capitalizeFirst(selectedOt.tipo_prioridad) || '—'} />
-            <DetailRow label="Tipo de trabajo" value={capitalizeFirst(selectedOt.tipo_trabajo) || '—'} />
-            <DetailRow label="Días estimado" value={selectedOt.dias_estimado != null ? String(selectedOt.dias_estimado) : '—'} />
-            <DetailRow label="Personas requeridas" value={selectedOt.personas_requeridas != null ? String(selectedOt.personas_requeridas) : '—'} />
+            {/* Datos de la orden en un recuadro con divisores. */}
+            <dl className="divide-y rounded-lg border">
+              <DetailRow label="Torre" value={selectedOt.torre ?? '—'} />
+              <DetailRow label="Departamento" value={selectedOt.departamento ?? '—'} />
+              <DetailRow label="Fecha asignada" value={formatDate(selectedOt.fecha_asignada) || '—'} />
+              <DetailRow label="Requiere parada de equipo" value={capitalizeFirst(selectedOt.tipo_prioridad) || '—'} />
+              <DetailRow label="Tipo de trabajo" value={capitalizeFirst(selectedOt.tipo_trabajo) || '—'} />
+              <DetailRow label="Días estimado" value={selectedOt.dias_estimado != null ? String(selectedOt.dias_estimado) : '—'} />
+              <DetailRow label="Personas requeridas" value={selectedOt.personas_requeridas != null ? String(selectedOt.personas_requeridas) : '—'} />
+            </dl>
+            {/* Observación en su propio campo recuadrado. */}
             <div>
-              <dt className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Detalle</dt>
-              <dd className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt.detalle) || 'Sin detalle.'}</dd>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Observación</p>
+              <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+                <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt.detalle) || 'Sin observación.'}</p>
+              </div>
             </div>
-          </dl>
+          </div>
         )}
       </BottomSheet>
 

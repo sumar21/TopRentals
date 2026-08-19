@@ -2,7 +2,7 @@
 // docs/analysis/mobile_Detalle_Activos.md react_mapping.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Filter, ClipboardList, Building2 } from 'lucide-react';
+import { ArrowLeft, Filter, ClipboardList, Building2, FileText, Wrench } from 'lucide-react';
 import { Button, Badge } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -117,7 +117,7 @@ const ActivosView: React.FC = () => {
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Activos</h1>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <BuildingChip />
           {selected && (
             <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setActiveSheet('filter')}>
@@ -141,17 +141,28 @@ const ActivosView: React.FC = () => {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((ot) => (
-            <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-1.5">
+            <div key={ot.id} className="rounded-xl border bg-card p-3.5 shadow-sm">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold truncate">{ot.torre} - {ot.departamento} {ot.problema ? `| ${ot.problema}` : ''}</p>
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Building2 className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{ot.torre} - {ot.departamento}{ot.problema ? ` | ${ot.problema}` : ''}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {usuariosMap.get(ot.tecnico_id ?? -1) ?? 'Sin técnico asignado'} · {formatDate(ot.fecha_asignada ?? ot.fecha_inicio ?? ot.created_at) || 'Sin fecha'}
+                    </p>
+                  </div>
+                </div>
                 <StatusBadge status={ot.status} />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {usuariosMap.get(ot.tecnico_id ?? -1) ?? 'Sin técnico asignado'} · {formatDate(ot.fecha_asignada ?? ot.fecha_inicio ?? ot.created_at) || 'Sin fecha'}
-              </p>
-              <div className="flex items-center gap-4 pt-1">
-                <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => openObs(ot)}>Ver observación</button>
-                <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => openRepuestos(ot)}>Ver repuestos</button>
+              <div className="mt-2.5 flex items-center gap-1.5 border-t pt-2.5">
+                <button onClick={() => openObs(ot)} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
+                  <FileText className="h-3.5 w-3.5" />Ver observación
+                </button>
+                <button onClick={() => openRepuestos(ot)} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
+                  <Wrench className="h-3.5 w-3.5" />Ver repuestos
+                </button>
               </div>
             </div>
           ))}
@@ -185,7 +196,9 @@ const ActivosView: React.FC = () => {
         subtitle={selectedOt?.concat_activo ?? undefined}
         footer={<Button className="flex-1" onClick={() => setActiveSheet(null)}>Cerrar</Button>}
       >
-        <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt?.detalle) || 'Sin observaciones.'}</p>
+        <div className="min-h-[6rem] rounded-lg border bg-muted/20 px-3 py-2.5">
+          <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt?.detalle) || 'Sin observaciones.'}</p>
+        </div>
       </BottomSheet>
 
       {/* Ver repuestos */}

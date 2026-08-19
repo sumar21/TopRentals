@@ -56,7 +56,7 @@ const LayoutTecnico = () => {
           <span className="truncate text-sm font-bold tracking-tight">Top Rentals</span>
         </div>
         <div className="border-b px-4 py-3">
-          <BuildingChip className="w-full" />
+          <BuildingChip className="w-full" showLabel />
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {entries.map((entry) => {

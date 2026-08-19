@@ -16,7 +16,7 @@ import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Unidad, Ventilacion } from '../../services/types.ts';
 import { formatDate, todayISO } from '../../utils/dates';
-import { BottomSheet, edificioOptions, fileToCompressedDataUrl, torresEnZona, zonaKey } from './shared';
+import { BottomSheet, edificioOptions, fileToCompressedDataUrl, iconBtnOutline, iconBtnPrimary, torresEnZona, zonaKey } from './shared';
 import BuildingChip from './BuildingChip';
 
 type ActiveSheet = 'programar' | 'finalizar' | 'adelantar' | 'agregar' | null;
@@ -229,12 +229,12 @@ const VentilacionesTecnicoView: React.FC = () => {
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Ventilaciones</h1>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <BuildingChip />
-          <button onClick={openAgregar} aria-label="Agregar ventilación" title="Agregar ventilación" disabled={!selected} className="p-2 rounded-full text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:pointer-events-none">
+          <button onClick={openAgregar} aria-label="Agregar ventilación" title="Agregar ventilación" disabled={!selected} className={iconBtnPrimary}>
             <Plus className="h-5 w-5" />
           </button>
-          <button onClick={openAdelantar} aria-label="Adelantar ventilación" title="Adelantar ventilación" className="p-2 rounded-full text-primary hover:bg-primary/10 transition-colors">
+          <button onClick={openAdelantar} aria-label="Adelantar ventilación" title="Adelantar ventilación" className={iconBtnOutline}>
             <FastForward className="h-5 w-5" />
           </button>
         </div>
@@ -267,9 +267,13 @@ const VentilacionesTecnicoView: React.FC = () => {
             const canFinalizar = v.estado === 'Programada' && !!v.fecha_programada && v.fecha_programada <= today;
             return (
               <div key={v.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <EstadoVentilacionCell v={v} />
-                  <div className="flex items-center gap-1.5">
+                {/* Edificio + estado en la misma línea de arriba; luego unidad y próxima fecha. */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="text-base font-bold text-foreground truncate">{v.edificio}</p>
+                    <EstadoVentilacionCell v={v} />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <button aria-label="Programar" title="Programar" onClick={() => openProgramar(v)} className="h-8 w-8 rounded-md bg-primary text-primary-foreground flex items-center justify-center">
                       <Calendar className="h-4 w-4" />
                     </button>
@@ -280,7 +284,6 @@ const VentilacionesTecnicoView: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <p className="text-base font-bold uppercase text-foreground truncate">{v.edificio}</p>
                 <p className="text-sm text-muted-foreground">{v.habitacion}</p>
                 <p className="text-sm font-semibold text-brand">
                   {v.estado === 'Programada' ? 'Programada' : 'Próxima'}: {formatDate(nextDate) || 'Sin fecha'}

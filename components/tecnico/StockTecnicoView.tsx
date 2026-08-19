@@ -17,7 +17,7 @@ import { api } from '../../services/index.ts';
 import type { Articulo, Edificio } from '../../services/types.ts';
 import { articuloLabel } from '../../utils/articulos';
 import type { StockRowWithEdificios } from '../../services/api.ts';
-import { BottomSheet, edificioIdsEnGrupoStock } from './shared';
+import { BottomSheet, edificioIdsEnGrupoStock, iconBtnPrimary } from './shared';
 import { useBuilding } from '../../contexts/BuildingContext';
 import BuildingChip from './BuildingChip';
 
@@ -142,10 +142,10 @@ const StockTecnicoView: React.FC = () => {
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">{selected ? `Edificio: ${selected.nombre}` : 'Stock'}</h1>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <BuildingChip />
           {selected && (
-            <button onClick={() => setActiveSheet('add')} aria-label="Agregar stock" title="Agregar stock" className="p-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <button onClick={() => setActiveSheet('add')} aria-label="Agregar stock" title="Agregar stock" className={iconBtnPrimary}>
               <Plus className="h-5 w-5" />
             </button>
           )}

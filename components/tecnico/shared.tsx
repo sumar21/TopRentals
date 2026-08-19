@@ -51,12 +51,22 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">{children}</div>
-        {footer && <div className="p-3 border-t bg-muted/20 flex flex-col sm:flex-row gap-2 shrink-0">{footer}</div>}
+        {/* Botones siempre en el mismo renglón (Cancelar/Aceptar) — no se apilan en mobile. */}
+        {footer && <div className="p-3 border-t bg-muted/20 flex flex-row gap-2 shrink-0">{footer}</div>}
       </div>
     </div>,
     document.body,
   );
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// Header action icon-buttons — un único cuadrado (36×36, rounded-lg) para que TODOS
+// los headers del módulo técnico se vean iguales. `primary` = CTA relleno celeste
+// (agregar, cambiar edificio); `outline` = acción secundaria (adelantar, etc.).
+// ────────────────────────────────────────────────────────────────────────────
+const iconBtnBase = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none';
+export const iconBtnPrimary = `${iconBtnBase} bg-primary text-primary-foreground shadow-sm hover:bg-primary/90`;
+export const iconBtnOutline = `${iconBtnBase} border border-input text-primary hover:bg-primary/10 hover:border-primary/40`;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Repuestos display grouping — repuestos_ot stays append-only; this only affects rendering.
