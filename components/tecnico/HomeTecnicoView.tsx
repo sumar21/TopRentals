@@ -2,13 +2,14 @@
 // docs/analysis/mobile_Home_Tecnico.md react_mapping.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Wrench, ClipboardList, Fan, AlertTriangle, CalendarClock, Loader2, type LucideIcon } from 'lucide-react';
+import { LogOut, Wrench, ClipboardList, Fan, AlertTriangle, CalendarClock, Loader2, Sun, Moon, Monitor, type LucideIcon } from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
 import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Edificio, OrdenTrabajo } from '../../services/types.ts';
@@ -49,6 +50,7 @@ const HomeTecnicoView: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { edificios: edificiosGlobal, selected, setSelected } = useBuilding();
+  const { theme, toggleTheme } = useTheme();
 
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
@@ -139,14 +141,34 @@ const HomeTecnicoView: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <BuildingChip />
-        <button
-          onClick={() => setConfirmLogout(true)}
-          aria-label="Cerrar sesión"
-          title="Cerrar sesión"
-          className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors"
-        >
-          <LogOut className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+          {user?.perfil === 'Admin' && (
+            <button
+              onClick={() => navigate('/home')}
+              aria-label="Ir al escritorio"
+              title="Ir al escritorio"
+              className="p-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors"
+            >
+              <Monitor className="h-5 w-5" />
+            </button>
+          )}
+          <button
+            onClick={() => setConfirmLogout(true)}
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+            className="p-2 rounded-full text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       <div>
