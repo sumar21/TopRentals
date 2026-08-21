@@ -9,6 +9,7 @@ import type {
   Aprobacion,
   Articulo,
   Bitacora,
+  FotoBitacora,
   Compra,
   DetalleCompra,
   Documento,
@@ -182,6 +183,9 @@ export interface DataApi {
     bitacoras: {
       list(orden_trabajo_id: number): Promise<Bitacora[]>;
       crear(input: { orden_trabajo_id: number; descripcion: string; usuario_id: number; foto_path?: string }): Promise<Bitacora>;
+      /** Fotos adjuntas a las bitácoras de una OT (list() solo trae texto). Se leen aparte para
+       *  poder mostrarlas al reabrir — el foto_path puede ser un storage key o un dataURL base64. */
+      fotos(orden_trabajo_id: number): Promise<FotoBitacora[]>;
     };
 
     repuestos: {

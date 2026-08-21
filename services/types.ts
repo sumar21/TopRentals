@@ -352,6 +352,8 @@ export interface Ventilacion {
   version_asignado: string | null;
   fecha_finalizacion: string | null;
   version_resuelto: string | null;
+  /** Storage key OR base64 dataURL de la foto de cierre (finalizar_ventilacion la guarda acá). */
+  foto_path?: string | null;
   es_incidente: boolean;
   orden: number | null;
 }

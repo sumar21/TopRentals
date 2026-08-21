@@ -855,6 +855,10 @@ export function createMockAdapter(): DataApi {
           }
           return structuredClone(row);
         },
+        async fotos(orden_trabajo_id) {
+          await sleep();
+          return structuredClone(db.fotosBitacora.filter((f) => f.orden_trabajo_id === orden_trabajo_id));
+        },
       },
 
       repuestos: {
@@ -994,18 +998,8 @@ export function createMockAdapter(): DataApi {
         };
         db.ventilaciones.push(siguiente);
         void usuario_id; // mock has no per-user audit column on ventilaciones; kept for API symmetry with other domains
-        if (foto_path) {
-          db.documentos.push({
-            id: nextId(db.documentos),
-            nombre: foto_path.split('/').pop() ?? foto_path,
-            storage_path: `ventilaciones/${id}/${foto_path}`,
-            carpeta: 'Ordenes',
-            orden_trabajo_id: null,
-            compra_id: null,
-            content_type: 'image/jpeg',
-            created_at: nowIso(),
-          });
-        }
+        // Igual que finalizar_ventilacion() en Postgres: la foto de cierre se guarda en la fila.
+        if (foto_path) row.foto_path = foto_path;
         return { cerrada: structuredClone(row), siguiente: structuredClone(siguiente) };
       },
       async adelantar({ id, obs_adelanto }) {

@@ -320,6 +320,7 @@ export const ventilacionFromDb = (r: Row): Ventilacion => ({
   version_asignado: r.version_asignado ?? null,
   fecha_finalizacion: r.fecha_finalizacion ?? null,
   version_resuelto: r.version_resuelto ?? null,
+  foto_path: r.foto_path ?? null,
   es_incidente: bool(r.es_incidente),
   orden: num(r.orden),
 });

@@ -582,6 +582,17 @@ export function createSupabaseAdapter(): DataApi {
           if (error) throw error;
           return selectOneRequired('bitacoras', Number(data), bitacoraFromDb);
         },
+        async fotos(orden_trabajo_id) {
+          const { data, error } = await getSupabase().from('fotos_bitacora').select('*').eq('orden_trabajo_id', orden_trabajo_id);
+          if (error) throw error;
+          return (data ?? []).map((r) => ({
+            id: Number(r.id),
+            orden_trabajo_id: r.orden_trabajo_id == null ? null : Number(r.orden_trabajo_id),
+            bitacora_id: r.bitacora_id == null ? null : Number(r.bitacora_id),
+            foto_path: r.foto_path,
+            created_at: r.created_at,
+          }));
+        },
       },
 
       repuestos: {

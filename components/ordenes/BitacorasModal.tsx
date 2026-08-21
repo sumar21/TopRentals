@@ -27,12 +27,10 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ponytail: DataApi.ots.bitacoras.list() returns only Bitacora rows — there is no
-  // endpoint that joins back the FotoBitacora row created alongside an entry, so a
-  // saved photo can't be re-fetched after a reload. Photos are shown only for entries
-  // added in this session (kept in `sessionFotos` below). Upgrade path: extend
-  // ots.bitacoras.list() to embed foto_path once the real backend lands (services/*
-  // is out of scope for this module).
+  // Fotos guardadas: se re-leen con api.ots.bitacoras.fotos() al abrir (keyed por bitacora_id).
+  // `sessionFotos` cubre la ventana entre "agregué una" y el próximo refetch. El foto_path puede
+  // ser un dataURL base64 (lo que sube la app) → se renderiza directo con <img>.
+  const [fotos, setFotos] = useState<Record<number, string>>({});
   const [sessionFotos, setSessionFotos] = useState<Record<number, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
 
@@ -49,8 +47,17 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
     setDescripcion('');
     setFotoUrl('');
     setSessionFotos({});
+    setFotos({});
     setLoading(true);
-    api.ots.bitacoras.list(ot.id).then(setBitacoras).catch(() => setError('No se pudieron cargar las bitácoras.')).finally(() => setLoading(false));
+    Promise.all([api.ots.bitacoras.list(ot.id), api.ots.bitacoras.fotos(ot.id)])
+      .then(([bs, fs]) => {
+        setBitacoras(bs);
+        const map: Record<number, string> = {};
+        for (const f of fs) if (f.bitacora_id != null) map[f.bitacora_id] = f.foto_path;
+        setFotos(map);
+      })
+      .catch(() => setError('No se pudieron cargar las bitácoras.'))
+      .finally(() => setLoading(false));
   }, [isOpen, ot]);
 
   const handleFile = async (file: File | null | undefined) => {
@@ -112,9 +119,9 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
             <ul className="space-y-2">
               {bitacoras.map((b) => (
                 <li key={b.id} className="rounded-lg border bg-card p-3 flex gap-3">
-                  {sessionFotos[b.id] && (
-                    <button type="button" onClick={() => setLightbox(sessionFotos[b.id])} className="shrink-0">
-                      <img src={sessionFotos[b.id]} alt="" className="h-12 w-12 rounded-md object-cover border" />
+                  {(fotos[b.id] ?? sessionFotos[b.id]) && (
+                    <button type="button" onClick={() => setLightbox(fotos[b.id] ?? sessionFotos[b.id])} className="shrink-0">
+                      <img src={fotos[b.id] ?? sessionFotos[b.id]} alt="" loading="lazy" className="h-12 w-12 rounded-md object-cover border" />
                     </button>
                   )}
                   <div className="min-w-0 flex-1">

@@ -3,7 +3,7 @@
 // via the `readOnly` prop, to avoid a second near-identical modal component.
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Loader2, Paperclip, Save, Upload, X } from 'lucide-react';
+import { AlertCircle, FileText, Loader2, Paperclip, Save, Upload, X } from 'lucide-react';
 import { Button, useModalAnimation } from '../ui/UIComponents';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
@@ -14,7 +14,7 @@ import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import { APP_VERSION } from '../../config/appVersion';
 import { todayISO } from '../../utils/dates';
-import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
+import type { Documento, Edificio, OrdenTrabajo, Unidad } from '../../services/types';
 import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TAREA_OPTIONS, TIPO_TRABAJO_OPTIONS } from './otHelpers';
 
 interface StagedPhoto { id: string; file: File; url: string; }
@@ -45,6 +45,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
   const [personasRequeridas, setPersonasRequeridas] = useState('');
   const [detalle, setDetalle] = useState('');
   const [fotos, setFotos] = useState<StagedPhoto[]>([]);
+  const [savedDocs, setSavedDocs] = useState<{ doc: Documento; url: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -81,6 +82,17 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
   // Staged photos are uploaded to Storage on create (handleSubmit → api.documentos.crear,
   // carpeta 'Ordenes', attached to the new OT). This effect just revokes the preview object URLs.
   useEffect(() => () => fotos.forEach((f) => URL.revokeObjectURL(f.url)), [fotos]);
+
+  // Documentos YA subidos de esta OT: se leen y se firman (bucket privado) para poder verlos.
+  useEffect(() => {
+    if (!isOpen || !ot) { setSavedDocs([]); return; }
+    let cancelled = false;
+    api.documentos.list({ orden_trabajo_id: ot.id })
+      .then((rows) => Promise.all(rows.map(async (d) => ({ doc: d, url: await api.documentos.url(d.storage_path) }))))
+      .then((withUrls) => { if (!cancelled) setSavedDocs(withUrls); })
+      .catch(() => { if (!cancelled) setSavedDocs([]); });
+    return () => { cancelled = true; };
+  }, [isOpen, ot]);
 
   const edificioOptions = useMemo(() => edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: String(e.id) })), [edificios]);
   const unidadOptions = useMemo(
@@ -236,7 +248,26 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> Adjuntar archivos</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> {readOnly ? 'Archivos adjuntos' : 'Adjuntar archivos'}</label>
+            {/* Adjuntos ya subidos (galería read-only, siempre visible). Bucket privado → signed URL. */}
+            {savedDocs.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {savedDocs.map(({ doc, url }) =>
+                  (doc.content_type ?? '').startsWith('image/') ? (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="block active:scale-95 transition-transform">
+                      <img src={url} alt={doc.nombre} loading="lazy" className="h-16 w-16 rounded-md object-cover border" />
+                    </a>
+                  ) : (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate max-w-[10rem]">{doc.nombre}</span>
+                    </a>
+                  ),
+                )}
+              </div>
+            ) : readOnly ? (
+              <p className="text-sm text-muted-foreground">Sin archivos adjuntos.</p>
+            ) : null}
             {!readOnly && (
               <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
                 className="flex flex-col items-center justify-center gap-1.5 h-24 rounded-lg border-2 border-dashed border-input bg-muted/10 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors text-center">

@@ -2,7 +2,8 @@
 // See docs/analysis/desktop_Screen_Ventilaciones.md. Horizonte por defecto: <=90 días
 // (paridad con el DateDiff de la PA original); el filtro de mes permite ampliarlo.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Trash2, UserCheck, TriangleAlert, Fan } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Search, Plus, Trash2, UserCheck, TriangleAlert, Fan, Eye, X } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import type { Edificio, Frecuencia, Perfil, Unidad, Usuario, Ventilacion } from '../../services/types.ts';
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input } from '../ui/UIComponents';
@@ -69,6 +70,7 @@ const VentilacionesView: React.FC = () => {
   const [crearOpen, setCrearOpen] = useState(false);
   const [asignarTarget, setAsignarTarget] = useState<Ventilacion | null>(null);
   const [eliminarTarget, setEliminarTarget] = useState<Ventilacion | null>(null);
+  const [detalleTarget, setDetalleTarget] = useState<Ventilacion | null>(null);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -111,6 +113,9 @@ const VentilacionesView: React.FC = () => {
       if (edificiosSel.length > 0 && !edificiosSel.includes(v.edificio ?? '')) return false;
       const rel = fechaRelevante(v);
       if (mesesSel.length > 0) return rel ? mesesSel.includes(mesLabel(rel)) : false;
+      // Una Programada tiene la fecha puesta a mano por el usuario → siempre visible, aunque caiga
+      // más allá del horizonte de 90 días. Sin esto, programar p.ej. 30/11 la hacía "desaparecer". #14
+      if (v.estado === 'Programada') return true;
       // sin filtro de mes: horizonte por defecto (paridad con la PA original)
       return rel ? diasHasta(rel) <= HORIZONTE_DIAS : true;
     })
@@ -142,6 +147,9 @@ const VentilacionesView: React.FC = () => {
     const canManage = user && puedeGestionar(user.perfil);
     return (
       <div className="flex justify-end gap-1">
+        <Button variant="ghost" size="icon" aria-label="Ver detalle" title="Ver detalle" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setDetalleTarget(v)}>
+          <Eye className="h-4 w-4" />
+        </Button>
         {FEATURES.asignarVentilacionDesktop && canManage && (
           <Button variant="ghost" size="icon" aria-label="Asignar" title="Asignar" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setAsignarTarget(v)}>
             <UserCheck className="h-4 w-4" />
@@ -277,7 +285,74 @@ const VentilacionesView: React.FC = () => {
         variant="danger"
         icon={<Trash2 className="h-6 w-6" />}
       />
+
+      {detalleTarget && (
+        <VentilacionDetalleModal ventilacion={detalleTarget} onClose={() => setDetalleTarget(null)} />
+      )}
     </div>
+  );
+};
+
+const VentDetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+  <div className="flex items-start justify-between gap-3 px-3 py-2">
+    <dt className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">{label}</dt>
+    <dd className="text-sm text-right">{value}</dd>
+  </div>
+);
+
+// Detalle read-only de una ventilación: estado, fechas, observaciones y la foto de cierre.
+// La foto_path suele ser un dataURL base64 (lo que sube el técnico al finalizar) → <img> directo.
+const VentilacionDetalleModal: React.FC<{ ventilacion: Ventilacion; onClose: () => void }> = ({ ventilacion: v, onClose }) => {
+  const [lightbox, setLightbox] = useState(false);
+  const obs = v.obs_resuelto?.trim() || v.obs_adelanto?.trim() || '';
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh]" onClick={onClose}>
+      <div className="bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">Detalle de ventilación</h2>
+            <p className="text-xs text-muted-foreground">{v.edificio || '-'} · {v.habitacion || '-'}</p>
+          </div>
+          <button onClick={onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+            <X className="h-5 w-5 text-muted-foreground" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</span>
+            <EstadoVentilacionCell v={v} />
+          </div>
+          <dl className="divide-y rounded-lg border">
+            <VentDetailRow label="Última limpieza" value={formatDate(v.fecha_ultima) || 'Primera Vez'} />
+            <VentDetailRow label="Próxima / Programada" value={formatDate(v.fecha_programada ?? v.proxima_limpieza) || '—'} />
+            {v.fecha_finalizacion && <VentDetailRow label="Finalizada" value={formatDate(v.fecha_finalizacion)} />}
+          </dl>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Observaciones</p>
+            <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+              <p className="text-sm whitespace-pre-wrap">{obs || 'Sin observaciones.'}</p>
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Foto</p>
+            {v.foto_path ? (
+              <button type="button" onClick={() => setLightbox(true)} className="block active:scale-95 transition-transform">
+                <img src={v.foto_path} alt="Foto de la ventilación" loading="lazy" className="h-28 w-28 rounded-md object-cover border" />
+              </button>
+            ) : (
+              <p className="text-sm text-muted-foreground">Sin foto.</p>
+            )}
+          </div>
+        </div>
+      </div>
+      {lightbox && v.foto_path && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(false)}>
+          <img src={v.foto_path} alt="" className="max-h-full max-w-full rounded-lg" />
+        </div>,
+        document.body,
+      )}
+    </div>,
+    document.body,
   );
 };
 
