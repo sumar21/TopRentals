@@ -353,13 +353,16 @@ const OrdenesTecnicoView: React.FC = () => {
           {ots.map((ot) => (
             <div key={ot.id} className="flex h-full flex-col rounded-lg border bg-card p-3 shadow-sm space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold">{ot.torre} - {ot.departamento}</p>
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <p className="text-sm font-semibold truncate">{ot.torre} - {ot.departamento}</p>
+                  {/* Réplica en la línea del título (no en un renglón propio) para que la tarjeta no crezca. */}
+                  {ot.orden_revision_id != null && (
+                    <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap shrink-0" title={`Réplica de OT #${ot.orden_revision_id}`}>↩ #{ot.orden_revision_id}</span>
+                  )}
+                </div>
                 <StatusBadge status={ot.prioridad} />
               </div>
               <p className="text-xs text-muted-foreground">{capitalizeFirst(ot.tipo_trabajo) || 'Sin tipo'} | {formatDate(ot.fecha_asignada) || 'Sin fecha'}</p>
-              {ot.orden_revision_id != null && (
-                <p className="text-[11px] font-medium text-blue-600 dark:text-blue-400">Réplica de OT #{ot.orden_revision_id}</p>
-              )}
               <div className="flex items-center gap-2 pt-1 mt-auto">
                 <Button size="sm" className="flex-1" onClick={() => openDetalle(ot)}>Ver Detalle</Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openRepuestos(ot)}>Repuestos</Button>
