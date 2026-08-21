@@ -125,8 +125,8 @@ const UsuarioFormModal: React.FC<{
         status: usuario?.status ?? ('ALTA' as const),
         legacy_id_usr: usuario?.legacy_id_usr ?? null,
       };
-      if (usuario) await api.usuarios.actualizar(usuario.id, payload);
-      else await api.usuarios.crear(payload);
+      if (usuario) await api.usuarios.actualizar(usuario.id, payload, passwordPreview);
+      else await api.usuarios.crear(payload, passwordPreview);
       showToast(usuario ? 'Usuario actualizado.' : 'Usuario creado.', 'success');
       onSaved();
       onClose();

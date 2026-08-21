@@ -106,7 +106,9 @@ async function selectOneRequired<T>(table: string, id: number, mapper: (row: any
 const SKIP_SHAREPOINT_WRITES = true;
 
 async function invokeSharePointWrite<T = unknown>(action: string, payload: Record<string, unknown>): Promise<T> {
-  if (SKIP_SHAREPOINT_WRITES && action !== 'send-mail') {
+  // 'send-mail' y 'user-provision' NO son escrituras a SharePoint (mail vía Graph / auth vía
+  // service-role) → nunca se skipean, deben ejecutarse de verdad aunque SKIP_SHAREPOINT_WRITES.
+  if (SKIP_SHAREPOINT_WRITES && action !== 'send-mail' && action !== 'user-provision') {
     console.warn(`[testing] SharePoint write '${action}' skipped (SKIP_SHAREPOINT_WRITES); Postgres is still written.`);
     // Return the shape each caller expects: articulo-upsert needs an id for the local mirror insert
     // (synthesize a test id that won't collide with real, small SharePoint ids); others just need ok.
@@ -203,22 +205,30 @@ export function createSupabaseAdapter(): DataApi {
     usuarios: {
       list: () => selectAll('usuarios', usuarioFromDb),
       get: (id) => selectOne('usuarios', id, usuarioFromDb),
-      async crear(input) {
+      async crear(input, password) {
         // usuarios is SELECT-only for authenticated → write via the DEFINER RPC (this closes the
         // raw-UPDATE path to perfil/activo; per-perfil authz still lives client-side). See supabase/rpc.sql.
         const { status, ...rest } = input;
         const payload = { ...rest, activo: status === 'ALTA' };
         const { data, error } = await getSupabase().rpc('usuario_crear', { p_payload: payload });
         if (error) throw error;
-        return selectOneRequired('usuarios', Number(data), usuarioFromDb);
+        const id = Number(data);
+        // Provisiona la cuenta auth.users (service-role, server-side) para que pueda loguear.
+        await invokeSharePointWrite('user-provision', { usuario_id: id, usuario_app: input.usuario_app, password, auth_user_id: null });
+        return selectOneRequired('usuarios', id, usuarioFromDb);
       },
-      async actualizar(id, patch) {
+      async actualizar(id, patch, password) {
         const { status, ...rest } = patch;
         const p_patch: Record<string, unknown> = { ...rest };
         if (status !== undefined) p_patch.activo = status === 'ALTA';
         const { error } = await getSupabase().rpc('usuario_actualizar', { p_id: id, p_patch });
         if (error) throw error;
-        return selectOneRequired('usuarios', id, usuarioFromDb);
+        const u = await selectOneRequired('usuarios', id, usuarioFromDb);
+        // Solo re-provisiona/actualiza la contraseña si el caller la pasó (el toggle ALTA/BAJA no).
+        if (password) {
+          await invokeSharePointWrite('user-provision', { usuario_id: id, usuario_app: u.usuario_app, password, auth_user_id: u.auth_user_id });
+        }
+        return u;
       },
       async eliminar(id) {
         // Soft-delete like the mock: Status_Usr -> 'BAJA' (activo=false), nothing else touched.

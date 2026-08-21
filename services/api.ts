@@ -76,8 +76,10 @@ export interface DataApi {
   usuarios: {
     list(): Promise<Usuario[]>;
     get(id: number): Promise<Usuario | null>;
-    crear(input: NewEntity<Usuario>): Promise<Usuario>;
-    actualizar(id: number, patch: Partial<NewEntity<Usuario>>): Promise<Usuario>;
+    /** `password` = contraseña derivada (ddmm de fecha_nac). Provisiona la cuenta auth.users. */
+    crear(input: NewEntity<Usuario>, password: string): Promise<Usuario>;
+    /** `password` opcional: si se pasa, re-setea la contraseña de auth. El toggle ALTA/BAJA no la manda. */
+    actualizar(id: number, patch: Partial<NewEntity<Usuario>>, password?: string): Promise<Usuario>;
     /** Soft-delete: sets status='BAJA'. */
     eliminar(id: number): Promise<void>;
   };

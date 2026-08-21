@@ -208,18 +208,20 @@ export function createMockAdapter(): DataApi {
         await sleep();
         return structuredClone(db.usuarios.find((u) => u.id === id) ?? null);
       },
-      async crear(input) {
+      async crear(input, password) {
         await sleep();
         const row: Usuario = { id: nextId(db.usuarios), created_at: nowIso(), updated_at: nowIso(), ...input };
         db.usuarios.push(row);
-        db.credenciales[row.usuario_app] = '1234';
+        // Mock sin auth real: guardamos la credencial en memoria (equivale a provisionar auth.users).
+        db.credenciales[row.usuario_app] = password || '1234';
         return structuredClone(row);
       },
-      async actualizar(id, patch) {
+      async actualizar(id, patch, password) {
         await sleep();
         const row = db.usuarios.find((u) => u.id === id);
         if (!row) throw new Error(`Usuario ${id} no encontrado.`);
         Object.assign(row, patch, { updated_at: nowIso() });
+        if (password) db.credenciales[row.usuario_app] = password;
         return structuredClone(row);
       },
       async eliminar(id) {

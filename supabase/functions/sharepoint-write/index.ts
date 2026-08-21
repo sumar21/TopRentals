@@ -9,9 +9,16 @@
 // pattern proven against 99.ABM_Articulos — see _shared/sp-graph.ts. Do not invent a
 // different auth or endpoint shape.
 import { createGraphClient, GraphError, type GraphClient } from '../_shared/sp-graph.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SP_LIST_ARTICULOS = '99.ABM_Articulos';
 const SP_LIST_UNIDADES = '99.ABM_TipoUnidades';
+
+// Login por email alias sintético (la mayoría de los usuarios no tiene mailbox real). DEBE coincidir
+// EXACTO con aliasFor de services/supabase/adapter.ts y del backfill (scripts/migrate/src/provision-auth.ts).
+const ALIAS_DOMAIN = 'users.toprentals.internal';
+const aliasFor = (usuarioApp: string) =>
+  `${usuarioApp.normalize('NFKD').toLowerCase().replace(/[^a-z0-9._-]/g, '')}@${ALIAS_DOMAIN}`;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -199,6 +206,59 @@ async function handleSendMail(rawPayload: unknown): Promise<Response> {
   return jsonResponse({ ok: true });
 }
 
+interface UserProvisionPayload {
+  usuario_id: number;
+  usuario_app: string;
+  password: string;
+  auth_user_id?: string | null;
+}
+
+function validateUserProvision(payload: unknown): UserProvisionPayload | null {
+  if (!isRecord(payload)) return null;
+  const { usuario_id, usuario_app, password, auth_user_id } = payload;
+  if (typeof usuario_id !== 'number') return null;
+  if (typeof usuario_app !== 'string' || !usuario_app.trim()) return null;
+  if (typeof password !== 'string' || password.length < 4) return null;
+  if (auth_user_id !== undefined && auth_user_id !== null && typeof auth_user_id !== 'string') return null;
+  return { usuario_id, usuario_app, password, auth_user_id: (auth_user_id as string | null | undefined) ?? null };
+}
+
+// SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY se inyectan automáticamente en las Edge Functions.
+function adminClient() {
+  return createClient(requireEnv('SUPABASE_URL'), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// Provisiona / actualiza la cuenta auth.users de un usuario del ABM (email alias + password ddmm).
+// TRUST BOUNDARY (pendiente de endurecer): verify_jwt garantiza un caller autenticado, pero NO valida
+// que sea Admin — igual que el resto de acciones de esta función. La ABM de usuarios ya está gateada a
+// Admin en la UI; para blindar contra un usuario autenticado malicioso, chequear el perfil del JWT acá.
+async function handleUserProvision(rawPayload: unknown): Promise<Response> {
+  const payload = validateUserProvision(rawPayload);
+  if (!payload) return jsonResponse({ error: 'payload invalido para user-provision' }, 400);
+
+  const sb = adminClient();
+  const email = aliasFor(payload.usuario_app);
+
+  if (payload.auth_user_id) {
+    const { error } = await sb.auth.admin.updateUserById(payload.auth_user_id, {
+      email,
+      password: payload.password,
+      email_confirm: true,
+    });
+    if (error) return jsonResponse({ error: error.message }, 502);
+    return jsonResponse({ ok: true, auth_user_id: payload.auth_user_id });
+  }
+
+  // Alta: crear la cuenta y linkearla en usuarios.auth_user_id (service-role bypasea RLS).
+  const { data, error } = await sb.auth.admin.createUser({ email, password: payload.password, email_confirm: true });
+  if (error || !data.user) return jsonResponse({ error: error?.message ?? 'no se pudo crear la cuenta de auth' }, 502);
+  const { error: linkErr } = await sb.from('usuarios').update({ auth_user_id: data.user.id }).eq('id', payload.usuario_id);
+  if (linkErr) return jsonResponse({ error: linkErr.message }, 502);
+  return jsonResponse({ ok: true, auth_user_id: data.user.id });
+}
+
 Deno.serve(async (req) => {
   // CORS preflight — the browser sends OPTIONS before the real POST; answer it with the CORS
   // headers (204, no body). Without this the preflight got a 405 and the POST was never sent.
@@ -223,6 +283,8 @@ Deno.serve(async (req) => {
         return await handleUnidadVentilacion(body.payload);
       case 'send-mail':
         return await handleSendMail(body.payload);
+      case 'user-provision':
+        return await handleUserProvision(body.payload);
       default:
         return jsonResponse({ error: `Accion desconocida: ${body.action}` }, 400);
     }

@@ -7,7 +7,9 @@
   "scripts": {
     "migrate": "node --experimental-strip-types src/index.ts",
     "dry-run": "node --experimental-strip-types src/index.ts --dry-run",
-    "check": "node --experimental-strip-types src/checks.ts"
+    "check": "node --experimental-strip-types src/checks.ts",
+    "provision-auth": "node --experimental-strip-types src/provision-auth.ts",
+    "provision-auth:dry-run": "node --experimental-strip-types src/provision-auth.ts --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
