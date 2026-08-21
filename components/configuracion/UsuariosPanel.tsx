@@ -36,9 +36,17 @@ function normalizar(s: string): string {
   // descarta junto con cualquier otro carácter no-ascii (espacios, ñ, etc.).
   return s.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
 }
+// Usuario (login) autogenerado: 3 primeras letras del nombre + apellido, con inicial mayúscula.
+// Ej: "Facundo Rombola" -> "Facrombola". No editable (regla del cliente).
 function sugerirUsuarioApp(nombre: string, apellido: string): string {
-  const inicial = normalizar(nombre).slice(0, 1);
-  return `${inicial}${normalizar(apellido)}`;
+  const base = normalizar(nombre).slice(0, 3) + normalizar(apellido);
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : '';
+}
+// Contraseña autogenerada = ddmm de la fecha de nacimiento. Ej: 19/07/2003 -> "1907".
+// Es DERIVABLE (no se guarda en claro): en editar se recalcula y se muestra read-only.
+function passwordFromFechaNac(fechaNac: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaNac);
+  return m ? `${m[3]}${m[2]}` : '';
 }
 
 interface FormState {
@@ -52,16 +60,15 @@ const UsuarioFormModal: React.FC<{
   const { visible, overlayClass, modalClass } = useModalAnimation(isOpen);
   const { showToast } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [usuarioAppTocado, setUsuarioAppTocado] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saving, setSaving] = useState(false);
+  const isNew = !usuario;
 
   useEffect(() => {
     if (isOpen) {
       setForm(usuario
         ? { nombre: usuario.nombre, apellido: usuario.apellido, perfil: usuario.perfil, edificioId: usuario.edificio_id ? String(usuario.edificio_id) : '', mail: usuario.mail ?? '', usuarioApp: usuario.usuario_app, fechaNac: usuario.fecha_nac ?? '' }
         : emptyForm);
-      setUsuarioAppTocado(!!usuario);
       setErrors({});
     }
   }, [isOpen, usuario]);
@@ -70,8 +77,12 @@ const UsuarioFormModal: React.FC<{
 
   const edificioOptions = edificios.filter((e) => e.status === 'Activo').map((e) => ({ value: String(e.id), label: e.nombre }));
 
-  const setNombre = (nombre: string) => setForm((f) => ({ ...f, nombre, usuarioApp: usuarioAppTocado ? f.usuarioApp : sugerirUsuarioApp(nombre, f.apellido) }));
-  const setApellido = (apellido: string) => setForm((f) => ({ ...f, apellido, usuarioApp: usuarioAppTocado ? f.usuarioApp : sugerirUsuarioApp(f.nombre, apellido) }));
+  // El usuario se autogenera del nombre/apellido SOLO en alta. En edición no se re-deriva:
+  // cambiar el usuario_app rompería el alias de login del auth ya provisionado.
+  const setNombre = (nombre: string) => setForm((f) => ({ ...f, nombre, usuarioApp: isNew ? sugerirUsuarioApp(nombre, f.apellido) : f.usuarioApp }));
+  const setApellido = (apellido: string) => setForm((f) => ({ ...f, apellido, usuarioApp: isNew ? sugerirUsuarioApp(f.nombre, apellido) : f.usuarioApp }));
+
+  const passwordPreview = passwordFromFechaNac(form.fechaNac);
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
@@ -79,6 +90,8 @@ const UsuarioFormModal: React.FC<{
     if (!form.apellido.trim()) next.apellido = 'El apellido es obligatorio.';
     if (!form.perfil) next.perfil = 'Elegí un perfil.';
     if (!form.usuarioApp.trim()) next.usuarioApp = 'El usuario es obligatorio.';
+    // Fecha de nacimiento obligatoria: de ella sale la contraseña (ddmm).
+    if (!form.fechaNac) next.fechaNac = 'La fecha de nacimiento es obligatoria (define la contraseña).';
     if (form.mail && !/^\S+@\S+\.\S+$/.test(form.mail)) next.mail = 'El mail no es válido.';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -163,14 +176,20 @@ const UsuarioFormModal: React.FC<{
               <Select value={form.edificioId} onChange={(v) => setForm((f) => ({ ...f, edificioId: v }))} options={edificioOptions} placeholder="Sin edificio asignado" />
             </div>
             <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento<span className="text-destructive ml-0.5">*</span></label>
+              <DatePicker value={form.fechaNac} onChange={(v) => setForm((f) => ({ ...f, fechaNac: v }))} />
+              {err('fechaNac')}
+            </div>
+            <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.usuarioApp} onChange={(e) => { setUsuarioAppTocado(true); setForm((f) => ({ ...f, usuarioApp: e.target.value })); }}
-                aria-invalid={!!errors.usuarioApp} placeholder="Ej: jperez" className={cn(errors.usuarioApp && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+              <Input value={form.usuarioApp} readOnly tabIndex={-1} aria-readonly title="Se genera automáticamente del nombre y apellido"
+                placeholder="Se autogenera" className="bg-muted/50 text-muted-foreground cursor-not-allowed" />
               {err('usuarioApp')}
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento</label>
-              <DatePicker value={form.fechaNac} onChange={(v) => setForm((f) => ({ ...f, fechaNac: v }))} />
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Contraseña</label>
+              <Input value={passwordPreview} readOnly tabIndex={-1} aria-readonly title="ddmm de la fecha de nacimiento"
+                placeholder="Cargá la fecha de nacimiento" className="bg-muted/50 text-muted-foreground cursor-not-allowed font-mono tracking-wider" />
             </div>
             <div className="sm:col-span-3">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>
@@ -179,7 +198,7 @@ const UsuarioFormModal: React.FC<{
               {err('mail')}
             </div>
           </div>
-          <p className="text-xs text-muted-foreground/80 italic">La gestión de contraseñas llega con el backend definitivo.</p>
+          <p className="text-xs text-muted-foreground/80 italic">Usuario y contraseña se generan solos: usuario = 3 letras del nombre + apellido; contraseña = día y mes de nacimiento (ddmm).</p>
         </div>
 
         <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">
