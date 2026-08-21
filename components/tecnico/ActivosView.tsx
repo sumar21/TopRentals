@@ -23,7 +23,7 @@ type ActiveSheet = 'filter' | 'obs' | 'repuestos' | null;
 const ActivosView: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { selected, openPicker } = useBuilding();
+  const { selected, openPicker, loading: buildingLoading } = useBuilding();
 
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -127,7 +127,9 @@ const ActivosView: React.FC = () => {
         </div>
       </div>
 
-      {!selected ? (
+      {buildingLoading ? (
+        <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : !selected ? (
         <div className="space-y-3">
           <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver el historial de órdenes de trabajo de sus activos." />
           <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>

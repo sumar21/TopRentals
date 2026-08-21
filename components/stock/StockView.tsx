@@ -252,12 +252,12 @@ const StockView: React.FC = () => {
 
           {/* Totales — DESIGN.md §7.3 "barra de N columnas" — pinned below the internally
               scrolling table so the running totals stay visible without scrolling to the end. */}
-          <div className="grid grid-cols-2 gap-px border rounded-lg overflow-hidden bg-border shrink-0">
-            <div className="bg-muted/30 px-4 py-2.5">
+          <div className="flex justify-end gap-px border rounded-lg overflow-hidden bg-border shrink-0 ml-auto w-fit">
+            <div className="bg-muted/30 px-4 py-2.5 min-w-[110px]">
               <div className="text-[10px] uppercase text-muted-foreground">Ítems</div>
               <div className="text-sm font-bold tabular-nums">{totalItems}</div>
             </div>
-            <div className="bg-muted/30 px-4 py-2.5">
+            <div className="bg-muted/30 px-4 py-2.5 min-w-[150px]">
               <div className="text-[10px] uppercase text-muted-foreground">Costo total</div>
               <div className="text-sm font-bold tabular-nums text-brand whitespace-nowrap">{money(totalCosto)}</div>
             </div>

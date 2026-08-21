@@ -27,7 +27,7 @@ const StockTecnicoView: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { selected, openPicker } = useBuilding();
+  const { selected, openPicker, loading: buildingLoading } = useBuilding();
 
   // ponytail: own fetch, not useBuilding().edificios — that list is Activo-only, while
   // edificioIdsEnGrupoStock here must also match inactive siblings sharing a stock pool,
@@ -152,7 +152,9 @@ const StockTecnicoView: React.FC = () => {
         </div>
       </div>
 
-      {!selected ? (
+      {buildingLoading ? (
+        <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : !selected ? (
         <div className="space-y-3">
           <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver su stock." />
           <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>

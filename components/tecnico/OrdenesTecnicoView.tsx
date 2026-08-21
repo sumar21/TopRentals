@@ -46,7 +46,7 @@ const OrdenesTecnicoView: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { selected, openPicker } = useBuilding();
+  const { selected, openPicker, loading: buildingLoading } = useBuilding();
   // ponytail: kept as its own fetch (not useBuilding().edificios) — that context list is
   // Activo-only, while torresEnZona here must also match inactive siblings sharing a zona,
   // same as before this integration.
@@ -333,7 +333,9 @@ const OrdenesTecnicoView: React.FC = () => {
         </div>
       </div>
 
-      {!selected ? (
+      {buildingLoading ? (
+        <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : !selected ? (
         <div className="space-y-3">
           <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver sus órdenes de trabajo." />
           <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>

@@ -23,7 +23,7 @@ type ActiveSheet = 'programar' | 'finalizar' | 'adelantar' | 'agregar' | null;
 
 const VentilacionesTecnicoView: React.FC = () => {
   const { user } = useAuth();
-  const { edificios, selected, openPicker } = useBuilding();
+  const { edificios, selected, openPicker, loading: buildingLoading } = useBuilding();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -245,7 +245,9 @@ const VentilacionesTecnicoView: React.FC = () => {
         <Input placeholder="Buscar departamento…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-10" />
       </div>
 
-      {!selected ? (
+      {buildingLoading ? (
+        <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : !selected ? (
         <div className="space-y-3">
           <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver sus ventilaciones." />
           <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>
