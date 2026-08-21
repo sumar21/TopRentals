@@ -12,6 +12,7 @@ import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBuilding } from '../../contexts/BuildingContext';
+import { FEATURES } from '../../config/features.ts';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
 import type { Unidad, Ventilacion } from '../../services/types.ts';
@@ -234,9 +235,11 @@ const VentilacionesTecnicoView: React.FC = () => {
           <button onClick={openAgregar} aria-label="Agregar ventilación" title="Agregar ventilación" disabled={!selected} className={iconBtnPrimary}>
             <Plus className="h-5 w-5" />
           </button>
-          <button onClick={openAdelantar} aria-label="Adelantar ventilación" title="Adelantar ventilación" className={iconBtnOutline}>
-            <FastForward className="h-5 w-5" />
-          </button>
+          {FEATURES.adelantarVentilacionMobile && (
+            <button onClick={openAdelantar} aria-label="Adelantar ventilación" title="Adelantar ventilación" className={iconBtnOutline}>
+              <FastForward className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
 

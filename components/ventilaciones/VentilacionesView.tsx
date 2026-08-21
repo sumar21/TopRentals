@@ -287,7 +287,7 @@ const VentilacionesView: React.FC = () => {
       />
 
       {detalleTarget && (
-        <VentilacionDetalleModal ventilacion={detalleTarget} onClose={() => setDetalleTarget(null)} />
+        <VentilacionDetalleModal ventilacion={detalleTarget} ventilaciones={ventilaciones} onClose={() => setDetalleTarget(null)} />
       )}
     </div>
   );
@@ -302,9 +302,20 @@ const VentDetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ la
 
 // Detalle read-only de una ventilación: estado, fechas, observaciones y la foto de cierre.
 // La foto_path suele ser un dataURL base64 (lo que sube el técnico al finalizar) → <img> directo.
-const VentilacionDetalleModal: React.FC<{ ventilacion: Ventilacion; onClose: () => void }> = ({ ventilacion: v, onClose }) => {
+const VentilacionDetalleModal: React.FC<{ ventilacion: Ventilacion; ventilaciones: Ventilacion[]; onClose: () => void }> = ({ ventilacion: v, ventilaciones, onClose }) => {
   const [lightbox, setLightbox] = useState(false);
-  const obs = v.obs_resuelto?.trim() || v.obs_adelanto?.trim() || '';
+  // La foto/obs de una limpieza vive en la fila Realizada de ESE ciclo. Al finalizar se crea la fila
+  // del próximo ciclo (Programada/Pendiente) SIN foto → si esta fila no tiene foto propia, mostramos
+  // la de la ÚLTIMA limpieza de la misma unidad (la Realizada más reciente). #foto-ventilacion
+  const source = v.foto_path || v.obs_resuelto
+    ? v
+    : [...ventilaciones]
+        .filter((x) => x.unidad_id === v.unidad_id && x.estado === 'Realizada' && (x.foto_path || x.obs_resuelto))
+        .sort((a, b) => (b.fecha_finalizacion ?? '').localeCompare(a.fecha_finalizacion ?? ''))[0] ?? v;
+  const esUltima = source !== v;
+  const obs = source.obs_resuelto?.trim() || source.obs_adelanto?.trim() || v.obs_adelanto?.trim() || '';
+  const obsLabel = esUltima ? 'Observaciones (última limpieza)' : 'Observaciones';
+  const fotoLabel = esUltima ? 'Foto (última limpieza)' : 'Foto';
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh]" onClick={onClose}>
       <div className="bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]" onClick={(e) => e.stopPropagation()}>
@@ -328,16 +339,16 @@ const VentilacionDetalleModal: React.FC<{ ventilacion: Ventilacion; onClose: () 
             {v.fecha_finalizacion && <VentDetailRow label="Finalizada" value={formatDate(v.fecha_finalizacion)} />}
           </dl>
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Observaciones</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{obsLabel}</p>
             <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
               <p className="text-sm whitespace-pre-wrap">{obs || 'Sin observaciones.'}</p>
             </div>
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Foto</p>
-            {v.foto_path ? (
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{fotoLabel}</p>
+            {source.foto_path ? (
               <button type="button" onClick={() => setLightbox(true)} className="block active:scale-95 transition-transform">
-                <img src={v.foto_path} alt="Foto de la ventilación" loading="lazy" className="h-28 w-28 rounded-md object-cover border" />
+                <img src={source.foto_path} alt="Foto de la ventilación" loading="lazy" className="h-28 w-28 rounded-md object-cover border" />
               </button>
             ) : (
               <p className="text-sm text-muted-foreground">Sin foto.</p>
@@ -345,9 +356,9 @@ const VentilacionDetalleModal: React.FC<{ ventilacion: Ventilacion; onClose: () 
           </div>
         </div>
       </div>
-      {lightbox && v.foto_path && createPortal(
+      {lightbox && source.foto_path && createPortal(
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(false)}>
-          <img src={v.foto_path} alt="" className="max-h-full max-w-full rounded-lg" />
+          <img src={source.foto_path} alt="" className="max-h-full max-w-full rounded-lg" />
         </div>,
         document.body,
       )}

@@ -9,4 +9,8 @@ export const FEATURES = {
   asignarOTDesktop: false,
   /** Assigning a ventilación to a technician directly from the desktop screen. */
   asignarVentilacionDesktop: false,
+  /** "Adelantar ventilación" (incident flow, mobile técnico). El doc de análisis lo describe, pero
+   *  el cliente no lo encuentra accesible en la PA real y el YAML crudo no está en el repo para
+   *  confirmarlo → apagado por decisión de producto. Poner en true si se confirma que existe en PA. */
+  adelantarVentilacionMobile: false,
 } as const;
