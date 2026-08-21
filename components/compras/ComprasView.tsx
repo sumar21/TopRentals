@@ -317,7 +317,7 @@ const ComprasView: React.FC = () => {
       <CompraFormModal
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
-        title={editingId != null ? 'Editar compra' : 'Nueva compra'}
+        title={editingId != null ? `Editar compra N° ${editingId}` : 'Nueva compra'}
         compraId={editingId}
         onSubmit={handleFormSubmit}
       />
