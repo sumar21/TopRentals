@@ -43,18 +43,20 @@ const tipoCorto = (tipo: string | null | undefined): string => {
   return (tipo ?? '').trim();
 };
 
-// Excel-style frozen leading columns (Estado · Tipo · ID · ID F). Fixed widths so the cumulative
-// `left` offsets line up; the trailing columns — incl. Acciones — scroll underneath. Acciones was
-// pinned before but it's wide (8 icon buttons); moving it to the end and into the scroll zone frees
-// the frozen prefix and cuts horizontal scroll. Tipo se angostó (etiquetas "OT"/"Sol OT") → los
-// offsets left de ID / ID F se recalculan en cadena.
-const FZ_TH = 'sticky z-20 bg-muted'; // header wins the top-left corner (opaque over scrolling cells)
+// Excel-style frozen columns forming a "sandwich": the leading columns (Estado · Tipo · ID · ID F)
+// pin to the LEFT, Acciones pins to the RIGHT (sticky right-0), and the middle scrolls between them.
+// Fixed widths so the cumulative `left` offsets line up. Acciones is sized to its worst REAL case
+// (estado Asignada = 5 icon-buttons: ver/editar · repuestos · bitácoras · anular · finalizar) so the
+// pinned column never clips — a pinned cell can't scroll to reveal overflow. Tipo se angostó
+// (etiquetas "OT"/"Sol OT") → los offsets left de ID / ID F se recalculan en cadena.
+const FZ_TH = 'sticky z-20 bg-muted'; // header wins the corner (opaque over scrolling cells)
 const FZ_TD = 'sticky z-[5] bg-card group-hover:bg-muted'; // fully opaque (incl. hover) so scrolled cells never bleed through
 const FZ_COL = {
   estado: 'left-0 w-[104px] min-w-[104px] max-w-[104px]',
   tipo: 'left-[104px] w-[84px] min-w-[84px] max-w-[84px]',
   id: 'left-[188px] w-[60px] min-w-[60px] max-w-[60px]',
   idf: 'left-[248px] w-[68px] min-w-[68px] max-w-[68px] border-r border-border',
+  acciones: 'right-0 w-[192px] min-w-[192px] max-w-[192px] border-l border-border', // border-l = costura con la zona de scroll
 };
 
 interface OtFiltros { meses: string[]; estados: string[]; edificios: string[]; tiposTrabajo: string[]; tiposTarea: string[]; }
@@ -337,7 +339,7 @@ const OrdenesTrabajoView: React.FC = () => {
                   <TableHead className="whitespace-nowrap">Trabajo / Tarea</TableHead>
                   <TableHead className="whitespace-nowrap">Asignada</TableHead>
                   <TableHead className="whitespace-nowrap">Cierre</TableHead>
-                  <TableHead className="whitespace-nowrap">Acciones</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.acciones, 'whitespace-nowrap')}>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -376,7 +378,7 @@ const OrdenesTrabajoView: React.FC = () => {
                         <div className="text-xs text-muted-foreground tabular-nums">{diasReales(ot) != null ? `${diasReales(ot)} días real` : '—'}</div>
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap"><RowActions ot={ot} /></TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.acciones, 'whitespace-nowrap px-2')}><RowActions ot={ot} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
