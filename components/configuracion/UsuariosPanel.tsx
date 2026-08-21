@@ -6,7 +6,7 @@
 // de la tarea "BOTH live").
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Plus, Pencil, UserX, UserCheck2, Save, X, Loader2, AlertCircle, Users } from 'lucide-react';
+import { Search, Plus, Pencil, UserX, UserCheck2, Save, X, Loader2, AlertCircle, Users, KeyRound, UserCircle2 } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Edificio, Perfil, Usuario } from '../../services/types.ts';
@@ -145,60 +145,81 @@ const UsuarioFormModal: React.FC<{
     <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
       <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h2>
-            <p className="text-xs text-muted-foreground">Cuentas de acceso al back-office</p>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 shrink-0 rounded-full bg-brand/10 flex items-center justify-center">
+              <UserCircle2 className="h-5 w-5 text-brand" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold tracking-tight truncate">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h2>
+              <p className="text-xs text-muted-foreground">Cuentas de acceso al back-office</p>
+            </div>
           </div>
-          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors shrink-0"><X className="h-5 w-5 text-muted-foreground" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.nombre} onChange={(e) => setNombre(e.target.value)} aria-invalid={!!errors.nombre} placeholder="Nombre"
-                className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('nombre')}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Datos personales */}
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Datos personales</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre<span className="text-destructive ml-0.5">*</span></label>
+                <Input value={form.nombre} onChange={(e) => setNombre(e.target.value)} aria-invalid={!!errors.nombre} placeholder="Nombre"
+                  className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                {err('nombre')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Apellido<span className="text-destructive ml-0.5">*</span></label>
+                <Input value={form.apellido} onChange={(e) => setApellido(e.target.value)} aria-invalid={!!errors.apellido} placeholder="Apellido"
+                  className={cn(errors.apellido && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                {err('apellido')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Perfil<span className="text-destructive ml-0.5">*</span></label>
+                <Select value={form.perfil} onChange={(v) => setForm((f) => ({ ...f, perfil: v as Perfil }))} options={PERFIL_OPTIONS} placeholder="Elegí un perfil" />
+                {err('perfil')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
+                <Select value={form.edificioId} onChange={(v) => setForm((f) => ({ ...f, edificioId: v }))} options={edificioOptions} placeholder="Sin edificio asignado" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento<span className="text-destructive ml-0.5">*</span></label>
+                <DatePicker value={form.fechaNac} onChange={(v) => setForm((f) => ({ ...f, fechaNac: v }))} />
+                {err('fechaNac')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>
+                <Input type="email" value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} aria-invalid={!!errors.mail}
+                  placeholder="correo@ejemplo.com" className={cn(errors.mail && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                {err('mail')}
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Apellido<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.apellido} onChange={(e) => setApellido(e.target.value)} aria-invalid={!!errors.apellido} placeholder="Apellido"
-                className={cn(errors.apellido && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('apellido')}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Perfil<span className="text-destructive ml-0.5">*</span></label>
-              <Select value={form.perfil} onChange={(v) => setForm((f) => ({ ...f, perfil: v as Perfil }))} options={PERFIL_OPTIONS} placeholder="Elegí un perfil" />
-              {err('perfil')}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
-              <Select value={form.edificioId} onChange={(v) => setForm((f) => ({ ...f, edificioId: v }))} options={edificioOptions} placeholder="Sin edificio asignado" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento<span className="text-destructive ml-0.5">*</span></label>
-              <DatePicker value={form.fechaNac} onChange={(v) => setForm((f) => ({ ...f, fechaNac: v }))} />
-              {err('fechaNac')}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.usuarioApp} readOnly tabIndex={-1} aria-readonly title="Se genera automáticamente del nombre y apellido"
-                placeholder="Se autogenera" className="bg-muted/50 text-muted-foreground cursor-not-allowed" />
+          </section>
+
+          {/* Credenciales de acceso — valores DERIVADOS (no editables): se muestran como texto, sin
+              placeholders. Usuario = 3 letras del nombre + apellido; contraseña = ddmm de nacimiento. */}
+          <section>
+            <div className="rounded-lg border bg-secondary/30 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <KeyRound className="h-4 w-4 text-brand shrink-0" />
+                <h3 className="text-sm font-semibold">Credenciales de acceso</h3>
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Automáticas</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[11px] text-muted-foreground mb-1">Usuario</div>
+                  <div className={cn('font-mono text-sm font-semibold break-all', !form.usuarioApp && 'text-muted-foreground/50')}>{form.usuarioApp || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground mb-1">Contraseña</div>
+                  <div className={cn('font-mono text-sm font-semibold', passwordPreview ? 'tracking-[0.25em]' : 'text-muted-foreground/50')}>{passwordPreview || '—'}</div>
+                </div>
+              </div>
               {err('usuarioApp')}
+              <p className="text-[11px] text-muted-foreground mt-3">Usuario = 3 letras del nombre + apellido · Contraseña = día y mes de nacimiento (ddmm).</p>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Contraseña</label>
-              <Input value={passwordPreview} readOnly tabIndex={-1} aria-readonly title="ddmm de la fecha de nacimiento"
-                placeholder="Cargá la fecha de nacimiento" className="bg-muted/50 text-muted-foreground cursor-not-allowed font-mono tracking-wider" />
-            </div>
-            <div className="sm:col-span-3">
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>
-              <Input type="email" value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} aria-invalid={!!errors.mail}
-                placeholder="correo@ejemplo.com" className={cn(errors.mail && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('mail')}
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground/80 italic">Usuario y contraseña se generan solos: usuario = 3 letras del nombre + apellido; contraseña = día y mes de nacimiento (ddmm).</p>
+          </section>
         </div>
 
         <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">
