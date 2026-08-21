@@ -22,11 +22,10 @@ export function resolveRecipients(modulo: 'OT' | 'Compra' | 'Aprobaciones', rows
   return row ? row.emails.split(';').map((e) => e.trim()).filter(Boolean) : [];
 }
 
-// TEMP (testing only): route EVERY notification to a single inbox instead of the ABM recipient
-// list, so test runs never email real recipients. Set back to `null` to use the table again.
-// NOTE: the Edge Function also BCCs the NOTIFICATIONS_BCC secret on every send — point that secret
-// at this same address (or clear it) to fully avoid real recipients while testing.
-const TEST_EMAIL_OVERRIDE: string | null = 'facurombo@gmail.com';
+// Optional testing hook: route EVERY notification to a single inbox instead of the ABM recipient
+// list. `null` = producción (usa los destinatarios reales). Poné un mail acá solo para pruebas.
+// NOTE: the Edge Function also BCCs the NOTIFICATIONS_BCC secret on every send.
+const TEST_EMAIL_OVERRIDE: string | null = null;
 
 export async function sendEmail(to: string[], message: EmailMessage): Promise<void> {
   const recipients = TEST_EMAIL_OVERRIDE ? [TEST_EMAIL_OVERRIDE] : to;

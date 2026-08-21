@@ -103,7 +103,7 @@ async function selectOneRequired<T>(table: string, id: number, mapper: (row: any
 // unidades), so test runs don't modify data the OTHER (non-migrated) Power App reads. Postgres is
 // still written (the app works fully) — only the SharePoint mirror is skipped. Email ('send-mail')
 // is NOT skipped. Set to false to write SharePoint for real again.
-const SKIP_SHAREPOINT_WRITES = true;
+const SKIP_SHAREPOINT_WRITES = false;
 
 async function invokeSharePointWrite<T = unknown>(action: string, payload: Record<string, unknown>): Promise<T> {
   // 'send-mail' y 'user-provision' NO son escrituras a SharePoint (mail vía Graph / auth vía

@@ -160,7 +160,7 @@ async function handleUnidadVentilacion(rawPayload: unknown): Promise<Response> {
 // (emails/send.ts) has the same guard, but a stale/cached browser bundle can bypass it and leak a
 // mail to the client's real staff; this line makes that impossible. Set to null to use the real
 // `to`/BCC again once testing is over. Keep in sync with emails/send.ts TEST_EMAIL_OVERRIDE.
-const TEST_EMAIL_OVERRIDE: string | null = 'facurombo@gmail.com';
+const TEST_EMAIL_OVERRIDE: string | null = null;
 
 interface SendMailPayload {
   to: string[];
