@@ -349,7 +349,7 @@ const OrdenesTecnicoView: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ots.map((ot) => (
-            <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
+            <div key={ot.id} className="flex h-full flex-col rounded-lg border bg-card p-3 shadow-sm space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold">{ot.torre} - {ot.departamento}</p>
                 <StatusBadge status={ot.prioridad} />
@@ -358,7 +358,7 @@ const OrdenesTecnicoView: React.FC = () => {
               {ot.orden_revision_id != null && (
                 <p className="text-[11px] font-medium text-blue-600 dark:text-blue-400">Réplica de OT #{ot.orden_revision_id}</p>
               )}
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-1 mt-auto">
                 <Button size="sm" className="flex-1" onClick={() => openDetalle(ot)}>Ver Detalle</Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openRepuestos(ot)}>Repuestos</Button>
                 <button
