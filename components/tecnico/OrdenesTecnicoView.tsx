@@ -355,6 +355,9 @@ const OrdenesTecnicoView: React.FC = () => {
                 <StatusBadge status={ot.prioridad} />
               </div>
               <p className="text-xs text-muted-foreground">{capitalizeFirst(ot.tipo_trabajo) || 'Sin tipo'} | {formatDate(ot.fecha_asignada) || 'Sin fecha'}</p>
+              {ot.orden_revision_id != null && (
+                <p className="text-[11px] font-medium text-blue-600 dark:text-blue-400">Réplica de OT #{ot.orden_revision_id}</p>
+              )}
               <div className="flex items-center gap-2 pt-1">
                 <Button size="sm" className="flex-1" onClick={() => openDetalle(ot)}>Ver Detalle</Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openRepuestos(ot)}>Repuestos</Button>
@@ -383,6 +386,10 @@ const OrdenesTecnicoView: React.FC = () => {
             </div>
             {/* Datos de la orden en un recuadro con divisores. */}
             <dl className="divide-y rounded-lg border">
+              {/* Si es una réplica (Cerrada F → Replicar en back-office), mostrar la OT padre. */}
+              {selectedOt.orden_revision_id != null && (
+                <DetailRow label="Réplica de OT" value={`#${selectedOt.orden_revision_id}`} />
+              )}
               <DetailRow label="Torre" value={selectedOt.torre ?? '—'} />
               <DetailRow label="Departamento" value={selectedOt.departamento ?? '—'} />
               <DetailRow label="Fecha asignada" value={formatDate(selectedOt.fecha_asignada) || '—'} />
