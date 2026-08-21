@@ -38,22 +38,28 @@ export function BuildingProvider({ children }: { children: ReactNode }) {
       .then((rows) => {
         if (cancelled) return;
         const activos = rows.filter((e) => e.status === 'Activo');
-        setEdificios(activos);
+        // País: cada usuario elige solo entre los edificios de su país. El Admin es multi-país y
+        // ve todos; si el usuario no tiene país cargado, no filtramos (para no dejarlo sin nada).
+        const samePais = (a: string | null, b: string | null) => (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase();
+        const visibles = user?.perfil === 'Admin' || !user?.pais
+          ? activos
+          : activos.filter((e) => samePais(e.pais, user.pais));
+        setEdificios(visibles);
 
         // Memoria POR USUARIO: sin esto la elección quedaba en una key global que se arrastraba
         // entre logins de la misma pestaña — un admin/técnico heredaba el edificio del usuario
         // anterior en vez de ver el selector. Keyeada por id, cada sesión arranca limpia.
         const key = user ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
         const storedRaw = sessionStorage.getItem(key);
-        const stored = storedRaw != null ? activos.find((e) => e.id === Number(storedRaw)) ?? null : null;
-        const seeded = activos.find((e) => e.id === user?.edificio_id) ?? null;
-        // Único edificio activo → se autoselecciona (nunca hace falta el picker).
-        const initial = stored ?? seeded ?? (activos.length === 1 ? activos[0] : null);
+        const stored = storedRaw != null ? visibles.find((e) => e.id === Number(storedRaw)) ?? null : null;
+        const seeded = visibles.find((e) => e.id === user?.edificio_id) ?? null;
+        // Único edificio visible → se autoselecciona (nunca hace falta el picker).
+        const initial = stored ?? seeded ?? (visibles.length === 1 ? visibles[0] : null);
 
         if (initial) sessionStorage.setItem(key, String(initial.id));
         setSelectedState(initial);
         // Primera entrada sin selección resuelta y con más de un edificio → forzar el picker.
-        if (!initial && activos.length > 1) setPickerOpen(true);
+        if (!initial && visibles.length > 1) setPickerOpen(true);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
