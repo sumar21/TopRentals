@@ -559,7 +559,9 @@ export async function migrate(
     await loadList('aprobaciones', 'aprobaciones', M.aprobaciones, M.aprobacionesResolutions, dropNullFk('compra_id'));
 
     // ---- 18: bitacoras (needs ordenes_trabajo) -----------------------------
-    const bitacorasRes = await loadList('bitacoras', 'bitacoras', M.bitacoras, M.bitacorasResolutions);
+    // orden_trabajo_id es NOT NULL: las bitácoras cuyo OT no resuelve son huérfanas (text-join
+    // sucio) y se saltean, igual que aprobaciones/repuestos_ot — si no, el insert viola la constraint.
+    const bitacorasRes = await loadList('bitacoras', 'bitacoras', M.bitacoras, M.bitacorasResolutions, dropNullFk('orden_trabajo_id'));
     for (const row of bitacorasRes.rows) {
       const univocoBitacora = row.id_univoco_bitacora as string | null;
       if (univocoBitacora) ctx.bitacoraByUnivoco.set(univocoBitacora, row.id as number);
