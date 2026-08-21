@@ -186,8 +186,9 @@ const HomeTecnicoView: React.FC = () => {
         <p className="text-sm text-muted-foreground mt-0.5">Tus tareas asignadas</p>
       </div>
 
-      {/* Tareas asignadas — dentro de un contenedor */}
-      <div className="rounded-xl border bg-card p-4 shadow-sm">
+      {/* Tareas asignadas — tarjetas directo sobre la página (sin tarjeta contenedora), en grid
+          que llena el ancho, igual que los tiles de Módulos. Evita el efecto caja-dentro-de-caja. */}
+      <div>
         {loadingOts ? (
           <div className="flex justify-center py-8"><Loader size="sm" /></div>
         ) : loadError ? (
@@ -195,12 +196,12 @@ const HomeTecnicoView: React.FC = () => {
         ) : ots.length === 0 ? (
           <EmptyState icon={ClipboardList} title="Sin Tareas Pendientes" message="No se registran tareas realizadas en el día de hoy." className="!p-6" />
         ) : (
-          <div className="flex gap-3 overflow-x-auto pb-1 snap-x">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {ots.map((ot) => (
               <button
                 key={ot.id}
                 onClick={() => handleOtCardClick(ot)}
-                className="shrink-0 w-64 snap-start text-left rounded-lg border bg-background p-3 shadow-sm active:scale-[0.99] transition-all"
+                className="w-full text-left rounded-lg border bg-card p-3 shadow-sm active:scale-[0.99] transition-all"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
