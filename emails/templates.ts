@@ -1,6 +1,8 @@
 // One function per transactional email. Replaces the hidden PowerApps template
 // screens (desktop Screen_Mails / mobile Mails). Typed inputs, no ambient state.
-import { renderBrandedEmail, renderEmailTable, formatMoney, escapeHtml } from './emailTemplate';
+// Compras usan el layout "Cable Sur" (secciones + tabla); Mantenimiento el "Wash Inn"
+// (kicker + lista clave/valor + narrativa). IDs SIEMPRE numéricos (nunca el univoco).
+import { renderBrandedEmail, renderEmailTable, renderSectionTitle, renderKeyValueList, formatMoney, escapeHtml } from './emailTemplate';
 
 export interface CompraLineaEmail {
   edificio: string;
@@ -19,27 +21,29 @@ const compraTable = (lineas: CompraLineaEmail[]) =>
   );
 
 /** "Orden de Compra Enviada a Aprobación" (was HtmlTEnviarAprobacion). */
-export function compraEnviadaAprobacionEmail(nroCompra: string | number, lineas: CompraLineaEmail[], solicitante: string) {
+export function compraEnviadaAprobacionEmail(nroCompra: number, lineas: CompraLineaEmail[], solicitante: string) {
   return {
-    subject: `Compra - Pendiente de Aprobación - Nro ${nroCompra}`,
+    subject: `Compra - Pendiente de Aprobación - N° ${nroCompra}`,
     html: renderBrandedEmail({
-      title: `Orden de Compra Nro ${nroCompra}`,
+      kicker: 'Compras',
+      badge: 'Pendiente',
+      title: `Orden de Compra N° ${nroCompra}`,
       intro: 'Se envió una orden de compra a aprobación.',
-      badge: 'Compras',
-      contentHtml: compraTable(lineas),
+      contentHtml: renderSectionTitle('Artículos a comprar') + compraTable(lineas),
       footerNote: `Solicitada por ${solicitante}`,
     }),
   };
 }
 
 /** "Orden de Compra Aprobada" (was html_CompraAprobadaGerencia). */
-export function compraAprobadaEmail(nroCompra: string | number, lineas: CompraLineaEmail[], aprobador: string) {
+export function compraAprobadaEmail(nroCompra: number, lineas: CompraLineaEmail[], aprobador: string) {
   return {
-    subject: `Compra - Aprobada - Nro ${nroCompra}`,
+    subject: `Compra - Aprobada - N° ${nroCompra}`,
     html: renderBrandedEmail({
-      title: `Orden de Compra Nro ${nroCompra} aprobada`,
-      badge: 'Aprobaciones',
-      contentHtml: compraTable(lineas),
+      kicker: 'Aprobaciones',
+      badge: 'Aprobada',
+      title: `Orden de Compra N° ${nroCompra} aprobada`,
+      contentHtml: renderSectionTitle('Artículos aprobados') + compraTable(lineas),
       footerNote: `Aprobada por ${aprobador}`,
     }),
   };
@@ -50,7 +54,7 @@ export interface CompraRecibidaLinea extends CompraLineaEmail {
 }
 
 /** "Orden de Compra Recibida" (was html_CompraRecibida). */
-export function compraRecibidaEmail(nroCompra: string | number, lineas: CompraRecibidaLinea[], obs: string | null, receptor: string) {
+export function compraRecibidaEmail(nroCompra: number, lineas: CompraRecibidaLinea[], obs: string | null, receptor: string) {
   const table = renderEmailTable(
     ['Edificio', 'Artículo', 'Pedido', 'Recibido', 'Precio Unit.', 'Total Pedido', 'Total Recibido'],
     lineas.map((l) => [
@@ -66,11 +70,15 @@ export function compraRecibidaEmail(nroCompra: string | number, lineas: CompraRe
     ['left', 'left', 'right', 'right', 'right', 'right', 'right'],
   );
   return {
-    subject: `Compra - Recibida - Nro ${nroCompra}`,
+    subject: `Compra - Recibida - N° ${nroCompra}`,
     html: renderBrandedEmail({
-      title: `Orden de Compra Nro ${nroCompra} recibida`,
-      badge: 'Compras',
-      contentHtml: table + (obs ? `<p style="margin:16px 0 0;font-size:13px;"><strong>Notas de recepción:</strong> ${escapeHtml(obs)}</p>` : ''),
+      kicker: 'Compras',
+      badge: 'Recibida',
+      title: `Orden de Compra N° ${nroCompra} recibida`,
+      contentHtml:
+        renderSectionTitle('Recepción de artículos') +
+        table +
+        (obs ? renderSectionTitle('Notas de recepción') + `<p style="margin:0;font-size:13px;line-height:1.5;">${escapeHtml(obs)}</p>` : ''),
       footerNote: `Recibida por ${receptor}`,
     }),
   };
@@ -87,28 +95,32 @@ export interface OTResueltaInput {
   tecnico: string;
 }
 
-/** "Resolución - Orden de Trabajo" (was html_ordenResuelta / mobile HtmlText1). */
+/** "Resolución - Orden de Trabajo" (was html_ordenResuelta / mobile HtmlText1). Layout "Wash Inn". */
 export function otResueltaEmail(ot: OTResueltaInput) {
-  const repuestosHtml = ot.repuestos.length
-    ? `<h3 style="margin:20px 0 8px;font-size:13px;font-weight:700;">Repuestos utilizados</h3>` +
+  const meta = renderKeyValueList([
+    ['Activo', ot.activo],
+    ['Tipo de trabajo', ot.tipoTrabajo ?? 'No asignado'],
+    ['Tipo de tarea', ot.tipoTarea ?? 'No asignado'],
+    ['Días estimados', ot.diasEstimados == null ? '-' : String(ot.diasEstimados)],
+    ['Días utilizados', String(ot.diasUtilizados)],
+  ]);
+  const repuestos = ot.repuestos.length
+    ? renderSectionTitle('Repuestos utilizados') +
       renderEmailTable(
         ['Repuesto', 'Cantidad'],
         ot.repuestos.map((r) => [r.repuesto, String(r.cantidad)]),
         undefined,
         ['left', 'right'],
       )
-    : `<p style="margin:16px 0 0;font-size:13px;">Sin repuestos utilizados.</p>`;
-  const meta = renderEmailTable(
-    ['Tipo de trabajo', 'Tipo de tarea', 'Días estimados', 'Días utilizados'],
-    [[ot.tipoTrabajo ?? 'No asignado', ot.tipoTarea ?? 'No asignado', ot.diasEstimados == null ? '-' : String(ot.diasEstimados), String(ot.diasUtilizados)]],
-  );
+    : `<p style="margin:20px 0 0;font-size:13px;color:#6b7280;">Sin repuestos utilizados.</p>`;
   return {
-    subject: `Resolución - Orden de Trabajo Nro ${ot.nroOT}`,
+    subject: `Resolución - Orden de Trabajo N° ${ot.nroOT}`,
     html: renderBrandedEmail({
-      title: `Orden de Trabajo Nro ${ot.nroOT} resuelta`,
-      intro: `Se resolvió la orden de trabajo del activo ${ot.activo}.`,
-      badge: 'Mantenimiento',
-      contentHtml: meta + repuestosHtml,
+      kicker: 'Mantenimiento',
+      badge: 'Resuelta',
+      title: `Orden de Trabajo N° ${ot.nroOT} resuelta`,
+      introHtml: `Se resolvió la orden de trabajo del activo <strong>${escapeHtml(ot.activo)}</strong>.`,
+      contentHtml: meta + repuestos,
       footerNote: `Resuelta por ${ot.tecnico}`,
     }),
   };

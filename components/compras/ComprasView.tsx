@@ -162,7 +162,7 @@ const ComprasView: React.FC = () => {
           .map((d) => ({ edificio: d.edificio ?? '', articulo: d.articulo ?? '', cantidad: d.cantidad, costo_unitario: d.costo_unitario ?? 0, costo_total: d.costo_total ?? 0 }));
         const emailRows = await api.emailsNotificacion.list();
         const recipients: RecipientRow[] = emailRows.filter((r) => r.status === 'Activo').map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' }));
-        const email = compraEnviadaAprobacionEmail(enviarTarget.id_compra, lineas, enviarTarget.usuario_compra ?? '');
+        const email = compraEnviadaAprobacionEmail(enviarTarget.id, lineas, enviarTarget.usuario_compra ?? '');
         await sendEmail(resolveRecipients('Compra', recipients), email);
       }
       showToast('Compra enviada a aprobación.', 'success');

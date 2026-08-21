@@ -93,7 +93,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
         .map((d) => ({ edificio: d.edificio ?? '', articulo: d.articulo ?? '', cantidad: d.cantidad, costo_unitario: d.costo_unitario ?? 0, costo_total: d.costo_total ?? 0, recibido: d.recibido }));
       const emailRows = await api.emailsNotificacion.list();
       const recipients: RecipientRow[] = emailRows.filter((r) => r.status === 'Activo').map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' }));
-      const email = compraRecibidaEmail(compra.id_compra, emailLineas, obs || null, user.concat_name);
+      const email = compraRecibidaEmail(compra.id, emailLineas, obs || null, user.concat_name);
       await sendEmail(resolveRecipients('Compra', recipients), email);
       showToast('Compra recibida correctamente.', 'success');
       onReceived();

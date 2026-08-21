@@ -112,7 +112,7 @@ const AprobacionesView: React.FC = () => {
           .map((d) => ({ edificio: d.edificio ?? '', articulo: d.articulo ?? '', cantidad: d.cantidad, costo_unitario: d.costo_unitario ?? 0, costo_total: d.costo_total ?? 0 }));
         const emailRows = await api.emailsNotificacion.list();
         const recipients: RecipientRow[] = emailRows.filter((r) => r.status === 'Activo').map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' }));
-        const email = compraAprobadaEmail(compra.id_compra, lineas, user.concat_name);
+        const email = compraAprobadaEmail(compra.id, lineas, user.concat_name);
         await sendEmail(resolveRecipients('Aprobaciones', recipients), email);
       }
       showToast('Compra aprobada.', 'success');
