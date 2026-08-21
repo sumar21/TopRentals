@@ -2,7 +2,7 @@
 // screens (desktop Screen_Mails / mobile Mails). Typed inputs, no ambient state.
 // Compras usan el layout "Cable Sur" (secciones + tabla); Mantenimiento el "Wash Inn"
 // (kicker + lista clave/valor + narrativa). IDs SIEMPRE numéricos (nunca el univoco).
-import { renderBrandedEmail, renderEmailTable, renderSectionTitle, renderKeyValueList, formatMoney, escapeHtml } from './emailTemplate';
+import { renderBrandedEmail, renderEmailTable, renderSectionTitle, renderKeyValueList, formatMoney, escapeHtml } from './emailTemplate.ts';
 
 export interface CompraLineaEmail {
   edificio: string;
