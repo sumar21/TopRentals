@@ -71,7 +71,21 @@ async function main(): Promise<void> {
   if (error) throw error;
   const usuarios = (data ?? []) as UsuarioRow[];
 
-  let seedSet = 0, creados = 0, actualizados = 0;
+  // Cuentas auth ya existentes, por email → id. Muchos usuarios ya tienen cuenta (de intentos
+  // previos) pero sin auth_user_id linkeado en usuarios; sin este mapa el createUser choca con
+  // "email already registered". listUsers pagina de a 1000.
+  const authByEmail = new Map<string, string>();
+  if (!DRY_RUN) {
+    for (let page = 1; ; page++) {
+      const { data: list, error: lErr } = await sb.auth.admin.listUsers({ page, perPage: 1000 });
+      if (lErr) throw lErr;
+      for (const au of list.users) if (au.email) authByEmail.set(au.email.toLowerCase(), au.id);
+      if (list.users.length < 1000) break;
+    }
+    console.log(`Cuentas auth existentes: ${authByEmail.size}`);
+  }
+
+  let seedSet = 0, creados = 0, actualizados = 0, linkeados = 0;
   const sinPass: string[] = [];
   const cortas: string[] = [];
   const errores: string[] = [];
@@ -83,7 +97,7 @@ async function main(): Promise<void> {
     const email = aliasFor(u.usuario_app);
 
     if (DRY_RUN) {
-      console.log(`[dry-run] seed + ${u.auth_user_id ? 'update' : 'create'} ${email} (pass "${pass}")`);
+      console.log(`[dry-run] seed + ${u.auth_user_id ? 'update' : 'create/link'} ${email} (pass "${pass}")`);
       seedSet++; u.auth_user_id ? actualizados++ : creados++;
       continue;
     }
@@ -94,11 +108,18 @@ async function main(): Promise<void> {
       if (seedErr) throw seedErr;
       seedSet++;
 
-      // 2b) Provisionar/actualizar la cuenta auth con esa contraseña.
-      if (u.auth_user_id) {
-        const { error: upErr } = await sb.auth.admin.updateUserById(u.auth_user_id, { email, password: pass, email_confirm: true });
+      // 2b) Resolver la cuenta auth: la linkeada, o una ya existente con el mismo email.
+      const authId = u.auth_user_id ?? authByEmail.get(email.toLowerCase()) ?? null;
+      if (authId) {
+        const { error: upErr } = await sb.auth.admin.updateUserById(authId, { email, password: pass, email_confirm: true });
         if (upErr) throw upErr;
         actualizados++;
+        // Linkear si en usuarios estaba en null (cuenta existía pero suelta).
+        if (!u.auth_user_id) {
+          const { error: linkErr } = await sb.from('usuarios').update({ auth_user_id: authId }).eq('id', u.id);
+          if (linkErr) throw linkErr;
+          linkeados++;
+        }
       } else {
         const { data: created, error: cErr } = await sb.auth.admin.createUser({ email, password: pass, email_confirm: true });
         if (cErr || !created.user) throw cErr ?? new Error('createUser devolvió vacío');
@@ -110,6 +131,7 @@ async function main(): Promise<void> {
       errores.push(`${u.usuario_app}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+  if (linkeados) console.log(`Cuentas linkeadas (existían sueltas): ${linkeados}`);
 
   console.log('\n=== Backfill de contraseñas (SharePoint field_8) ===');
   console.log(`password_seed seteados: ${seedSet}`);
