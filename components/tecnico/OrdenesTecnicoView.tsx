@@ -196,7 +196,9 @@ const OrdenesTecnicoView: React.FC = () => {
   };
   const openNuevaSolicitud = () => {
     setFecha(todayISO());
-    setTorreSel('');
+    // Preseleccionar la torre del edificio en el que está trabajando el técnico: la solicitud
+    // se crea desde adentro de un edificio ya elegido, no tiene sentido re-elegirlo.
+    setTorreSel(selected?.nombre ?? '');
     setDeptoSel('');
     setDetalleText('');
     setStaged([]);
@@ -538,7 +540,12 @@ const OrdenesTecnicoView: React.FC = () => {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre</label>
-            <Select value={torreSel} onChange={(v) => { setTorreSel(v); setDeptoSel(''); }} options={solicitudTorreOptions} placeholder="Seleccioná una torre" />
+            {/* Con una sola torre en la zona, elegir no aporta: se muestra fija. */}
+            {solicitudTorreOptions.length <= 1 ? (
+              <div className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">{torreSel || '—'}</div>
+            ) : (
+              <Select value={torreSel} onChange={(v) => { setTorreSel(v); setDeptoSel(''); }} options={solicitudTorreOptions} placeholder="Seleccioná una torre" />
+            )}
           </div>
         </div>
         <div>
