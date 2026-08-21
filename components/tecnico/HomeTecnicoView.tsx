@@ -66,12 +66,16 @@ const HomeTecnicoView: React.FC = () => {
     if (!user) return;
     try {
       const rows = await api.ots.list();
-      setOts(rows.filter((o) => o.tecnico_id === user.id && !OT_TERMINALES.has(o.status)));
+      // Las OTs abiertas se asignan por EDIFICIO, no por técnico (el técnico se estampa recién al
+      // cerrar). Por eso la lista trae TODAS las del edificio seleccionado (por torre/zona) que no
+      // estén cerradas/anuladas — mismo criterio que el KPI 'otsAbiertas' de abajo.
+      const towers = selected ? torresEnZona(edificiosGlobal, zonaKey(selected)) : [];
+      setOts(rows.filter((o) => towers.includes(o.torre ?? '') && !OT_TERMINALES.has(o.status)));
     } catch {
-      showToast('No se pudieron cargar tus órdenes de trabajo.', 'error');
+      showToast('No se pudieron cargar las órdenes de trabajo.', 'error');
       throw new Error('ots');
     }
-  }, [user, showToast]);
+  }, [user, selected, edificiosGlobal, showToast]);
 
   const loadAll = useCallback(() => {
     setLoadingOts(true);
@@ -90,6 +94,12 @@ const HomeTecnicoView: React.FC = () => {
   // Realtime: a back-office assignment pushes the new OT to the technician's carousel
   // without a manual refresh. loadOts doesn't touch the loader, so the update is silent.
   useEffect(() => api.realtime.subscribe(['ots'], () => { void loadOts().catch(() => {}); }), [loadOts]);
+
+  // La lista es por edificio → recargar (silencioso) cuando cambia el edificio seleccionado.
+  useEffect(() => {
+    void loadOts().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   // KPIs del edificio: ventilaciones pendientes/vencidas, OT abiertas y bajo stock.
   // Mismos helpers/predicados que las vistas técnicas (torresEnZona / edificioIdsEnGrupoStock / HomeAlerts).
