@@ -13,6 +13,7 @@
     "backfill-passwords": "node --experimental-strip-types src/backfill-passwords-sp.ts",
     "backfill-passwords:dry-run": "node --experimental-strip-types src/backfill-passwords-sp.ts --dry-run",
     "reconcile-ventilaciones": "node --experimental-strip-types src/reconcile-ventilaciones.ts",
+    "apply-groupings": "node --experimental-strip-types src/apply-groupings.ts",
     "send-samples": "node --experimental-strip-types src/send-sample-emails.ts"
   },
   "dependencies": {

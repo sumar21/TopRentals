@@ -15,6 +15,7 @@ import pgModule from 'pg';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { GraphClient, SpItem } from './graph.ts';
 import { ResolutionContext } from './resolve.ts';
+import { applyGroupings } from './groupings.ts';
 import {
   mapRow,
   SP_LISTS,
@@ -582,6 +583,13 @@ export async function migrate(
 
     // ---- 22: Documentos library + Storage -------------------------------------
     await loadDocumentos();
+
+    // ---- Agrupaciones de torres (zona OT/ventilación + grupo_stock): sin fuente en SharePoint,
+    // config heredada de PA (ver groupings.ts). Se aplica al final, solo en commit real.
+    if (commit && pg) {
+      const g = await applyGroupings(pg);
+      console.log(`  agrupaciones: zona=${g.zona} edificios, grupo_stock=${g.grupoStock} edificios`);
+    }
   } finally {
     if (pg) await pg.end();
   }
