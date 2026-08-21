@@ -22,6 +22,24 @@ const MODAL_DURATION = 200;
  *   modalClass   → 'modal-enter'   | 'modal-exit'
  * Emparejar con las reglas CSS de index.css.
  */
+// Body-scroll lock compartido: con un modal abierto, el fondo NO se tiene que poder scrollear
+// (en mobile, un scroll accidental sobre el backdrop movía la grilla de atrás y "trababa" el modal).
+// Hay dos scrollers según el layout — back-office scrollea en <main>, y técnico mobile scrollea el
+// documento — así que bloqueamos html + body + <main> a la vez. Contador de referencia para soportar
+// modales apilados (recién se desbloquea cuando se cierra el último).
+let scrollLockCount = 0;
+const scrollLockTargets = (): HTMLElement[] =>
+  typeof document === 'undefined' ? [] : [document.documentElement, document.body, ...Array.from(document.querySelectorAll('main'))];
+function lockBodyScroll() {
+  if (scrollLockCount++ > 0) return;
+  for (const el of scrollLockTargets()) el.style.overflow = 'hidden';
+}
+function unlockBodyScroll() {
+  if (scrollLockCount > 0) scrollLockCount--;
+  if (scrollLockCount > 0) return;
+  for (const el of scrollLockTargets()) el.style.overflow = '';
+}
+
 export function useModalAnimation(isOpen: boolean) {
   const [visible, setVisible] = useState(isOpen);
   const [closing, setClosing] = useState(false);
@@ -32,6 +50,12 @@ export function useModalAnimation(isOpen: boolean) {
       const t = setTimeout(() => { setVisible(false); setClosing(false); }, MODAL_DURATION);
       return () => clearTimeout(t);
     }
+  }, [isOpen]);
+  // Bloquear el scroll del fondo mientras el modal está abierto.
+  useEffect(() => {
+    if (!isOpen) return;
+    lockBodyScroll();
+    return unlockBodyScroll;
   }, [isOpen]);
   return {
     visible,
