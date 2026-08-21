@@ -248,14 +248,23 @@ export function createSupabaseAdapter(): DataApi {
         // mirror insert below is explicit (id: spId) instead of relying on the local sequence —
         // this closes the id-collision limitation between app-created and migrated articulos.
         const { status, corte, ...rest } = input;
-        const { id: spId } = await invokeSharePointWrite<{ id: number }>('articulo-upsert', {
-          codigo: rest.codigo,
-          nombre: rest.nombre,
-          precio_unitario: rest.precio_unitario,
-          corte,
-          status,
-          detalle: rest.detalle,
-        });
+        // Resiliente: si la escritura a SharePoint falla (p.ej. falta Sites.ReadWrite.All), NO
+        // rompemos el alta — Postgres es autoritativo. Se usa un id sintético grande (no colisiona
+        // con los ids chicos de SharePoint) y el mirror en 99.ABM_Articulos queda pendiente de retry.
+        let spId: number;
+        try {
+          ({ id: spId } = await invokeSharePointWrite<{ id: number }>('articulo-upsert', {
+            codigo: rest.codigo,
+            nombre: rest.nombre,
+            precio_unitario: rest.precio_unitario,
+            corte,
+            status,
+            detalle: rest.detalle,
+          }));
+        } catch (err) {
+          console.warn('[articulos] Escritura a SharePoint falló; Postgres autoritativo, mirror ABM pendiente de reintento.', err);
+          spId = Date.now();
+        }
         // articulos is a SELECT-only catalog → mirror insert via DEFINER RPC (explicit id = SP id).
         const { error } = await getSupabase().rpc('articulo_insert_mirror', {
           p_id: spId,
@@ -277,15 +286,21 @@ export function createSupabaseAdapter(): DataApi {
         const { data: currentRow, error: errCurrent } = await getSupabase().from('articulos').select('*').eq('id', id).single();
         if (errCurrent) throw errCurrent;
         const merged = { ...articuloFromDb(currentRow), ...patch };
-        await invokeSharePointWrite('articulo-upsert', {
-          sp_id: id,
-          codigo: merged.codigo,
-          nombre: merged.nombre,
-          precio_unitario: merged.precio_unitario,
-          corte: merged.corte,
-          status: merged.status,
-          detalle: merged.detalle,
-        });
+        // Resiliente: una escritura fallida a SharePoint no debe romper la edición — Postgres es
+        // autoritativo y el mirror en 99.ABM_Articulos queda desactualizado hasta el próximo retry.
+        try {
+          await invokeSharePointWrite('articulo-upsert', {
+            sp_id: id,
+            codigo: merged.codigo,
+            nombre: merged.nombre,
+            precio_unitario: merged.precio_unitario,
+            corte: merged.corte,
+            status: merged.status,
+            detalle: merged.detalle,
+          });
+        } catch (err) {
+          console.warn('[articulos] Escritura a SharePoint falló; Postgres autoritativo, mirror ABM desactualizado hasta reintentar.', err);
+        }
         // Multi-table: cascades precio_unitario/condicion_corte to every active stock
         // row of this article (see supabase/rpc.sql articulos_actualizar for why).
         const { data, error } = await getSupabase().rpc('articulos_actualizar', { p_id: id, p_patch: patch });
