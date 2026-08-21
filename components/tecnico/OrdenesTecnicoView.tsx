@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Building2, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle,
+  ArrowLeft, Building2, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle, FileText,
 } from 'lucide-react';
 import { Button, Input, Badge, cn } from '../ui/UIComponents';
 import { NumberInput } from '../ui/NumberInput';
@@ -18,7 +18,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
-import type { Articulo, Edificio, OrdenTrabajo, RepuestoOT, Unidad } from '../../services/types.ts';
+import type { Articulo, Documento, Edificio, OrdenTrabajo, RepuestoOT, Unidad } from '../../services/types.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
@@ -60,9 +60,12 @@ const OrdenesTecnicoView: React.FC = () => {
   const zona = selected ? zonaKey(selected) : null;
 
   const repuestosReqRef = useRef<number | null>(null); // descarta respuestas de un OT ya no seleccionado
+  const docsReqRef = useRef<number | null>(null);       // idem para los adjuntos del detalle
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
   const [repuestosSel, setRepuestosSel] = useState<RepuestoOT[]>([]);
+  const [docs, setDocs] = useState<{ doc: Documento; url: string }[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
   const [confirmFinalizar, setConfirmFinalizar] = useState<OrdenTrabajo | null>(null);
 
   // Nueva solicitud form
@@ -141,7 +144,23 @@ const OrdenesTecnicoView: React.FC = () => {
     return stockDelEdificio.filter((s) => (articulosMap.get(s.articulo_id)?.nombre ?? '').toLowerCase().includes(q));
   }, [stockDelEdificio, repuestoSearch, articulosMap]);
 
-  const openDetalle = (ot: OrdenTrabajo) => { setSelectedOt(ot); setActiveSheet('detalle'); };
+  const openDetalle = async (ot: OrdenTrabajo) => {
+    setSelectedOt(ot);
+    setActiveSheet('detalle');
+    setDocs([]);
+    setDocsLoading(true);
+    docsReqRef.current = ot.id;
+    try {
+      const rows = await api.documentos.list({ orden_trabajo_id: ot.id });
+      // El bucket es privado: cada archivo necesita una URL firmada para poder verse/abrirse.
+      const withUrls = await Promise.all(rows.map(async (d) => ({ doc: d, url: await api.documentos.url(d.storage_path) })));
+      if (docsReqRef.current === ot.id) setDocs(withUrls);
+    } catch {
+      // Silencioso: el detalle sigue siendo útil aunque las fotos no carguen.
+    } finally {
+      if (docsReqRef.current === ot.id) setDocsLoading(false);
+    }
+  };
   const openRepuestos = async (ot: OrdenTrabajo) => {
     setSelectedOt(ot);
     setActiveSheet('repuestos');
@@ -376,6 +395,31 @@ const OrdenesTecnicoView: React.FC = () => {
               <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
                 <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt.detalle) || 'Sin observación.'}</p>
               </div>
+            </div>
+            {/* Fotos/archivos adjuntos: imágenes como thumbnail (tocar → abre full en pestaña nueva),
+                el resto como link con su nombre. Antes se subían al crear pero no había forma de verlos. */}
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fotos y archivos</p>
+              {docsLoading ? (
+                <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : docs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin archivos adjuntos.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {docs.map(({ doc, url }) =>
+                    (doc.content_type ?? '').startsWith('image/') ? (
+                      <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="block active:scale-95 transition-transform">
+                        <img src={url} alt={doc.nombre} loading="lazy" className="h-20 w-20 rounded-md object-cover border" />
+                      </a>
+                    ) : (
+                      <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate max-w-[10rem]">{doc.nombre}</span>
+                      </a>
+                    ),
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

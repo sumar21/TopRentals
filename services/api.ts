@@ -217,6 +217,9 @@ export interface DataApi {
     /** Upload a file to Storage + record its metadata row. Wires the OT-create photos and the
      *  compra-receipt PDF the PA persisted (were staged client-side only). */
     crear(input: DocumentoCrearInput): Promise<Documento>;
+    /** Short-lived signed URL to view/download a file from the private bucket by its storage_path.
+     *  A `list()` only returns metadata (the bucket is private) — the UI needs this to render/open a file. */
+    url(storage_path: string): Promise<string>;
   };
 
   /** Live change notifications (Supabase Realtime). On backends without realtime

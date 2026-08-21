@@ -747,6 +747,12 @@ export function createSupabaseAdapter(): DataApi {
         if (error) throw error;
         return selectOneRequired('documentos', Number(data), documentoFromDb);
       },
+      async url(storage_path) {
+        // Private bucket → a public URL 404s; sign it (1h) so <img src>/download works.
+        const { data, error } = await getSupabase().storage.from('documentos').createSignedUrl(storage_path, 3600);
+        if (error) throw error;
+        return data.signedUrl;
+      },
     },
 
     realtime: {

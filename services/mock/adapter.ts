@@ -1057,6 +1057,11 @@ export function createMockAdapter(): DataApi {
         db.documentos.push(doc);
         return structuredClone(doc);
       },
+      async url(storage_path) {
+        await sleep();
+        // Mock has no real bucket — echo the fake path (won't render as an image, but keeps the flow intact).
+        return storage_path;
+      },
     },
 
     // No live backend to push from — subscriptions are a no-op (manual reload only).
