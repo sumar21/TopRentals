@@ -1,6 +1,6 @@
 // mobile/Detalle Activos — read-only OT history for a chosen unit. No writes.
 // docs/analysis/mobile_Detalle_Activos.md react_mapping.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Filter, ClipboardList, Building2, FileText, Wrench } from 'lucide-react';
 import { Button, Badge } from '../ui/UIComponents';
@@ -12,7 +12,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import { useBuilding } from '../../contexts/BuildingContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
-import type { OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
+import type { Documento, OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
 import { capitalizeFirst } from '../../utils/strings.ts';
 import { formatDate } from '../../utils/dates';
 import { BottomSheet, groupRepuestos } from './shared';
@@ -35,6 +35,9 @@ const ActivosView: React.FC = () => {
   const [filterUnidadId, setFilterUnidadId] = useState(''); // '' = todas las unidades del edificio
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
   const [repuestosSel, setRepuestosSel] = useState<RepuestoOT[]>([]);
+  const docsReqRef = useRef<number | null>(null);
+  const [docs, setDocs] = useState<{ doc: Documento; url: string }[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
 
   const loadInit = () => {
     setLoadError(false);
@@ -96,7 +99,22 @@ const ActivosView: React.FC = () => {
     return ots.filter((o) => o.unidad_id === id);
   }, [ots, filterUnidadId]);
 
-  const openObs = (ot: OrdenTrabajo) => { setSelectedOt(ot); setActiveSheet('obs'); };
+  const openObs = async (ot: OrdenTrabajo) => {
+    setSelectedOt(ot);
+    setActiveSheet('obs');
+    setDocs([]);
+    setDocsLoading(true);
+    docsReqRef.current = ot.id;
+    try {
+      const rows = await api.documentos.list({ orden_trabajo_id: ot.id });
+      const withUrls = await Promise.all(rows.map(async (d) => ({ doc: d, url: await api.documentos.url(d.storage_path) })));
+      if (docsReqRef.current === ot.id) setDocs(withUrls);
+    } catch {
+      // silencioso: la observación sigue siendo útil sin las fotos
+    } finally {
+      if (docsReqRef.current === ot.id) setDocsLoading(false);
+    }
+  };
   const openRepuestos = async (ot: OrdenTrabajo) => {
     setSelectedOt(ot);
     setActiveSheet('repuestos');
@@ -198,8 +216,33 @@ const ActivosView: React.FC = () => {
         subtitle={selectedOt?.concat_activo ?? undefined}
         footer={<Button className="flex-1" onClick={() => setActiveSheet(null)}>Cerrar</Button>}
       >
-        <div className="min-h-[6rem] rounded-lg border bg-muted/20 px-3 py-2.5">
-          <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt?.detalle) || 'Sin observaciones.'}</p>
+        <div className="space-y-4">
+          <div className="min-h-[6rem] rounded-lg border bg-muted/20 px-3 py-2.5">
+            <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt?.detalle) || 'Sin observaciones.'}</p>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fotos y archivos</p>
+            {docsLoading ? (
+              <div className="flex items-center justify-center py-4"><Loader size="sm" /></div>
+            ) : docs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin archivos adjuntos.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {docs.map(({ doc, url }) =>
+                  (doc.content_type ?? '').startsWith('image/') ? (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="block active:scale-95 transition-transform">
+                      <img src={url} alt={doc.nombre} loading="lazy" className="h-20 w-20 rounded-md object-cover border" />
+                    </a>
+                  ) : (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate max-w-[10rem]">{doc.nombre}</span>
+                    </a>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </BottomSheet>
 
