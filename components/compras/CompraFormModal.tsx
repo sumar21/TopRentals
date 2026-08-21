@@ -4,7 +4,7 @@
 // only accepts `lineas` — it never touches the compra header fields.
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
+import { AlertCircle, Loader2, Package, Plus, Save, ShoppingCart, Trash2, X } from 'lucide-react';
 import { Button, Combobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { MoneyInput } from '../ui/MoneyInput';
@@ -199,11 +199,16 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
     <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
       <div className={`${modalClass} bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-            {!headerEditable && <p className="text-xs text-muted-foreground">Solo se pueden editar los renglones de esta solicitud.</p>}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 shrink-0 rounded-full bg-brand/10 flex items-center justify-center">
+              <ShoppingCart className="h-5 w-5 text-brand" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold tracking-tight truncate">{title}</h2>
+              <p className="text-xs text-muted-foreground">{headerEditable ? 'Solicitud de compra de insumos' : 'Solo se pueden editar los renglones de esta solicitud.'}</p>
+            </div>
           </div>
-          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors shrink-0">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -219,7 +224,9 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Datos de la solicitud</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario</label>
                   {headerEditable ? (
@@ -246,10 +253,14 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                     </div>
                   )}
                 </div>
-              </div>
+                </div>
+              </section>
 
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">Artículos</h3>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Artículos</h3>
+                  {cart.length > 0 && <span className="text-[11px] text-muted-foreground">{cart.length} {cart.length === 1 ? 'línea' : 'líneas'}</span>}
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_100px_140px_auto] gap-2 items-end p-3 bg-secondary/20 rounded-lg border border-border/50">
                   <div className="min-w-0">
                     <label className="text-[11px] text-muted-foreground mb-1 block">Artículo</label>
@@ -269,7 +280,11 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                 </div>
 
                 {cart.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">Todavía no agregaste artículos.</p>
+                  <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-8 text-center">
+                    <Package className="h-8 w-8 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">Todavía no agregaste artículos.</p>
+                    <p className="text-xs text-muted-foreground/70">Buscá un artículo arriba y tocá «Agregar línea».</p>
+                  </div>
                 ) : (
                   <>
                     {/* Mobile: cart rows as cards (line-items table doesn't fit at 375px).
@@ -334,7 +349,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                     </div>
                   </>
                 )}
-              </div>
+              </section>
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Observación</label>
