@@ -82,7 +82,9 @@ const UsuarioFormModal: React.FC<{
   const setNombre = (nombre: string) => setForm((f) => ({ ...f, nombre, usuarioApp: isNew ? sugerirUsuarioApp(nombre, f.apellido) : f.usuarioApp }));
   const setApellido = (apellido: string) => setForm((f) => ({ ...f, apellido, usuarioApp: isNew ? sugerirUsuarioApp(f.nombre, apellido) : f.usuarioApp }));
 
-  const passwordPreview = passwordFromFechaNac(form.fechaNac);
+  // La contraseña real (migrada de SharePoint) tiene prioridad; si no hay (usuario nuevo), se
+  // deriva del ddmm de la fecha de nacimiento.
+  const passwordPreview = usuario?.password_seed || passwordFromFechaNac(form.fechaNac);
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
@@ -90,8 +92,9 @@ const UsuarioFormModal: React.FC<{
     if (!form.apellido.trim()) next.apellido = 'El apellido es obligatorio.';
     if (!form.perfil) next.perfil = 'Elegí un perfil.';
     if (!form.usuarioApp.trim()) next.usuarioApp = 'El usuario es obligatorio.';
-    // Fecha de nacimiento obligatoria: de ella sale la contraseña (ddmm).
-    if (!form.fechaNac) next.fechaNac = 'La fecha de nacimiento es obligatoria (define la contraseña).';
+    // Fecha de nacimiento obligatoria SOLO cuando la contraseña sale de ella (usuario nuevo).
+    // Los migrados ya tienen su contraseña real (password_seed) y pueden no tener fecha cargada.
+    if (!form.fechaNac && !usuario?.password_seed) next.fechaNac = 'La fecha de nacimiento es obligatoria (define la contraseña).';
     if (form.mail && !/^\S+@\S+\.\S+$/.test(form.mail)) next.mail = 'El mail no es válido.';
     setErrors(next);
     return Object.keys(next).length === 0;

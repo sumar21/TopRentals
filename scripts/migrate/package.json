@@ -10,6 +10,8 @@
     "check": "node --experimental-strip-types src/checks.ts",
     "provision-auth": "node --experimental-strip-types src/provision-auth.ts",
     "provision-auth:dry-run": "node --experimental-strip-types src/provision-auth.ts --dry-run",
+    "backfill-passwords": "node --experimental-strip-types src/backfill-passwords-sp.ts",
+    "backfill-passwords:dry-run": "node --experimental-strip-types src/backfill-passwords-sp.ts --dry-run",
     "send-samples": "node --experimental-strip-types src/send-sample-emails.ts"
   },
   "dependencies": {

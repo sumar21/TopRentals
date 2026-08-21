@@ -51,6 +51,10 @@ export interface Usuario {
   apellido: string;
   concat_name: string; // "Apellido, Nombre" — join key used across OT/stock/ventilaciones
   usuario_app: string; // login
+  /** Contraseña real migrada desde SharePoint (00.Usuarios field_8). No siempre es ddmm (Admin
+   *  tiene una custom), por eso se guarda en vez de derivarse. Ausente en usuarios nuevos → la UI
+   *  cae al ddmm de la fecha de nacimiento. */
+  password_seed?: string | null;
   dni: number | null;
   fecha_nac: string | null;
   mail: string | null;

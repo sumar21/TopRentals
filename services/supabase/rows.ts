@@ -104,6 +104,7 @@ export const usuarioFromDb = (r: Row): Usuario => ({
   apellido: r.apellido ?? '',
   concat_name: r.concat_name ?? '',
   usuario_app: r.usuario_app,
+  password_seed: r.password_seed ?? null,
   dni: num(r.dni),
   fecha_nac: r.fecha_nac ?? null,
   mail: r.mail ?? null,
