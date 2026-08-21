@@ -66,12 +66,9 @@
   --brand-foreground: 216 33% 8%;
 }
 
-/* Technician module accent — celeste, scoped so it never leaks into the back-office. */
-.tecnico-theme {
-  --primary: 221 83% 53%;            /* #2563eb */
-  --primary-foreground: 0 0% 100%;
-  --ring: 221 83% 53%;
-}
+/* Technician module: NO color override — primary matches the back-office (negro en claro,
+   blanco en oscuro). Antes era celeste (#2563eb); el cliente lo quiere idéntico al desktop.
+   La clase `.tecnico-theme` sigue en el layout por si se necesita scope a futuro, hoy no-op. */
 
 /* La clase `border` (a secas) setea solo el ANCHO; el color por defecto de Tailwind es un
    gris-200 FIJO (#e5e7eb) que ignora el tema → en oscuro se veía como un rim claro. Atamos

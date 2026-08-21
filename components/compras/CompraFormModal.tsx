@@ -334,9 +334,6 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                     </div>
                   </>
                 )}
-                {cart.length > 0 && (
-                  <div className="flex justify-end text-sm font-bold font-mono text-brand whitespace-nowrap">Total: $ {maskFromNumber(total)}</div>
-                )}
               </div>
 
               <div>
@@ -349,7 +346,10 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
           )}
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row flex-wrap justify-end gap-2">
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:items-center flex-wrap justify-end gap-2 sm:gap-4">
+          {!loading && cart.length > 0 && (
+            <span className="order-first sm:order-none text-base font-bold font-mono text-brand whitespace-nowrap text-center sm:text-left">Total: $ {maskFromNumber(total)}</span>
+          )}
           <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
           <Button onClick={() => setConfirmOpen(true)} disabled={!canSubmit} className="min-w-[140px] w-full sm:w-auto gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar

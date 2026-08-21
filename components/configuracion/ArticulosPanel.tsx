@@ -23,13 +23,14 @@ interface FormState { codigo: string; nombre: string; precio: string; corte: str
 const emptyForm: FormState = { codigo: '', nombre: '', precio: '', corte: '', detalle: '' };
 
 // PA genera el código automáticamente (txt_Nro_ART: DisplayMode.View, Value = Max(ID)+1);
-// nunca es editable. Acá replicamos el auto-incremento respetando el formato del catálogo (AR-NNN).
+// nunca es editable. El catálogo real usa código NUMÉRICO a secas (data migrada: "5", "6", "7"…),
+// no "AR-NNN" — ese prefijo era un invento de la app. Replicamos el número puro = Max+1.
 function nextCodigo(articulos: Articulo[]): string {
   const max = articulos.reduce((m, a) => {
     const n = Number(String(a.codigo ?? '').replace(/\D/g, ''));
     return Number.isFinite(n) && n > m ? n : m;
   }, 0);
-  return `AR-${String(max + 1).padStart(3, '0')}`;
+  return String(max + 1);
 }
 
 const ArticuloFormModal: React.FC<{

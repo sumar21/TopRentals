@@ -183,7 +183,7 @@ const HomeTecnicoView: React.FC = () => {
         ) : loadError ? (
           <LoadErrorState onRetry={loadAll} />
         ) : ots.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Sin tareas asignadas" message="No tenés órdenes de trabajo en curso." className="!p-6" />
+          <EmptyState icon={ClipboardList} title="Sin Tareas Pendientes" message="No se registran tareas realizadas en el día de hoy." className="!p-6" />
         ) : (
           <div className="flex gap-3 overflow-x-auto pb-1 snap-x">
             {ots.map((ot) => (
