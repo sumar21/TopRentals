@@ -250,14 +250,15 @@ const StockView: React.FC = () => {
             </Table>
           </Card>
 
-          {/* Totales — DESIGN.md §7.3 "barra de N columnas" — pinned below the internally
-              scrolling table so the running totals stay visible without scrolling to the end. */}
-          <div className="flex justify-end gap-px border rounded-lg overflow-hidden bg-border shrink-0 ml-auto w-fit">
-            <div className="bg-muted/30 px-4 py-2.5 min-w-[110px]">
+          {/* Totales — DESIGN.md §7.3 "barra de N columnas". En desktop queda debajo de la tabla
+              (que scrollea internamente) alineada a la derecha. En mobile la página entera scrollea,
+              así que la fijamos full-width al fondo del viewport (sticky) para verla sin llegar al final. */}
+          <div className="sticky bottom-0 z-10 shrink-0 flex gap-px overflow-hidden border-t bg-border shadow-[0_-1px_3px_rgba(0,0,0,0.04)] md:static md:ml-auto md:w-fit md:justify-end md:rounded-lg md:border md:shadow-none">
+            <div className="flex-1 bg-card px-4 py-2.5 md:flex-none md:min-w-[110px] md:bg-muted/30">
               <div className="text-[10px] uppercase text-muted-foreground">Ítems</div>
               <div className="text-sm font-bold tabular-nums">{totalItems}</div>
             </div>
-            <div className="bg-muted/30 px-4 py-2.5 min-w-[150px]">
+            <div className="flex-1 bg-card px-4 py-2.5 md:flex-none md:min-w-[150px] md:bg-muted/30">
               <div className="text-[10px] uppercase text-muted-foreground">Costo total</div>
               <div className="text-sm font-bold tabular-nums text-brand whitespace-nowrap">{money(totalCosto)}</div>
             </div>
