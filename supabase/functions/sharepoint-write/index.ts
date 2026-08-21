@@ -148,6 +148,13 @@ async function handleUnidadVentilacion(rawPayload: unknown): Promise<Response> {
   return jsonResponse({ ok: true });
 }
 
+// TEMP (testing only): route EVERY notification to a single inbox instead of the real ABM
+// recipients, enforced SERVER-SIDE — the single choke point all sends pass through. The frontend
+// (emails/send.ts) has the same guard, but a stale/cached browser bundle can bypass it and leak a
+// mail to the client's real staff; this line makes that impossible. Set to null to use the real
+// `to`/BCC again once testing is over. Keep in sync with emails/send.ts TEST_EMAIL_OVERRIDE.
+const TEST_EMAIL_OVERRIDE: string | null = 'facurombo@gmail.com';
+
 interface SendMailPayload {
   to: string[];
   subject: string;
@@ -177,15 +184,18 @@ async function handleSendMail(rawPayload: unknown): Promise<Response> {
   const payload = validateSendMail(rawPayload);
   if (!payload) return jsonResponse({ error: 'payload invalido para send-mail' }, 400);
 
-  const bcc = bccFromEnv();
-  if (payload.to.length === 0 && bcc.length === 0) return jsonResponse({ ok: true });
+  // Override wins over BOTH `to` and BCC — while testing, nothing reaches a real recipient.
+  const to = TEST_EMAIL_OVERRIDE ? [TEST_EMAIL_OVERRIDE] : payload.to;
+  const bcc = TEST_EMAIL_OVERRIDE ? [] : bccFromEnv();
+  if (TEST_EMAIL_OVERRIDE) console.warn(`[send-mail] TEST_EMAIL_OVERRIDE active → routed to ${TEST_EMAIL_OVERRIDE} (real recipients skipped)`);
+  if (to.length === 0 && bcc.length === 0) return jsonResponse({ ok: true });
 
   const graph = createGraphClient({
     tenantId: requireEnv('MS_TENANT_ID'),
     clientId: requireEnv('MS_CLIENT_ID'),
     clientSecret: requireEnv('MS_CLIENT_SECRET'),
   });
-  await graph.sendMail(requireEnv('MAIL_SENDER'), payload.to, bcc, payload.subject, payload.html);
+  await graph.sendMail(requireEnv('MAIL_SENDER'), to, bcc, payload.subject, payload.html);
   return jsonResponse({ ok: true });
 }
 
