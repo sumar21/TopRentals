@@ -5,8 +5,8 @@
 // the business still wants this restricted).
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Plus, Search, Pencil, Package, Loader2 } from 'lucide-react';
-import { Button, Input, Combobox } from '../ui/UIComponents';
+import { ArrowLeft, Building2, Plus, Search, Pencil, Package, Loader2, AlertTriangle } from 'lucide-react';
+import { Button, Input, Combobox, cn } from '../ui/UIComponents';
 import { NumberInput } from '../ui/NumberInput';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
@@ -174,15 +174,25 @@ const StockTecnicoView: React.FC = () => {
             <EmptyState icon={Package} title="Sin stock" message="No hay artículos con stock disponible en este edificio." />
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {filteredRows.map((row) => (
-                <div key={row.id} className="flex items-center gap-3 rounded-lg border bg-card p-3 shadow-sm">
-                  <span className="inline-flex items-center justify-center min-w-[2.25rem] h-7 px-2 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold shrink-0">{row.cantidad}</span>
-                  <span className="flex-1 text-sm font-medium truncate">{articulosMap.get(row.articulo_id)?.nombre ?? `Artículo ${row.articulo_id}`}</span>
+              {filteredRows.map((row) => {
+                const low = row.condicion_corte != null && row.cantidad < row.condicion_corte;
+                return (
+                <div key={row.id} className={cn('flex items-center gap-3 rounded-lg border bg-card p-3 shadow-sm', low && 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50')}>
+                  <span className={cn('inline-flex items-center justify-center min-w-[2.25rem] h-7 px-2 rounded-full text-sm font-semibold shrink-0', low ? 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300' : 'bg-blue-100 text-blue-700')}>{row.cantidad}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{articulosMap.get(row.articulo_id)?.nombre ?? `Artículo ${row.articulo_id}`}</p>
+                    {low && (
+                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
+                        <AlertTriangle className="h-3 w-3" /> Bajo stock · mín {row.condicion_corte}
+                      </span>
+                    )}
+                  </div>
                   <button onClick={() => openEdit(row)} aria-label="Editar cantidad" title="Editar cantidad" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors shrink-0">
                     <Pencil className="h-4 w-4" />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>
