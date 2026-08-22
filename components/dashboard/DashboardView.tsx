@@ -29,14 +29,14 @@
 //  · Interaction — a single month filter scopes every card (never per-chart); the trend card
 //    adds one metric selector; per-mark / crosshair hover everywhere.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Clock, Fan, LayoutDashboard, PackageMinus, PackagePlus, TrendingUp, Trophy } from 'lucide-react';
+import { ClipboardList, Clock, Fan, LayoutDashboard, PackageMinus, PackagePlus, TrendingUp, Trophy, Wrench } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { LoadErrorState } from '../LoadErrorState';
 import { api } from '../../services/index.ts';
-import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '../../services/types.ts';
+import type { MovimientoStock, OrdenTrabajo, SalidaStock, Usuario, Ventilacion } from '../../services/types.ts';
 import type { Grouped, MonthlyPoint } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, monthKey, trendExtremes } from '../../utils/dashboardStats';
@@ -373,6 +373,7 @@ const DashboardView: React.FC = () => {
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [ventilaciones, setVentilaciones] = useState<Ventilacion[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [mes, setMes] = useState<string>(todayISO().slice(0, 7));
@@ -390,12 +391,13 @@ const DashboardView: React.FC = () => {
     const myId = ++reqSeq.current;
     if (!silent) { setLoading(true); setLoadError(false); }
     try {
-      const [mov, sal, o, v] = await Promise.all([api.stock.movimientos(), api.stock.salidas(), api.ots.list(), api.ventilaciones.list()]);
+      const [mov, sal, o, v, us] = await Promise.all([api.stock.movimientos(), api.stock.salidas(), api.ots.list(), api.ventilaciones.list(), api.usuarios.list()]);
       if (myId !== reqSeq.current) return; // superseded by a newer load() — drop the stale response
       setMovimientos(mov);
       setSalidas(sal);
       setOts(o);
       setVentilaciones(v);
+      setUsuarios(us);
     } catch {
       if (myId === reqSeq.current && !silent) setLoadError(true);
     } finally {
@@ -494,6 +496,21 @@ const DashboardView: React.FC = () => {
   const incAvg = incSpark.length ? Math.round(incSpark.reduce((s, v) => s + v, 0) / incSpark.length) : 0;
   const torreLider = useMemo(() => foldTopN(data.incidencias, 'a', 5).slices[0], [data.incidencias]);
 
+  // OTs resueltas por técnico — cierres del mes seleccionado (por fecha_cierre), agrupados por el
+  // técnico que la cerró (tecnico_id se estampa al cierre). tecnico_id es un número → mapeo a nombre.
+  const usuariosById = useMemo(() => new Map(usuarios.map((u) => [u.id, u.concat_name || `${u.apellido}, ${u.nombre}`])), [usuarios]);
+  const otsPorTecnico = useMemo<Grouped[]>(() => {
+    const counts = new Map<string, number>();
+    for (const o of ots) {
+      if (o.tecnico_id == null || !o.status.startsWith('Cerrada')) continue;
+      if (!o.fecha_cierre || monthKey(o.fecha_cierre) !== mes) continue;
+      const name = usuariosById.get(o.tecnico_id) ?? `Técnico #${o.tecnico_id}`;
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([key, a]) => ({ key, a, b: 0 })).sort((x, y) => y.a - x.a);
+  }, [ots, usuariosById, mes]);
+  const tecnicoLider = otsPorTecnico[0];
+
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -582,10 +599,11 @@ const DashboardView: React.FC = () => {
           {/* OTs — incidencias por torre/estado/tipo + tiempo de resolución + evolución. */}
           {tab === 'ots' && (
             <>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatCard title="Incidencias" value={num(data.incidenciasTotal)} icon={ClipboardList} subtext={prev ? deltaChip(data.incidenciasTotal, prev.incidencias) : 'OTs este mes'} />
                 <StatCard title="Tiempo de resolución" value={`${oneDecimal(data.resolProm)} días`} icon={Clock} subtext="promedio de cierre" />
                 <StatCard title="Torre líder" value={torreLider?.key ?? '—'} icon={Trophy} subtext={torreLider ? `${torreLider.pct.toFixed(0)}% de las OTs` : 'sin OTs este mes'} />
+                <StatCard title="Técnico líder" value={tecnicoLider?.key ?? '—'} icon={Wrench} subtext={tecnicoLider ? `${num(tecnicoLider.a)} OTs resueltas` : 'sin cierres este mes'} />
               </div>
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <ChartCard title="Incidencias por torre" subtitle="Participación por torre" empty={data.incidencias.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
@@ -601,6 +619,9 @@ const DashboardView: React.FC = () => {
                   <MagnitudeBar data={data.resolucion} valueKey="b" label={oneDecimal} tooltipName="Promedio" tooltipExtra={(g) => `${oneDecimal(g.b)} días · ${num(g.a)} OTs`} allowDecimals />
                 </ChartCard>
               </div>
+              <ChartCard title="OTs resueltas por técnico" subtitle="Cierres del mes, por el técnico que cerró la OT" empty={otsPorTecnico.length === 0} emptyMsg="Sin OTs cerradas este mes.">
+                <MagnitudeBar data={otsPorTecnico} valueKey="a" label={num} tooltipName="OTs resueltas" />
+              </ChartCard>
               {trendCard('incidencias')}
             </>
           )}
