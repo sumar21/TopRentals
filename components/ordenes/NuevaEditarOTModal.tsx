@@ -136,7 +136,9 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
         user_carga_id: ot?.user_carga_id ?? user.id,
         fecha_inicio: fechaInicio,
         fecha_cierre: ot?.fecha_cierre ?? null,
-        fecha_asignada: ot ? ot.fecha_asignada : todayISO(),
+        // Agendado a futuro: si la fecha elegida es posterior a hoy, se estampa en fecha_asignada y la OT
+        // queda oculta para el técnico hasta ese día (utils/tecnico otAgendadaVisible). Caso normal → hoy.
+        fecha_asignada: ot ? ot.fecha_asignada : (fechaInicio > todayISO() ? fechaInicio : todayISO()),
         dias_estimado: Number(diasEstimado),
         personas_requeridas: Number(personasRequeridas),
         detalle,

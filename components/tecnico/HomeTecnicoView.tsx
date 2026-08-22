@@ -18,7 +18,7 @@ import { moduleIcon } from '../../config/moduleIcons';
 import { formatDate, todayISO } from '../../utils/dates';
 import { useBuilding } from '../../contexts/BuildingContext';
 import BuildingChip from './BuildingChip';
-import { edificioIdsEnGrupoStock, torresEnZona, zonaKey } from './shared';
+import { edificioIdsEnGrupoStock, otAgendadaVisible, torresEnZona, zonaKey } from './shared';
 
 const TILE_LABELS: Record<string, string> = {
   OT: 'Órdenes de Trabajo',
@@ -70,7 +70,8 @@ const HomeTecnicoView: React.FC = () => {
       // cerrar). Por eso la lista trae TODAS las del edificio seleccionado (por torre/zona) que no
       // estén cerradas/anuladas — mismo criterio que el KPI 'otsAbiertas' de abajo.
       const towers = selected ? torresEnZona(edificiosGlobal, zonaKey(selected)) : [];
-      setOts(rows.filter((o) => towers.includes(o.torre ?? '') && !OT_TERMINALES.has(o.status)));
+      const hoy = todayISO();
+      setOts(rows.filter((o) => towers.includes(o.torre ?? '') && !OT_TERMINALES.has(o.status) && otAgendadaVisible(o, hoy)));
     } catch {
       showToast('No se pudieron cargar las órdenes de trabajo.', 'error');
       throw new Error('ots');
@@ -117,7 +118,7 @@ const HomeTecnicoView: React.FC = () => {
         setStats({
           ventPend: ventsEd.filter((v) => v.estado === 'Pendiente' || v.estado === 'Programada').length,
           ventVencidas: ventsEd.filter((v) => v.proxima_limpieza != null && v.proxima_limpieza < hoy && !VENT_TERMINALES.has(v.estado)).length,
-          otsAbiertas: otsAll.filter((o) => towers.includes(o.torre ?? '') && !OT_TERMINALES.has(o.status)).length,
+          otsAbiertas: otsAll.filter((o) => towers.includes(o.torre ?? '') && !OT_TERMINALES.has(o.status) && otAgendadaVisible(o, hoy)).length,
           bajoStock: stock.filter((s) => s.edificio_ids.some((id) => poolIds.includes(id)) && s.cantidad > 0 && s.condicion_corte != null && s.cantidad < s.condicion_corte).length,
         });
       })

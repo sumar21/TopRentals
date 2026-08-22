@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn, useModalAnimation } from '../ui/UIComponents';
 import { backdropClose } from '../ui/backdropClose';
-import type { Edificio, RepuestoOT } from '../../services/types.ts';
+import type { Edificio, OrdenTrabajo, RepuestoOT } from '../../services/types.ts';
 
 // ────────────────────────────────────────────────────────────────────────────
 // BottomSheet — the one modal recipe every view in this module reuses.
@@ -97,6 +97,16 @@ export const grupoStockKey = (e: Edificio): string => e.grupo_stock ?? e.nombre;
 /** Building names sharing `zona` (or the same name if it has no zona) — matches Unidad/OT `torre`. */
 export function torresEnZona(edificios: Edificio[], zona: string): string[] {
   return edificios.filter((e) => zonaKey(e) === zona).map((e) => e.nombre);
+}
+
+/**
+ * Una OT agendada a futuro queda OCULTA para el técnico hasta su día: el alta del back-office
+ * estampa `fecha_asignada` = fecha elegida cuando es futura, y hasta que esa fecha llega la OT no
+ * aparece en sus listas. Sin `fecha_asignada` = visible siempre. Aplica a CUALQUIER status (no solo
+ * Pendiente): así una OT 'Asignada' programada para más adelante tampoco se filtra antes de tiempo.
+ */
+export function otAgendadaVisible(ot: Pick<OrdenTrabajo, 'fecha_asignada'>, hoyISO: string): boolean {
+  return !ot.fecha_asignada || ot.fecha_asignada.slice(0, 10) <= hoyISO;
 }
 
 /** Edificio ids sharing a stock pool with `edificioId`. */

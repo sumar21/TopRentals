@@ -24,7 +24,7 @@ import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
 import { formatDate, todayISO } from '../../utils/dates';
 import { capitalizeFirst } from '../../utils/strings';
-import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, iconBtnPrimary, torresEnZona, zonaKey } from './shared';
+import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, iconBtnPrimary, otAgendadaVisible, torresEnZona, zonaKey } from './shared';
 import { useBuilding } from '../../contexts/BuildingContext';
 import BuildingChip from './BuildingChip';
 
@@ -98,8 +98,8 @@ const OrdenesTecnicoView: React.FC = () => {
       setOts(
         rows
           .filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status))
-          // PA hides Pendiente OTs scheduled for a future date until their FechaAsignada_IN arrives.
-          .filter((o) => o.status !== 'Pendiente' || !o.fecha_asignada || o.fecha_asignada.slice(0, 10) <= todayISO())
+          // Oculta OTs agendadas a futuro hasta que llega su fecha_asignada (ver otAgendadaVisible).
+          .filter((o) => otAgendadaVisible(o, todayISO()))
           .sort((a, b) => b.id - a.id),
       );
     } catch {
