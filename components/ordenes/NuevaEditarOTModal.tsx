@@ -199,7 +199,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha Incidente *</label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de la OT *</label>
               <DatePicker value={fechaInicio} onChange={setFechaInicio} disabled={readOnly} />
             </div>
             <div>
