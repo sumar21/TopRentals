@@ -69,6 +69,12 @@ const StockTecnicoView: React.FC = () => {
     () => (edificioId != null ? edificioIdsEnGrupoStock(edificios, edificioId) : []),
     [edificios, edificioId],
   );
+  // Nombres de los edificios que comparten el pool de stock del seleccionado (incluido él). Si es >1,
+  // el stock que ve es compartido → se aclara en la vista (edificioIdsEnGrupoStock ya trae el pool).
+  const poolNombres = useMemo(
+    () => edificios.filter((e) => edificioIds.includes(e.id)).map((e) => e.nombre).sort(),
+    [edificios, edificioIds],
+  );
   const articulosMap = useMemo(() => new Map(articulos.map((a) => [a.id, a])), [articulos]);
   const rowsDelGrupo = useMemo(
     () => stockAll.filter((s) => s.cantidad > 0 && s.edificio_ids.some((id) => edificioIds.includes(id))),
@@ -151,6 +157,15 @@ const StockTecnicoView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Aviso de pool compartido: este edificio comparte depósito de repuestos con otro(s) → el stock
+          que se ve/edita es común a todos ellos. Sólo aparece cuando el pool tiene más de un edificio. */}
+      {selected && poolNombres.length > 1 && (
+        <div className="-mt-1 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300">
+          <Package className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>Stock compartido entre <span className="font-semibold">{poolNombres.join(' · ')}</span>. Lo que agregues o edites acá vale para todos.</span>
+        </div>
+      )}
 
       {buildingLoading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
