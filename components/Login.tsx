@@ -100,6 +100,12 @@ const Login = () => {
                     placeholder="Tu usuario"
                     autoFocus
                     autoComplete="username"
+                    // Android (Gboard) autocorrige/capitaliza el usuario tipeado y arma un alias de login
+                    // equivocado → 400. iOS ya suprime esto en campos de usuario; Android no, salvo pedirlo.
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="text"
                     value={usuario}
                     onChange={(e) => setUsuario(e.target.value)}
                     className="h-12 bg-secondary/30 border-border focus:border-primary focus:bg-background transition-all mt-1"
