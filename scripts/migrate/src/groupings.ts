@@ -9,6 +9,7 @@ export const ZONA_GROUPS: { label: string; torres: string[] }[] = [
   { label: 'Palermo Chico/Soho', torres: ['Palermo Chico', 'Palermo Soho'] },
   { label: 'Hollywood/Dorrego', torres: ['Palermo Hollywood', 'Dorrego'] },
   { label: 'Montañeses/Nuñez/Hub/Jaramillo', torres: ['Montañeses', 'Nuñez', 'Hub', 'Jaramillo'] },
+  { label: 'Qorner/Epic', torres: ['Qorner', 'Epic'] },
 ];
 
 /** Grupos de STOCK — pools de repuestos compartidos (distintos de las zonas de OT). */
