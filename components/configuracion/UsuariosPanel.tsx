@@ -51,9 +51,9 @@ function passwordFromFechaNac(fechaNac: string): string {
 }
 
 interface FormState {
-  nombre: string; apellido: string; perfil: Perfil | ''; edificioId: string; mail: string; usuarioApp: string; fechaNac: string;
+  nombre: string; apellido: string; perfil: Perfil | ''; pais: string; edificioId: string; mail: string; usuarioApp: string; fechaNac: string;
 }
-const emptyForm: FormState = { nombre: '', apellido: '', perfil: '', edificioId: '', mail: '', usuarioApp: '', fechaNac: '' };
+const emptyForm: FormState = { nombre: '', apellido: '', perfil: '', pais: 'Argentina', edificioId: '', mail: '', usuarioApp: '', fechaNac: '' };
 
 const UsuarioFormModal: React.FC<{
   isOpen: boolean; onClose: () => void; onSaved: () => void; usuario: Usuario | null; edificios: Edificio[];
@@ -68,7 +68,7 @@ const UsuarioFormModal: React.FC<{
   useEffect(() => {
     if (isOpen) {
       setForm(usuario
-        ? { nombre: usuario.nombre, apellido: usuario.apellido, perfil: usuario.perfil, edificioId: usuario.edificio_id ? String(usuario.edificio_id) : '', mail: usuario.mail ?? '', usuarioApp: usuario.usuario_app, fechaNac: usuario.fecha_nac ?? '' }
+        ? { nombre: usuario.nombre, apellido: usuario.apellido, perfil: usuario.perfil, pais: usuario.pais ?? '', edificioId: usuario.edificio_id ? String(usuario.edificio_id) : '', mail: usuario.mail ?? '', usuarioApp: usuario.usuario_app, fechaNac: usuario.fecha_nac ?? '' }
         : emptyForm);
       setErrors({});
     }
@@ -76,7 +76,17 @@ const UsuarioFormModal: React.FC<{
 
   if (!visible) return null;
 
-  const edificioOptions = edificios.filter((e) => e.status === 'Activo').map((e) => ({ value: String(e.id), label: e.nombre }));
+  // País gobierna qué edificios ve el usuario en la app (BuildingContext filtra por país). Opciones
+  // derivadas de los países reales de la tabla edificios (no una lista fija) + el del usuario editado.
+  const paisOptions = [...new Set([...edificios.map((e) => e.pais), usuario?.pais].filter((p): p is string => !!p))]
+    .sort()
+    .map((p) => ({ value: p, label: p }));
+  // Edificios filtrados por el país elegido: evita asignar un edificio de otro país (que el usuario no vería).
+  const edificioOptions = edificios
+    .filter((e) => e.status === 'Activo' && (!form.pais || (e.pais ?? '') === form.pais))
+    .map((e) => ({ value: String(e.id), label: e.nombre }));
+  // Cambiar de país invalida el edificio elegido (queda de otro país) → se resetea.
+  const setPais = (pais: string) => setForm((f) => ({ ...f, pais, edificioId: '' }));
 
   // El usuario se autogenera del nombre/apellido SOLO en alta. En edición no se re-deriva:
   // cambiar el usuario_app rompería el alias de login del auth ya provisionado.
@@ -92,6 +102,7 @@ const UsuarioFormModal: React.FC<{
     if (!form.nombre.trim()) next.nombre = 'El nombre es obligatorio.';
     if (!form.apellido.trim()) next.apellido = 'El apellido es obligatorio.';
     if (!form.perfil) next.perfil = 'Elegí un perfil.';
+    if (!form.pais) next.pais = 'Elegí un país.';
     if (!form.usuarioApp.trim()) next.usuarioApp = 'El usuario es obligatorio.';
     // Fecha de nacimiento obligatoria SOLO cuando la contraseña sale de ella (usuario nuevo).
     // Los migrados ya tienen su contraseña real (password_seed) y pueden no tener fecha cargada.
@@ -119,7 +130,7 @@ const UsuarioFormModal: React.FC<{
         num_cel: usuario?.num_cel ?? null,
         edificio_id: edificio?.id ?? null,
         edificio_default: edificio?.nombre ?? null,
-        pais: usuario?.pais ?? 'Argentina',
+        pais: form.pais || usuario?.pais || 'Argentina',
         perfil: form.perfil,
         validado: usuario?.validado ?? true,
         wapp_default: usuario?.wapp_default ?? null,
@@ -184,8 +195,13 @@ const UsuarioFormModal: React.FC<{
                 {err('perfil')}
               </div>
               <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">País<span className="text-destructive ml-0.5">*</span></label>
+                <Select value={form.pais} onChange={setPais} options={paisOptions} placeholder="Elegí un país" />
+                {err('pais')}
+              </div>
+              <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
-                <Select value={form.edificioId} onChange={(v) => setForm((f) => ({ ...f, edificioId: v }))} options={edificioOptions} placeholder="Sin edificio asignado" />
+                <Select value={form.edificioId} onChange={(v) => setForm((f) => ({ ...f, edificioId: v }))} options={edificioOptions} placeholder={form.pais ? 'Sin edificio asignado' : 'Elegí un país primero'} />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento<span className="text-destructive ml-0.5">*</span></label>
