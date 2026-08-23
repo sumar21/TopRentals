@@ -37,6 +37,7 @@ import {
 } from './rows.ts';
 import { getSupabase } from './client.ts';
 import { todayISO } from '../../utils/dates.ts';
+import { authPassword } from '../../utils/authPassword.ts';
 import { APP_VERSION } from '../../config/appVersion';
 
 // Domain topic -> Postgres table for Realtime subscriptions. The tables must also be in
@@ -175,7 +176,8 @@ export function createSupabaseAdapter(): DataApi {
         const sb = getSupabase();
         const { data: authData, error: authError } = await sb.auth.signInWithPassword({
           email: aliasFor(usuario),
-          password,
+          // Rellena a >=6 los códigos ddmm de 4 (no-op para contraseñas ya de 6+). Ver utils/authPassword.
+          password: authPassword(password),
         });
         if (authError || !authData?.user) throw new Error('Usuario o contraseña incorrectos.');
 

@@ -20,6 +20,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 import { formatDate } from '../../utils/dates';
+import { authPassword } from '../../utils/authPassword';
 
 const PERFIL_OPTIONS: { value: Perfil; label: string }[] = [
   { value: 'Admin', label: 'Admin' },
@@ -42,12 +43,13 @@ function sugerirUsuarioApp(nombre: string, apellido: string): string {
   const base = normalizar(nombre).slice(0, 3) + normalizar(apellido);
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : '';
 }
-// Contraseña autogenerada = ddmmaa de la fecha de nacimiento. Ej: 19/07/2003 -> "190703".
-// Son 6 caracteres a propósito: Supabase Auth exige un mínimo de 6 (no se puede bajar), así que
-// el ddmm de 4 no alcanza. En editar se recalcula y se muestra read-only.
+// Contraseña autogenerada = ddmm de la fecha de nacimiento. Ej: 19/07/2003 -> "1907" (4 dígitos,
+// igual que la Power App vieja). Supabase Auth exige >=6, pero eso se resuelve con el relleno fijo de
+// authPassword al provisionar/loguear (ver utils/authPassword). Acá se muestra el ddmm que el usuario
+// va a tipear. En editar se recalcula y se muestra read-only.
 function passwordFromFechaNac(fechaNac: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaNac);
-  return m ? `${m[3]}${m[2]}${m[1].slice(2)}` : '';
+  return m ? `${m[3]}${m[2]}` : '';
 }
 
 interface FormState {
@@ -140,8 +142,10 @@ const UsuarioFormModal: React.FC<{
         status: usuario?.status ?? ('ALTA' as const),
         legacy_id_usr: usuario?.legacy_id_usr ?? null,
       };
-      if (usuario) await api.usuarios.actualizar(usuario.id, payload, passwordPreview);
-      else await api.usuarios.crear(payload, passwordPreview);
+      // La cuenta de Auth guarda el ddmm rellenado a >=6 (authPassword); el usuario igual tipea sus 4 dígitos.
+      const provisionPass = passwordPreview ? authPassword(passwordPreview) : '';
+      if (usuario) await api.usuarios.actualizar(usuario.id, payload, provisionPass);
+      else await api.usuarios.crear(payload, provisionPass);
       showToast(usuario ? 'Usuario actualizado.' : 'Usuario creado.', 'success');
       onSaved();
       onClose();
@@ -237,7 +241,7 @@ const UsuarioFormModal: React.FC<{
                 </div>
               </div>
               {err('usuarioApp')}
-              <p className="text-[11px] text-muted-foreground mt-3">Usuario = 3 letras del nombre + apellido · Contraseña = día, mes y año de nacimiento (ddmmaa).</p>
+              <p className="text-[11px] text-muted-foreground mt-3">Usuario = 3 letras del nombre + apellido · Contraseña = día y mes de nacimiento (ddmm).</p>
             </div>
           </section>
         </div>
