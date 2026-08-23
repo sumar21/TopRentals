@@ -42,12 +42,14 @@ function sugerirUsuarioApp(nombre: string, apellido: string): string {
   const base = normalizar(nombre).slice(0, 3) + normalizar(apellido);
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : '';
 }
-// Contraseña autogenerada = ddmmaa de la fecha de nacimiento. Ej: 19/07/2003 -> "190703".
-// Son 6 caracteres a propósito: Supabase Auth exige un mínimo de 6 (no se puede bajar), así que
-// el ddmm de 4 no alcanza. En editar se recalcula y se muestra read-only.
+// Contraseña autogenerada = ddmm de la fecha de nacimiento. Ej: 19/07/2003 -> "1907" (4 dígitos,
+// como la Power App vieja). Se guarda CRUDA vía la Edge Function user-provision (admin API, que se
+// saltea el mínimo de 6 del signup público — ese mínimo no aplica acá). El login la manda tal cual,
+// SIN transformar: NADA de padding (un padding rompió los logins de los migrados con clave corta).
+// En editar se recalcula y se muestra read-only.
 function passwordFromFechaNac(fechaNac: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaNac);
-  return m ? `${m[3]}${m[2]}${m[1].slice(2)}` : '';
+  return m ? `${m[3]}${m[2]}` : '';
 }
 
 interface FormState {
@@ -237,7 +239,7 @@ const UsuarioFormModal: React.FC<{
                 </div>
               </div>
               {err('usuarioApp')}
-              <p className="text-[11px] text-muted-foreground mt-3">Usuario = 3 letras del nombre + apellido · Contraseña = día, mes y año de nacimiento (ddmmaa).</p>
+              <p className="text-[11px] text-muted-foreground mt-3">Usuario = 3 letras del nombre + apellido · Contraseña = día y mes de nacimiento (ddmm).</p>
             </div>
           </section>
         </div>
