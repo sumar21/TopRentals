@@ -65,7 +65,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
       setPersonasRequeridas(ot.personas_requeridas != null ? String(ot.personas_requeridas) : '');
       setDetalle(ot.detalle ?? '');
     } else {
-      setFechaInicio(new Date().toISOString().slice(0, 10));
+      setFechaInicio(todayISO()); // día LOCAL (no toISOString/UTC, que a la tarde en AR ya es mañana → OT nacería oculta)
       setEdificioId('');
       setUnidadId('');
       setPrioridad('Media');
@@ -136,9 +136,11 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
         user_carga_id: ot?.user_carga_id ?? user.id,
         fecha_inicio: fechaInicio,
         fecha_cierre: ot?.fecha_cierre ?? null,
-        // Agendado a futuro: si la fecha elegida es posterior a hoy, se estampa en fecha_asignada y la OT
-        // queda oculta para el técnico hasta ese día (utils/tecnico otAgendadaVisible). Caso normal → hoy.
-        fecha_asignada: ot ? ot.fecha_asignada : (fechaInicio > todayISO() ? fechaInicio : todayISO()),
+        // fecha_asignada SIEMPRE espejo de "Fecha de la OT" (fechaInicio), en alta y en edición: es el
+        // único campo de fecha del form y lo que ve/filtra el técnico. Futura → la OT queda oculta hasta
+        // ese día (otAgendadaVisible); hoy/pasada → visible. Recalcular en edición evita el desync que
+        // dejaba una OT oculta para siempre tras corregirle la fecha (fecha_inicio cambiaba, la vieja no).
+        fecha_asignada: fechaInicio,
         dias_estimado: Number(diasEstimado),
         personas_requeridas: Number(personasRequeridas),
         detalle,
