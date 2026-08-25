@@ -62,6 +62,11 @@ export interface Usuario {
   edificio_id: number | null;
   edificio_default: string | null;
   pais: string | null;
+  /** Admin whose /dashboard shows ALL buildings instead of being scoped to edificios_dash. */
+  dashboard_global: boolean;
+  /** ';'-separated edificios.nombre values (same pattern as EmailNotificacion.emails) — the
+   *  towers a non-global Admin sees on /dashboard. null/empty = sees no data there. */
+  edificios_dash: string | null;
   perfil: Perfil;
   validado: boolean;
   wapp_default: string | null;

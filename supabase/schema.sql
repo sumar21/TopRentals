@@ -131,6 +131,8 @@ CREATE TABLE usuarios (
   edificio_id bigint NULL REFERENCES edificios (id) ON DELETE SET NULL,
   edificio_default text,
   pais text,
+  dashboard_global boolean NOT NULL DEFAULT false, -- Admin sees ALL buildings on /dashboard only when true; otherwise scoped to edificios_dash
+  edificios_dash text NULL, -- ';'-separated edificios.nombre values (like emails_notificacion); dashboard scope for non-global Admin
   perfil perfil_usuario NOT NULL,
   validado boolean,
   wapp_default text,

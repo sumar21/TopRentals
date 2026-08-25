@@ -1072,12 +1072,13 @@ DECLARE
 BEGIN
   INSERT INTO usuarios (
     nombre, apellido, concat_name, usuario_app, dni, fecha_nac, mail, num_cel,
-    edificio_id, edificio_default, pais, perfil, validado, wapp_default, mnt_global,
+    edificio_id, edificio_default, pais, dashboard_global, edificios_dash, perfil, validado, wapp_default, mnt_global,
     aplicacion, es_testing, activo, legacy_id_usr, updated_at
   ) VALUES (
     p_payload->>'nombre', p_payload->>'apellido', p_payload->>'concat_name', p_payload->>'usuario_app',
     (p_payload->>'dni')::numeric, (p_payload->>'fecha_nac')::date, p_payload->>'mail', p_payload->>'num_cel',
-    (p_payload->>'edificio_id')::bigint, p_payload->>'edificio_default', p_payload->>'pais', (p_payload->>'perfil')::perfil_usuario,
+    (p_payload->>'edificio_id')::bigint, p_payload->>'edificio_default', p_payload->>'pais',
+    coalesce((p_payload->>'dashboard_global')::boolean, false), p_payload->>'edificios_dash', (p_payload->>'perfil')::perfil_usuario,
     (p_payload->>'validado')::boolean, p_payload->>'wapp_default', p_payload->>'mnt_global',
     p_payload->>'aplicacion', (p_payload->>'es_testing')::boolean, coalesce((p_payload->>'activo')::boolean, true),
     (p_payload->>'legacy_id_usr')::numeric, now()
@@ -1107,6 +1108,8 @@ BEGIN
     edificio_id      = CASE WHEN p_patch ? 'edificio_id'      THEN (p_patch->>'edificio_id')::bigint    ELSE edificio_id END,
     edificio_default = CASE WHEN p_patch ? 'edificio_default' THEN p_patch->>'edificio_default'         ELSE edificio_default END,
     pais             = CASE WHEN p_patch ? 'pais'             THEN p_patch->>'pais'                     ELSE pais END,
+    dashboard_global = CASE WHEN p_patch ? 'dashboard_global' THEN (p_patch->>'dashboard_global')::boolean ELSE dashboard_global END,
+    edificios_dash   = CASE WHEN p_patch ? 'edificios_dash'   THEN p_patch->>'edificios_dash'             ELSE edificios_dash END,
     perfil           = CASE WHEN p_patch ? 'perfil'           THEN (p_patch->>'perfil')::perfil_usuario ELSE perfil END,
     validado         = CASE WHEN p_patch ? 'validado'         THEN (p_patch->>'validado')::boolean      ELSE validado END,
     wapp_default     = CASE WHEN p_patch ? 'wapp_default'     THEN p_patch->>'wapp_default'             ELSE wapp_default END,

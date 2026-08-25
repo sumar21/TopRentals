@@ -81,3 +81,9 @@ export function isTecnicoOnly(perfil: Perfil): boolean {
 export function canAccessTecnico(perfil: Perfil): boolean {
   return perfil === 'Tecnico' || perfil === 'Admin';
 }
+
+/**
+ * /dashboard stays Admin-only (route gating unchanged) — this only decides whether an Admin's
+ * dashboard shows ALL buildings or is scoped to their own (usuarios.dashboard_global flag).
+ */
+export const canSeeGeneralDashboard = (user: { perfil: string; dashboard_global?: boolean }) => user.dashboard_global === true;

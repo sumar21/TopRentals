@@ -82,6 +82,10 @@ function u(
     edificio_id,
     edificio_default: edificio_id ? (edificios.find((e) => e.id === edificio_id)?.nombre ?? null) : null,
     pais: 'Argentina',
+    // Solo el Admin demo (id 1) conserva el dashboard general; el resto se demuestra scopeado.
+    dashboard_global: id === 1,
+    // id 3 demuestra el scope multi-torre (';'-separated names); el resto queda sin asignar.
+    edificios_dash: id === 3 ? 'Palermo Soho;Dorrego' : null,
     perfil,
     validado: true,
     wapp_default: null,

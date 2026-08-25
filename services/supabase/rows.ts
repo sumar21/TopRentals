@@ -112,6 +112,8 @@ export const usuarioFromDb = (r: Row): Usuario => ({
   edificio_id: r.edificio_id == null ? null : Number(r.edificio_id),
   edificio_default: r.edificio_default ?? null,
   pais: r.pais ?? null,
+  dashboard_global: bool(r.dashboard_global),
+  edificios_dash: r.edificios_dash ?? null,
   perfil: r.perfil,
   validado: bool(r.validado),
   wapp_default: r.wapp_default ?? null,

@@ -29,18 +29,21 @@
 //  · Interaction — a single month filter scopes every card (never per-chart); the trend card
 //    adds one metric selector; per-mark / crosshair hover everywhere.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Clock, Fan, LayoutDashboard, PackageMinus, PackagePlus, TrendingUp, Trophy, Wrench } from 'lucide-react';
+import { Building2, ClipboardList, Clock, Fan, LayoutDashboard, PackageMinus, PackagePlus, TrendingUp, Trophy, Wrench } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { LoadErrorState } from '../LoadErrorState';
+import { EmptyState } from '../EmptyState';
 import { api } from '../../services/index.ts';
 import type { MovimientoStock, OrdenTrabajo, SalidaStock, Usuario, Ventilacion } from '../../services/types.ts';
 import type { Grouped, MonthlyPoint } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, monthKey, trendExtremes } from '../../utils/dashboardStats';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { canSeeGeneralDashboard } from '../../utils/permissions.ts';
 
 // ── Chart chrome — theme-aware (DESIGN.md §10). recharts pinta fill/stroke como ATRIBUTOS SVG, donde
 // `var(--x)` NO resuelve → los colores se eligen por tema con este hook. En claro: navy de marca + slate
@@ -369,6 +372,12 @@ const HeroCardBase: React.FC<{
 const HeroCard = React.memo(HeroCardBase); // stable props → doesn't re-render when only the trend metric changes
 
 const DashboardView: React.FC = () => {
+  const { user } = useAuth();
+  // Admin ve TODO el portfolio solo con el flag dashboard_global; el resto queda acotado a las
+  // torres de edificios_dash (lista de nombres) — la ruta/sidebar siguen siendo Admin-only
+  // (utils/permissions.ts), esto solo decide el CONTENIDO de la vista.
+  const global = !!user && canSeeGeneralDashboard(user);
+
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
@@ -380,6 +389,7 @@ const DashboardView: React.FC = () => {
   const [metric, setMetric] = useState<MetricKey>('incidencias');
   const [tab, setTab] = useState<DashTab>('resumen');
   // Filtro por torre, independiente por sección (Ingresos / Consumos). '' = todas las torres.
+  // Solo aplica con dashboard global: un usuario scopeado ya está acotado a su edificio.
   const [ingTorre, setIngTorre] = useState('');
   const [conTorre, setConTorre] = useState('');
 
@@ -409,15 +419,32 @@ const DashboardView: React.FC = () => {
   // Realtime: silent refetch when any source table changes — no loader flash.
   useEffect(() => api.realtime.subscribe(['movimientos', 'salidas', 'ots', 'ventilaciones'], () => { void load(true); }), [load]);
 
+  // Usuario scopeado (no global): sus torres asignadas viven en `edificios_dash`, una lista de
+  // NOMBRES separada por ';' (mismo patrón que emails_notificacion.emails) — no hay lookup por id
+  // ni fetch adicional, están en el propio `user`. Vacío = sin torres asignadas (empty state).
+  const misEdificiosNombres = useMemo(
+    () => (user?.edificios_dash ?? '').split(';').map((s) => s.trim()).filter(Boolean),
+    [user],
+  );
+  // Set normalizado (edificioKey) para matchear los grupos de las agregaciones. Con dashboard
+  // global no se usa (sin filtro); con un usuario scopeado sin torres asignadas, un Set vacío
+  // filtra todo afuera naturalmente (ningún `.has()` da true) sin una rama extra.
+  const misEdificiosSet = useMemo(() => new Set(misEdificiosNombres.map(edificioKey)), [misEdificiosNombres]);
+  const movimientosScoped = useMemo(() => (global ? movimientos : movimientos.filter((m) => misEdificiosSet.has(edificioKey(m.edificio)))), [movimientos, misEdificiosSet, global]);
+  const otsScoped = useMemo(() => (global ? ots : ots.filter((o) => misEdificiosSet.has(edificioKey(o.torre)))), [ots, misEdificiosSet, global]);
+  const ventilacionesScoped = useMemo(() => (global ? ventilaciones : ventilaciones.filter((v) => misEdificiosSet.has(edificioKey(v.edificio)))), [ventilaciones, misEdificiosSet, global]);
+  // `salidas` no tiene edificio propio (services/types.ts) → no se puede acotar por torre; queda
+  // fuera de buildDashboardStats/buildMonthlyTrend (no las leen), así que esto no filtra datos reales.
+
   const mesOptions = useMemo(() => {
     const set = new Set<string>([todayISO().slice(0, 7)]);
     const add = (iso: string | null | undefined) => { if (iso) set.add(monthKey(iso)); };
-    movimientos.forEach((m) => add(m.fecha));
+    movimientosScoped.forEach((m) => add(m.fecha));
     salidas.forEach((s) => add(s.fecha_salida));
-    ots.forEach((o) => { add(o.fecha_inicio); add(o.fecha_cierre); });
-    ventilaciones.forEach((v) => add(v.fecha_finalizacion));
+    otsScoped.forEach((o) => { add(o.fecha_inicio); add(o.fecha_cierre); });
+    ventilacionesScoped.forEach((v) => add(v.fecha_finalizacion));
     return [...set].sort().reverse().map((ym) => ({ value: ym, label: mesLabel(ym) }));
-  }, [movimientos, salidas, ots, ventilaciones]);
+  }, [movimientosScoped, salidas, otsScoped, ventilacionesScoped]);
 
   // Keep the selected month valid: if a realtime update drops the row that was its only source, the month
   // leaves mesOptions — snap back to the newest available (options are sorted newest-first) instead of a dangling value.
@@ -426,33 +453,35 @@ const DashboardView: React.FC = () => {
   }, [mesOptions, mes]);
 
   const data = useMemo(
-    () => buildDashboardStats(mes, { movimientos, salidas, ots, ventilaciones }),
-    [movimientos, salidas, ots, ventilaciones, mes],
+    () => buildDashboardStats(mes, { movimientos: movimientosScoped, salidas, ots: otsScoped, ventilaciones: ventilacionesScoped }),
+    [movimientosScoped, salidas, otsScoped, ventilacionesScoped, mes],
   );
 
   // Rolling 12-month trend (oldest → newest) ending at the selected month. Feeds the line
   // chart and the per-tile deltas; reuses buildDashboardStats so it can't drift from `data`.
   const trend = useMemo(
-    () => buildMonthlyTrend(mes, { movimientos, salidas, ots, ventilaciones }, 12),
-    [movimientos, salidas, ots, ventilaciones, mes],
+    () => buildMonthlyTrend(mes, { movimientos: movimientosScoped, salidas, ots: otsScoped, ventilaciones: ventilacionesScoped }, 12),
+    [movimientosScoped, salidas, otsScoped, ventilacionesScoped, mes],
   );
   const prev = trend.length >= 2 ? trend[trend.length - 2] : null; // previous month, for the deltas
 
   // Torres disponibles (según los movimientos de stock) para el filtro de las secciones Ingresos/Consumos.
+  // Solo tiene sentido con dashboard global — un usuario scopeado ya está acotado a una sola torre
+  // (el selector se oculta en el JSX).
   const torreOptions = useMemo(() => {
     const set = new Set<string>();
-    movimientos.forEach((m) => set.add(edificioKey(m.edificio)));
+    movimientosScoped.forEach((m) => set.add(edificioKey(m.edificio)));
     return [{ value: '', label: 'Todas las torres' }, ...[...set].sort().map((t) => ({ value: t, label: t }))];
-  }, [movimientos]);
+  }, [movimientosScoped]);
 
   // Stats + trend scopeados por torre. Sin torre seleccionada devuelven `data`/`trend` (sin recomputar):
   // el filtro sólo acota los movimientos (ingreso/consumo dependen de ellos); OTs/ventilaciones no cambian.
-  const ingMovs = useMemo(() => (ingTorre ? movimientos.filter((m) => edificioKey(m.edificio) === ingTorre) : movimientos), [movimientos, ingTorre]);
-  const conMovs = useMemo(() => (conTorre ? movimientos.filter((m) => edificioKey(m.edificio) === conTorre) : movimientos), [movimientos, conTorre]);
-  const ingData = useMemo(() => (ingTorre ? buildDashboardStats(mes, { movimientos: ingMovs, salidas, ots, ventilaciones }) : data), [ingTorre, mes, ingMovs, salidas, ots, ventilaciones, data]);
-  const conData = useMemo(() => (conTorre ? buildDashboardStats(mes, { movimientos: conMovs, salidas, ots, ventilaciones }) : data), [conTorre, mes, conMovs, salidas, ots, ventilaciones, data]);
-  const ingTrend = useMemo(() => (ingTorre ? buildMonthlyTrend(mes, { movimientos: ingMovs, salidas, ots, ventilaciones }, 12) : trend), [ingTorre, mes, ingMovs, salidas, ots, ventilaciones, trend]);
-  const conTrend = useMemo(() => (conTorre ? buildMonthlyTrend(mes, { movimientos: conMovs, salidas, ots, ventilaciones }, 12) : trend), [conTorre, mes, conMovs, salidas, ots, ventilaciones, trend]);
+  const ingMovs = useMemo(() => (ingTorre ? movimientosScoped.filter((m) => edificioKey(m.edificio) === ingTorre) : movimientosScoped), [movimientosScoped, ingTorre]);
+  const conMovs = useMemo(() => (conTorre ? movimientosScoped.filter((m) => edificioKey(m.edificio) === conTorre) : movimientosScoped), [movimientosScoped, conTorre]);
+  const ingData = useMemo(() => (ingTorre ? buildDashboardStats(mes, { movimientos: ingMovs, salidas, ots: otsScoped, ventilaciones: ventilacionesScoped }) : data), [ingTorre, mes, ingMovs, salidas, otsScoped, ventilacionesScoped, data]);
+  const conData = useMemo(() => (conTorre ? buildDashboardStats(mes, { movimientos: conMovs, salidas, ots: otsScoped, ventilaciones: ventilacionesScoped }) : data), [conTorre, mes, conMovs, salidas, otsScoped, ventilacionesScoped, data]);
+  const ingTrend = useMemo(() => (ingTorre ? buildMonthlyTrend(mes, { movimientos: ingMovs, salidas, ots: otsScoped, ventilaciones: ventilacionesScoped }, 12) : trend), [ingTorre, mes, ingMovs, salidas, otsScoped, ventilacionesScoped, trend]);
+  const conTrend = useMemo(() => (conTorre ? buildMonthlyTrend(mes, { movimientos: conMovs, salidas, ots: otsScoped, ventilaciones: ventilacionesScoped }, 12) : trend), [conTorre, mes, conMovs, salidas, otsScoped, ventilacionesScoped, trend]);
   const ingPrev = ingTrend.length >= 2 ? ingTrend[ingTrend.length - 2] : null;
   const conPrev = conTrend.length >= 2 ? conTrend[conTrend.length - 2] : null;
 
@@ -501,14 +530,14 @@ const DashboardView: React.FC = () => {
   const usuariosById = useMemo(() => new Map(usuarios.map((u) => [u.id, u.concat_name || `${u.apellido}, ${u.nombre}`])), [usuarios]);
   const otsPorTecnico = useMemo<Grouped[]>(() => {
     const counts = new Map<string, number>();
-    for (const o of ots) {
+    for (const o of otsScoped) {
       if (o.tecnico_id == null || !o.status.startsWith('Cerrada')) continue;
       if (!o.fecha_cierre || monthKey(o.fecha_cierre) !== mes) continue;
       const name = usuariosById.get(o.tecnico_id) ?? `Técnico #${o.tecnico_id}`;
       counts.set(name, (counts.get(name) ?? 0) + 1);
     }
     return [...counts.entries()].map(([key, a]) => ({ key, a, b: 0 })).sort((x, y) => y.a - x.a);
-  }, [ots, usuariosById, mes]);
+  }, [otsScoped, usuariosById, mes]);
   const tecnicoLider = otsPorTecnico[0];
 
   return (
@@ -516,7 +545,13 @@ const DashboardView: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Resumen operativo del mes</p>
+          {!global && misEdificiosNombres.length > 0 ? (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Building2 className="h-3.5 w-3.5 shrink-0" /> Resumen operativo del mes · <span className="font-medium text-foreground">{misEdificiosNombres.join(', ')}</span>
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">Resumen operativo del mes</p>
+          )}
         </div>
         {/* Single filter row: scopes every chart below to the same month (never per-chart). */}
         <div className="w-full sm:w-56">
@@ -528,6 +563,12 @@ const DashboardView: React.FC = () => {
         <div className="flex items-center justify-center py-20"><Loader size="lg" text="Cargando dashboard…" /></div>
       ) : loadError ? (
         <LoadErrorState onRetry={() => void load()} />
+      ) : !global && misEdificiosNombres.length === 0 ? (
+        <EmptyState
+          icon={Building2}
+          title="Este usuario no tiene edificios asignados para el dashboard."
+          message="Asignalos en Configuración → Usuarios."
+        />
       ) : (
         <>
           {/* Botonera de secciones + filtro por torre en la MISMA fila (el filtro sólo aplica a Consumos/Ingresos,
@@ -544,7 +585,9 @@ const DashboardView: React.FC = () => {
                 </TabsList>
               </div>
             </Tabs>
-            {(tab === 'consumos' || tab === 'ingresos') && (
+            {/* El selector de torre solo tiene sentido con dashboard global: un usuario scopeado ya
+                está acotado a su propio edificio (no hay otra torre entre la cual elegir). */}
+            {global && (tab === 'consumos' || tab === 'ingresos') && (
               <div className="w-full shrink-0 sm:w-56">
                 <Select
                   value={tab === 'consumos' ? conTorre : ingTorre}

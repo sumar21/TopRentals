@@ -10,7 +10,7 @@ import { Search, Plus, Pencil, UserX, UserCheck2, Save, X, Loader2, AlertCircle,
 import { api } from '../../services/index.ts';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Edificio, Perfil, Usuario } from '../../services/types.ts';
-import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, Badge, cn, useModalAnimation } from '../ui/UIComponents';
+import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, Badge, cn, useModalAnimation, MultiCombobox } from '../ui/UIComponents';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
@@ -53,9 +53,11 @@ function passwordFromFechaNac(fechaNac: string): string {
 }
 
 interface FormState {
-  nombre: string; apellido: string; perfil: Perfil | ''; pais: string; edificioId: string; mail: string; usuarioApp: string; fechaNac: string;
+  nombre: string; apellido: string; perfil: Perfil | ''; pais: string; edificioId: string; mail: string; usuarioApp: string; fechaNac: string; dashboardGlobal: boolean; edificiosDash: string[];
 }
-const emptyForm: FormState = { nombre: '', apellido: '', perfil: '', pais: 'Argentina', edificioId: '', mail: '', usuarioApp: '', fechaNac: '' };
+const emptyForm: FormState = { nombre: '', apellido: '', perfil: '', pais: 'Argentina', edificioId: '', mail: '', usuarioApp: '', fechaNac: '', dashboardGlobal: false, edificiosDash: [] };
+// ';'-separated (mismo patrón que emails_notificacion) -> lista de nombres, sin vacíos.
+const parseEdificiosDash = (v: string | null): string[] => (v ?? '').split(';').map((s) => s.trim()).filter(Boolean);
 
 const UsuarioFormModal: React.FC<{
   isOpen: boolean; onClose: () => void; onSaved: () => void; usuario: Usuario | null; edificios: Edificio[];
@@ -70,7 +72,7 @@ const UsuarioFormModal: React.FC<{
   useEffect(() => {
     if (isOpen) {
       setForm(usuario
-        ? { nombre: usuario.nombre, apellido: usuario.apellido, perfil: usuario.perfil, pais: usuario.pais ?? '', edificioId: usuario.edificio_id ? String(usuario.edificio_id) : '', mail: usuario.mail ?? '', usuarioApp: usuario.usuario_app, fechaNac: usuario.fecha_nac ?? '' }
+        ? { nombre: usuario.nombre, apellido: usuario.apellido, perfil: usuario.perfil, pais: usuario.pais ?? '', edificioId: usuario.edificio_id ? String(usuario.edificio_id) : '', mail: usuario.mail ?? '', usuarioApp: usuario.usuario_app, fechaNac: usuario.fecha_nac ?? '', dashboardGlobal: usuario.dashboard_global ?? false, edificiosDash: parseEdificiosDash(usuario.edificios_dash) }
         : emptyForm);
       setErrors({});
     }
@@ -87,8 +89,12 @@ const UsuarioFormModal: React.FC<{
   const edificioOptions = edificios
     .filter((e) => e.status === 'Activo' && (!form.pais || (e.pais ?? '') === form.pais))
     .map((e) => ({ value: String(e.id), label: e.nombre }));
-  // Cambiar de país invalida el edificio elegido (queda de otro país) → se resetea.
-  const setPais = (pais: string) => setForm((f) => ({ ...f, pais, edificioId: '' }));
+  // Mismo filtro por país que edificioOptions, pero por NOMBRE — así es como se persiste edificios_dash.
+  const edificiosDashOptions = edificios
+    .filter((e) => e.status === 'Activo' && (!form.pais || (e.pais ?? '') === form.pais))
+    .map((e) => ({ value: e.nombre, label: e.nombre }));
+  // Cambiar de país invalida el edificio elegido y los edificios del dashboard (quedan de otro país) → se resetean.
+  const setPais = (pais: string) => setForm((f) => ({ ...f, pais, edificioId: '', edificiosDash: [] }));
 
   // El usuario se autogenera del nombre/apellido SOLO en alta. En edición no se re-deriva:
   // cambiar el usuario_app rompería el alias de login del auth ya provisionado.
@@ -133,6 +139,8 @@ const UsuarioFormModal: React.FC<{
         edificio_id: edificio?.id ?? null,
         edificio_default: edificio?.nombre ?? null,
         pais: form.pais || usuario?.pais || 'Argentina',
+        dashboard_global: form.dashboardGlobal,
+        edificios_dash: form.edificiosDash.length ? form.edificiosDash.join(';') : null,
         perfil: form.perfil,
         validado: usuario?.validado ?? true,
         wapp_default: usuario?.wapp_default ?? null,
@@ -217,6 +225,32 @@ const UsuarioFormModal: React.FC<{
                 {err('mail')}
               </div>
             </div>
+            <label className="flex items-start gap-2.5 rounded-lg border bg-secondary/30 p-3">
+              <input
+                type="checkbox"
+                className="h-4 w-4 mt-0.5 rounded border-input accent-brand cursor-pointer"
+                checked={form.dashboardGlobal}
+                onChange={(e) => setForm((f) => ({ ...f, dashboardGlobal: e.target.checked }))}
+              />
+              <span>
+                <span className="block text-sm font-medium">Dashboard general (todas las torres)</span>
+                <span className="block text-[11px] text-muted-foreground mt-0.5">Si está apagado, este usuario ve el dashboard solo de las torres asignadas abajo.</span>
+              </span>
+            </label>
+            {!form.dashboardGlobal && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificios del dashboard</label>
+                <MultiCombobox
+                  options={edificiosDashOptions}
+                  value={form.edificiosDash}
+                  onChange={(v) => setForm((f) => ({ ...f, edificiosDash: v }))}
+                  placeholder={form.pais ? 'Sin edificios asignados' : 'Elegí un país primero'}
+                  searchPlaceholder="Buscar edificio…"
+                  disabled={!form.pais}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Torres que verá en el dashboard. Vacío = no ve datos (salvo que tenga dashboard general).</p>
+              </div>
+            )}
           </section>
 
           {/* Credenciales de acceso — valores DERIVADOS (no editables): se muestran como texto, sin
