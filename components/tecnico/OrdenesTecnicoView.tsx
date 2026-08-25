@@ -22,6 +22,7 @@ import type { Articulo, Documento, Edificio, OrdenTrabajo, RepuestoOT, Unidad } 
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
+import { FEATURES } from '../../config/features';
 import { formatDate, todayISO } from '../../utils/dates';
 import { capitalizeFirst } from '../../utils/strings';
 import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, iconBtnPrimary, otAgendadaVisible, torresEnZona, zonaKey } from './shared';
@@ -225,7 +226,7 @@ const OrdenesTecnicoView: React.FC = () => {
         repuestos: repuestos.map((r) => ({ repuesto: r.repuesto ?? '', cantidad: r.cantidad })),
         tecnico: user?.concat_name ?? user?.nombre ?? '',
       });
-      if (recipients.length) void sendEmail(recipients, email);
+      if (FEATURES.emailOtResuelta && recipients.length) void sendEmail(recipients, email);
       showToast('Orden de trabajo completada.', 'success');
       if (zona) loadOts(zona);
     } catch {

@@ -144,7 +144,7 @@ const OrdenesTrabajoView: React.FC = () => {
         const saved = await api.ots.finalizar(ot.id);
         upsertOt(saved);
         showToast('Orden de trabajo finalizada.', 'success');
-        void sendResolutionEmail(saved);
+        if (FEATURES.emailOtResuelta) void sendResolutionEmail(saved);
       }
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'No se pudo completar la acción.', 'error');
@@ -412,7 +412,7 @@ const OrdenesTrabajoView: React.FC = () => {
         description={
           confirmAction?.type === 'anular' ? `Se anulará la OT #${confirmAction.ot.id}. Esta acción no se puede deshacer.`
             : confirmAction?.type === 'replicar' ? `Se creará una nueva OT pendiente vinculada a la OT #${confirmAction.ot.id}.`
-            : `Se finalizará la OT #${confirmAction?.ot.id} y se notificará por email a los destinatarios configurados.`
+            : `Se finalizará la OT #${confirmAction?.ot.id}.${FEATURES.emailOtResuelta ? ' Se notificará por email a los destinatarios configurados.' : ''}`
         }
         confirmText={confirmAction?.type === 'anular' ? 'Anular' : confirmAction?.type === 'replicar' ? 'Replicar' : 'Finalizar'}
         cancelText="Cancelar"
