@@ -303,7 +303,7 @@ async function main() {
     assert.equal(stats.ventilacionesPorEstado[0].a, 2); // 2 Realizadas caen en el mes por su fecha
   });
 
-  await check('dashboard stats: resolucionPorTipo mirrors resolucion order, Chequeo excluded', () => {
+  await check('dashboard stats: resolucionPorTipo mirrors resolucion order, Chequeo cuenta como no-preventiva (conv)', () => {
     const stats = buildDashboardStats('2026-07', {
       movimientos: [],
       salidas: [],
@@ -311,7 +311,7 @@ async function main() {
         // Torre A: 1 Correctivo (4d) + 1 Preventivo (2d) -> avg overall 3d
         { torre: 'Torre A', status: 'Cerrada', tipo_trabajo: 'Correctivo', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-05' },
         { torre: 'Torre A', status: 'Cerrada', tipo_trabajo: 'Preventivo', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-03' },
-        // Torre B: 1 Chequeo (10d) only -> counts toward resolucion overall avg, but no conv/prev row
+        // Torre B: 1 Chequeo (10d) only -> no es Preventivo, cuenta como conv=10 (prev=0)
         { torre: 'Torre B', status: 'Cerrada', tipo_trabajo: 'Chequeo', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-11' },
         // Torre C: 1 Correctivo (1d) -> highest avg overall (1d, lowest actually) just to vary order
         { torre: 'Torre C', status: 'Cerrada V', tipo_trabajo: 'Correctivo', fecha_inicio: '2026-07-01', fecha_cierre: '2026-07-02' },
@@ -321,8 +321,13 @@ async function main() {
 
     // resolucion is sorted desc by `b` (avg days): Torre B (10) > Torre A (3) > Torre C (1)
     assert.deepEqual(stats.resolucion.map((r) => r.key), ['Torre B', 'Torre A', 'Torre C']);
-    // resolucionPorTipo mirrors that order but drops Torre B (Chequeo-only -> no conv/prev)
-    assert.deepEqual(stats.resolucionPorTipo.map((r) => r.key), ['Torre A', 'Torre C']);
+    // resolucionPorTipo mirrors that order — Torre B ahora entra (Chequeo -> conv), ninguna se cae
+    assert.deepEqual(stats.resolucionPorTipo.map((r) => r.key), ['Torre B', 'Torre A', 'Torre C']);
+    const torreB = stats.resolucionPorTipo.find((r) => r.key === 'Torre B')!;
+    assert.equal(torreB.conv, 10); // Chequeo cuenta como no-preventiva
+    assert.equal(torreB.convCount, 1);
+    assert.equal(torreB.prev, 0);
+    assert.equal(torreB.prevCount, 0);
     const torreA = stats.resolucionPorTipo.find((r) => r.key === 'Torre A')!;
     assert.equal(torreA.conv, 4);
     assert.equal(torreA.prev, 2);

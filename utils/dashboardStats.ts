@@ -11,8 +11,8 @@ export interface Grouped {
 }
 
 // Avg resolution days by OT type per torre — same closed-OT population as `resolucion`, split by
-// `tipo_trabajo` ('Correctivo' → conv, 'Preventivo' → prev; 'Chequeo' excluded). Feeds the butterfly
-// chart (DashboardView `DivergingResolucionBar`); *Count is 0 when that type had no closures in the torre.
+// `tipo_trabajo`: 'Preventivo' → prev, TODO lo demás (Correctivo, Chequeo, sin tipo) → conv. Feeds the
+// butterfly chart (DashboardView `DivergingResolucionBar`); *Count is 0 when that side had no closures.
 export interface ResolucionPorTipo {
   key: string;
   conv: number; // avg days, Correctivo
@@ -170,18 +170,17 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
     resolCount += 1;
     resolTotalDays += d;
 
-    if (o.tipo_trabajo === 'Correctivo' || o.tipo_trabajo === 'Preventivo') {
-      const t = resolTipoMap.get(key) ?? { conv: 0, convCount: 0, prev: 0, prevCount: 0 };
-      if (o.tipo_trabajo === 'Correctivo') { t.conv += d; t.convCount += 1; } else { t.prev += d; t.prevCount += 1; }
-      resolTipoMap.set(key, t);
-    }
+    // Preventivo de un lado; TODO lo demás (Correctivo, Chequeo, sin tipo) del otro.
+    const t = resolTipoMap.get(key) ?? { conv: 0, convCount: 0, prev: 0, prevCount: 0 };
+    if (o.tipo_trabajo === 'Preventivo') { t.prev += d; t.prevCount += 1; } else { t.conv += d; t.convCount += 1; }
+    resolTipoMap.set(key, t);
   }
   const resolucion: Grouped[] = [...resolMap.values()]
     .map((g) => ({ key: g.key, a: g.count, b: g.count ? g.totalDays / g.count : 0 }))
     .sort((x, y) => y.b - x.b);
   const resolProm = resolCount ? resolTotalDays / resolCount : 0;
-  // Mirror `resolucion`'s torre order exactly (iterate the already-sorted array); towers with no
-  // Correctivo/Preventivo closures (only Chequeo) are omitted — nothing to plot for them.
+  // Mirror `resolucion`'s torre order exactly (iterate the already-sorted array). Every closed-OT
+  // torre lands on conv or prev, so none is dropped; the null-guard stays only as a safety net.
   const resolucionPorTipo: ResolucionPorTipo[] = resolucion
     .map((g) => {
       const t = resolTipoMap.get(g.key);
