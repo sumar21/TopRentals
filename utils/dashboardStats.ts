@@ -10,6 +10,17 @@ export interface Grouped {
   b: number; // secondary numeric metric — 0 when unused; carries the day-average for `resolucion`
 }
 
+// Avg resolution days by OT type per torre — same closed-OT population as `resolucion`, split by
+// `tipo_trabajo` ('Correctivo' → conv, 'Preventivo' → prev; 'Chequeo' excluded). Feeds the butterfly
+// chart (DashboardView `DivergingResolucionBar`); *Count is 0 when that type had no closures in the torre.
+export interface ResolucionPorTipo {
+  key: string;
+  conv: number; // avg days, Correctivo
+  prev: number; // avg days, Preventivo
+  convCount: number;
+  prevCount: number;
+}
+
 export interface DashboardSources {
   movimientos: MovimientoStock[];
   salidas: SalidaStock[];
@@ -31,6 +42,7 @@ export interface DashboardStats {
   otsPorTipoTrabajo: Grouped[]; // OTs iniciadas en el mes, por tipo de trabajo (mix de trabajo)
   resolucion: Grouped[];
   resolProm: number;
+  resolucionPorTipo: ResolucionPorTipo[]; // resolucion desglosada Correctivo (conv) vs Preventivo (prev), mismo orden que resolucion
   ventilacionesLimpiadas: Grouped[];
   ventilacionesPorEstado: Grouped[]; // ventilaciones del mes (por fecha relevante), por estado
   ventTotal: number;
@@ -141,8 +153,10 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
   const otsPorEstado = [...otsEstadoMap.values()].sort((x, y) => y.a - x.a);
   const otsPorTipoTrabajo = [...otsTrabajoMap.values()].sort((x, y) => y.a - x.a);
 
-  // 4. Tiempo de resolución por torre: OTs closed this month, avg (cierre - inicio) in days.
+  // 4. Tiempo de resolución por torre: OTs closed this month, avg (cierre - inicio) in days. In the
+  //    SAME pass, split by tipo_trabajo (Correctivo/Preventivo; Chequeo excluded) for resolucionPorTipo.
   const resolMap = new Map<string, { key: string; count: number; totalDays: number }>();
+  const resolTipoMap = new Map<string, { conv: number; convCount: number; prev: number; prevCount: number }>();
   let resolCount = 0;
   let resolTotalDays = 0;
   for (const o of ots) {
@@ -155,11 +169,26 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
     resolMap.set(key, g);
     resolCount += 1;
     resolTotalDays += d;
+
+    if (o.tipo_trabajo === 'Correctivo' || o.tipo_trabajo === 'Preventivo') {
+      const t = resolTipoMap.get(key) ?? { conv: 0, convCount: 0, prev: 0, prevCount: 0 };
+      if (o.tipo_trabajo === 'Correctivo') { t.conv += d; t.convCount += 1; } else { t.prev += d; t.prevCount += 1; }
+      resolTipoMap.set(key, t);
+    }
   }
   const resolucion: Grouped[] = [...resolMap.values()]
     .map((g) => ({ key: g.key, a: g.count, b: g.count ? g.totalDays / g.count : 0 }))
     .sort((x, y) => y.b - x.b);
   const resolProm = resolCount ? resolTotalDays / resolCount : 0;
+  // Mirror `resolucion`'s torre order exactly (iterate the already-sorted array); towers with no
+  // Correctivo/Preventivo closures (only Chequeo) are omitted — nothing to plot for them.
+  const resolucionPorTipo: ResolucionPorTipo[] = resolucion
+    .map((g) => {
+      const t = resolTipoMap.get(g.key);
+      if (!t) return null;
+      return { key: g.key, conv: t.convCount ? t.conv / t.convCount : 0, prev: t.prevCount ? t.prev / t.prevCount : 0, convCount: t.convCount, prevCount: t.prevCount };
+    })
+    .filter((r): r is ResolucionPorTipo => r !== null);
 
   // 5. Ventilaciones: limpiadas por edificio (Realizada + fecha_finalizacion en el mes) y distribución
   //    por estado de las que caen en el mes (por su fecha relevante: programada → próxima → finalización).
@@ -188,6 +217,7 @@ export function buildDashboardStats(mes: string, { movimientos, ots, ventilacion
     otsPorTipoTrabajo,
     resolucion,
     resolProm,
+    resolucionPorTipo,
     ventilacionesLimpiadas,
     ventilacionesPorEstado,
     ventTotal,

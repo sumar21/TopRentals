@@ -86,6 +86,27 @@ qué dice el kit, qué hace TopRentals, dónde vive el cambio real y por qué.
   `components/dashboard/DashboardView.tsx` (`useChartColors`).
 - **Por qué**: pedido de producto (paridad con apps modernas); el kit ya bendecía el approach (§1.4).
 
+## 4. Rampa roja→verde por valor en "Tiempo de resolución General por torre" (2026-08)
+
+- **Kit / regla de equipo**: `dataviz` (y la sección 2 de este archivo) manda **un solo hue de
+  marca por serie** en las barras de magnitud — nada de multi-tint `shade(i)` sobre categorías
+  nominales, porque eso double-encodea el largo de la barra como color sin agregar información.
+- **TopRentals**: el chart "Tiempo de resolución General por torre" (`components/dashboard/DashboardView.tsx`,
+  `MagnitudeBar` con la prop opcional `barColor`) pinta cada barra con una rampa roja→verde por
+  VALOR (no por categoría): rojo = peor (más días), verde = mejor (menos días), interpolando
+  hue HSL 0→140 según `(row.b - min) / (max - min)`. Esto no es el multi-tint prohibido — no hay
+  una barra por serie con un hue fijo arbitrario; es una rampa continua que codifica la magnitud
+  misma, redundante con el orden (el chart ya está ordenado desc por `b`) y con los labels de
+  valor directos (`<LabelList>`) que quedan intactos. La identidad de cada torre nunca depende
+  del color solo — está en el eje Y y en el label numérico, así que el mapeo es
+  CVD-mitigado por diseño (doble codificación: posición + valor explícito, no solo hue).
+- **Dónde vive el override**: `resolucionRampFill` + la prop `barColor` de `MagnitudeBar` en
+  `components/dashboard/DashboardView.tsx`; usado solo en ese chart (el resto de `MagnitudeBar`
+  sigue con el hue único de marca).
+- **Por qué**: decisión de producto (2026-08) — "Tiempo de resolución" es una métrica de
+  performance (bueno/malo), y el semáforo rojo/verde comunica eso de un vistazo mejor que el
+  navy plano, sin perder la barra ordenada ni los labels que ya evitaban la torta.
+
 ---
 
 > Si aparece una divergencia nueva respecto del kit, se agrega como un bloque más en este

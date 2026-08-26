@@ -30,7 +30,7 @@
 //    adds one metric selector; per-mark / crosshair hover everywhere.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, ClipboardList, Clock, Fan, LayoutDashboard, PackageMinus, PackagePlus, TrendingUp, Trophy, Wrench } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
@@ -38,7 +38,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import { EmptyState } from '../EmptyState';
 import { api } from '../../services/index.ts';
 import type { MovimientoStock, OrdenTrabajo, SalidaStock, Usuario, Ventilacion } from '../../services/types.ts';
-import type { Grouped, MonthlyPoint } from '../../utils/dashboardStats';
+import type { Grouped, MonthlyPoint, ResolucionPorTipo } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, monthKey, trendExtremes } from '../../utils/dashboardStats';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -53,6 +53,10 @@ function useChartColors() {
   const dark = useTheme().theme === 'dark';
   return {
     BRAND: dark ? '#6f9bc4' : '#23313E',    // single-series fill (aclarado en oscuro para verse)
+    // Diverging pair for "resolución por tipo" (Correctivo vs Preventivo) — validated with
+    // scripts/checks/validate_palette.js (light/dark, both PASS every hard gate incl. normal-vision floor).
+    CONV: dark ? '#4e8fc9' : '#215f9c',     // Convencional (Correctivo)
+    PREV: dark ? '#cf7d4c' : '#cc5a2f',     // Preventiva
     GRID: dark ? '#27272a' : '#eef0f2',     // hairline gridline
     CAT_INK: dark ? '#a1a1aa' : '#475569',  // category names + direct value labels
     AXIS_MUTED: dark ? '#71717a' : '#94a3b8',
@@ -150,8 +154,15 @@ const MagnitudeBar: React.FC<{
   tooltipName: string;                   // tooltip series name
   tooltipExtra?: (g: Grouped) => string; // optional richer tooltip (e.g. cost, last date)
   allowDecimals?: boolean;
-}> = ({ data, valueKey, label, tooltipName, tooltipExtra, allowDecimals = false }) => {
+  // Optional per-bar color ramp (docs/design-overrides.md §4): when set, each bar gets its own
+  // <Cell> instead of the single-hue `fill`. Absent for every other MagnitudeBar caller.
+  barColor?: (row: Grouped, i: number, min: number, max: number) => string;
+}> = ({ data, valueKey, label, tooltipName, tooltipExtra, allowDecimals = false, barColor }) => {
   const { GRID, AXIS_MUTED, CAT_INK, CURSOR, TOOLTIP_STYLE, BRAND } = useChartColors();
+  const [min, max] = useMemo(() => {
+    const values = data.map((d) => d[valueKey]);
+    return [Math.min(...values), Math.max(...values)];
+  }, [data, valueKey]);
   return (
   <ResponsiveContainer width="100%" height={Math.max(180, data.length * 40)}>
     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 4 }} barCategoryGap="24%">
@@ -164,7 +175,53 @@ const MagnitudeBar: React.FC<{
         formatter={((_v: number, _n: string, p: any) => [tooltipExtra ? tooltipExtra(p.payload as Grouped) : label(p.payload[valueKey]), tooltipName]) as any}
       />
       <Bar dataKey={valueKey} fill={BRAND} radius={[0, 4, 4, 0]} maxBarSize={20} isAnimationActive={false}>
+        {barColor && data.map((row, i) => <Cell key={row.key} fill={barColor(row, i, min, max)} />)}
         <LabelList dataKey={valueKey} position="right" formatter={((v: number) => label(v)) as any} style={{ fontSize: 11, fill: CAT_INK, fontWeight: 500 }} />
+      </Bar>
+    </BarChart>
+  </ResponsiveContainer>
+  );
+};
+
+// Red→green value ramp for the resolución chart's bars (worst=red → best=green): a deliberate
+// per-value diverging encoding, NOT a categorical multi-tint — see docs/design-overrides.md §4.
+// t in [0,1]: 1 = worst (max days) → red, 0 = best (min days) → green.
+const resolucionRampFill = (row: Grouped, _i: number, min: number, max: number) => {
+  const t = max === min ? 0 : (row.b - min) / (max - min);
+  const hue = 140 * (1 - t); // 0=red … 140=green
+  return `hsl(${hue.toFixed(0)}, 68%, 45%)`;
+};
+
+/**
+ * Butterfly / diverging bar — avg resolution days by OT type per torre (Convencional negative-left,
+ * Preventiva positive-right), same torre order as the resolución chart above. Symmetric domain around
+ * a center hairline (`ReferenceLine x={0}`) so both sides share one scale; 2 series ⇒ legend is
+ * mandatory (docs/design-overrides.md / dataviz), plus direct end-labels with the absolute day count.
+ */
+const DivergingResolucionBar: React.FC<{ data: ResolucionPorTipo[] }> = ({ data }) => {
+  const { GRID, AXIS_MUTED, CAT_INK, CURSOR, TOOLTIP_STYLE, CONV, PREV } = useChartColors();
+  const rows = useMemo(() => data.map((d) => ({ key: d.key, convNeg: -d.conv, prev: d.prev, conv: d.conv })), [data]);
+  const maxAbs = useMemo(() => Math.max(1, ...data.flatMap((d) => [d.conv, d.prev])), [data]);
+  return (
+  <ResponsiveContainer width="100%" height={Math.max(180, rows.length * 40)}>
+    <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 4 }} barCategoryGap="24%">
+      <CartesianGrid stroke={GRID} horizontal={false} />
+      <XAxis type="number" domain={[-maxAbs, maxAbs]} tickFormatter={((v: number) => String(Math.abs(v))) as any} tick={{ fontSize: 11, fill: AXIS_MUTED }} axisLine={false} tickLine={false} />
+      <YAxis type="category" dataKey="key" tick={{ fontSize: 11, fill: CAT_INK }} axisLine={false} tickLine={false} width={150} />
+      <ReferenceLine x={0} stroke={AXIS_MUTED} />
+      <Tooltip
+        cursor={CURSOR}
+        contentStyle={TOOLTIP_STYLE}
+        formatter={((v: number, name: string) => [`${oneDecimal(Math.abs(v))} días`, name]) as any}
+      />
+      <Legend wrapperStyle={{ fontSize: 11, color: CAT_INK }} />
+      {/* Same stackId → ambas barras comparten la línea de la torre y salen desde 0 hacia lados opuestos
+          (signos opuestos ⇒ no se solapan). Sin stackId recharts las offsetea en dos sub-barras. */}
+      <Bar dataKey="convNeg" name="Convencional" stackId="tipo" fill={CONV} radius={[4, 0, 0, 4]} maxBarSize={20} isAnimationActive={false}>
+        <LabelList dataKey="convNeg" position="left" formatter={((v: number) => oneDecimal(Math.abs(v))) as any} style={{ fontSize: 11, fill: CAT_INK, fontWeight: 500 }} />
+      </Bar>
+      <Bar dataKey="prev" name="Preventiva" stackId="tipo" fill={PREV} radius={[0, 4, 4, 0]} maxBarSize={20} isAnimationActive={false}>
+        <LabelList dataKey="prev" position="right" formatter={((v: number) => oneDecimal(v)) as any} style={{ fontSize: 11, fill: CAT_INK, fontWeight: 500 }} />
       </Bar>
     </BarChart>
   </ResponsiveContainer>
@@ -658,10 +715,13 @@ const DashboardView: React.FC = () => {
                 <ChartCard title="OTs por tipo de trabajo" subtitle="Mix de trabajo del mes" empty={data.otsPorTipoTrabajo.length === 0} emptyMsg="Sin OTs iniciadas este mes.">
                   <Donut rows={data.otsPorTipoTrabajo} valueKey="a" label={num} unit="OTs" />
                 </ChartCard>
-                <ChartCard title="Tiempo de resolución por torre" subtitle="Días promedio de cierre (promedios no van en torta)" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
-                  <MagnitudeBar data={data.resolucion} valueKey="b" label={oneDecimal} tooltipName="Promedio" tooltipExtra={(g) => `${oneDecimal(g.b)} días · ${num(g.a)} OTs`} allowDecimals />
+                <ChartCard title="Tiempo de resolución General por torre" subtitle="Días promedio de cierre (promedios no van en torta)" empty={data.resolucion.length === 0} emptyMsg="Sin OTs cerradas este mes.">
+                  <MagnitudeBar data={data.resolucion} valueKey="b" label={oneDecimal} tooltipName="Promedio" tooltipExtra={(g) => `${oneDecimal(g.b)} días · ${num(g.a)} OTs`} allowDecimals barColor={resolucionRampFill} />
                 </ChartCard>
               </div>
+              <ChartCard title="Tiempo de resolución por tipo y torre" subtitle="Convencionales vs Preventivas · días promedio de cierre" empty={data.resolucionPorTipo.length === 0} emptyMsg="Sin OTs cerradas este mes.">
+                <DivergingResolucionBar data={data.resolucionPorTipo} />
+              </ChartCard>
               <ChartCard title="OTs resueltas por técnico" subtitle="Cierres del mes, por el técnico que cerró la OT" empty={otsPorTecnico.length === 0} emptyMsg="Sin OTs cerradas este mes.">
                 <MagnitudeBar data={otsPorTecnico} valueKey="a" label={num} tooltipName="OTs resueltas" />
               </ChartCard>
