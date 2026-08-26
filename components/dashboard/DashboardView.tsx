@@ -30,7 +30,7 @@
 //    adds one metric selector; per-mark / crosshair hover everywhere.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, ClipboardList, Clock, Fan, LayoutDashboard, PackageMinus, PackagePlus, TrendingUp, Trophy, Wrench } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, StatCard, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
@@ -193,38 +193,53 @@ const resolucionRampFill = (row: Grouped, _i: number, min: number, max: number) 
 };
 
 /**
- * Butterfly / diverging bar — avg resolution days by OT type per torre (Convencional negative-left,
- * Preventiva positive-right), same torre order as the resolución chart above. Symmetric domain around
- * a center hairline (`ReferenceLine x={0}`) so both sides share one scale; 2 series ⇒ legend is
- * mandatory (docs/design-overrides.md / dataviz), plus direct end-labels with the absolute day count.
+ * Butterfly / diverging bar en HTML/CSS puro (NO recharts) — días promedio de cierre por torre,
+ * partido: Preventivas a la IZQUIERDA, Convencionales (todo lo no-preventivo) a la DERECHA, mismo
+ * orden de torres que el chart de arriba. El ancho de cada barra = valor/maxAbs sobre un eje común,
+ * así una barra de 3 días mide exactamente 1,5× una de 2 días y la longitud SIEMPRE coincide con la
+ * etiqueta. (recharts 3 rompía esto: un stacked con valores negativos generaba un eje asimétrico y
+ * barras que no matcheaban los números.) Etiquetas directas hacia afuera + leyenda (2 series).
  */
 const DivergingResolucionBar: React.FC<{ data: ResolucionPorTipo[] }> = ({ data }) => {
-  const { GRID, AXIS_MUTED, CAT_INK, CURSOR, TOOLTIP_STYLE, CONV, PREV } = useChartColors();
-  const rows = useMemo(() => data.map((d) => ({ key: d.key, convNeg: -d.conv, prev: d.prev, conv: d.conv })), [data]);
-  const maxAbs = useMemo(() => Math.max(1, ...data.flatMap((d) => [d.conv, d.prev])), [data]);
+  const { GRID, AXIS_MUTED, CAT_INK, CONV, PREV } = useChartColors();
+  const maxAbs = Math.max(1, ...data.flatMap((d) => [d.conv, d.prev]));
+  const pct = (v: number) => (v / maxAbs) * 44; // cada lado usa ~44% del ancho; el 6% restante deja lugar a la etiqueta
   return (
-  <ResponsiveContainer width="100%" height={Math.max(180, rows.length * 40)}>
-    <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 48, left: 8, bottom: 4 }} barCategoryGap="24%">
-      <CartesianGrid stroke={GRID} horizontal={false} />
-      <XAxis type="number" domain={[-maxAbs, maxAbs]} tickFormatter={((v: number) => String(Math.abs(v))) as any} tick={{ fontSize: 11, fill: AXIS_MUTED }} axisLine={false} tickLine={false} />
-      <YAxis type="category" dataKey="key" tick={{ fontSize: 11, fill: CAT_INK }} axisLine={false} tickLine={false} width={150} />
-      <ReferenceLine x={0} stroke={AXIS_MUTED} />
-      <Tooltip
-        cursor={CURSOR}
-        contentStyle={TOOLTIP_STYLE}
-        formatter={((v: number, name: string) => [`${oneDecimal(Math.abs(v))} días`, name]) as any}
-      />
-      <Legend wrapperStyle={{ fontSize: 11, color: CAT_INK }} />
-      {/* Same stackId → ambas barras comparten la línea de la torre y salen desde 0 hacia lados opuestos
-          (signos opuestos ⇒ no se solapan). Sin stackId recharts las offsetea en dos sub-barras. */}
-      <Bar dataKey="convNeg" name="Convencional" stackId="tipo" fill={CONV} radius={[4, 0, 0, 4]} maxBarSize={20} isAnimationActive={false}>
-        <LabelList dataKey="convNeg" position="left" formatter={((v: number) => oneDecimal(Math.abs(v))) as any} style={{ fontSize: 11, fill: CAT_INK, fontWeight: 500 }} />
-      </Bar>
-      <Bar dataKey="prev" name="Preventiva" stackId="tipo" fill={PREV} radius={[0, 4, 4, 0]} maxBarSize={20} isAnimationActive={false}>
-        <LabelList dataKey="prev" position="right" formatter={((v: number) => oneDecimal(v)) as any} style={{ fontSize: 11, fill: CAT_INK, fontWeight: 500 }} />
-      </Bar>
-    </BarChart>
-  </ResponsiveContainer>
+    <div>
+      <div className="space-y-1.5">
+        {data.map((d) => (
+          <div
+            key={d.key}
+            className="flex items-center gap-2"
+            title={`${d.key} — Preventiva ${oneDecimal(d.prev)} d (${num(d.prevCount)}) · Convencional ${oneDecimal(d.conv)} d (${num(d.convCount)})`}
+          >
+            <div className="w-28 shrink-0 truncate text-right text-xs" style={{ color: CAT_INK }}>{d.key}</div>
+            <div className="relative h-5 flex-1">
+              <div className="absolute inset-y-0" style={{ left: '50%', width: 1, background: GRID }} />
+              {/* Preventiva → izquierda desde el centro */}
+              {d.prevCount > 0 && (
+                <>
+                  <div className="absolute top-1/2 -translate-y-1/2 rounded-l-sm" style={{ right: '50%', width: `${pct(d.prev)}%`, height: 14, background: PREV }} />
+                  <div className="absolute top-1/2 -translate-y-1/2 pr-1 text-[11px] font-medium tabular-nums" style={{ right: `${50 + pct(d.prev)}%`, color: CAT_INK }}>{oneDecimal(d.prev)}</div>
+                </>
+              )}
+              {/* Convencional → derecha desde el centro */}
+              {d.convCount > 0 && (
+                <>
+                  <div className="absolute top-1/2 -translate-y-1/2 rounded-r-sm" style={{ left: '50%', width: `${pct(d.conv)}%`, height: 14, background: CONV }} />
+                  <div className="absolute top-1/2 -translate-y-1/2 pl-1 text-[11px] font-medium tabular-nums" style={{ left: `${50 + pct(d.conv)}%`, color: CAT_INK }}>{oneDecimal(d.conv)}</div>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px]" style={{ color: CAT_INK }}>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: PREV }} /> Preventiva (izq.)</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: CONV }} /> Convencional (der.)</span>
+        <span style={{ color: AXIS_MUTED }}>· escala común, máx {oneDecimal(maxAbs)} d/lado</span>
+      </div>
+    </div>
   );
 };
 
@@ -719,7 +734,7 @@ const DashboardView: React.FC = () => {
                   <MagnitudeBar data={data.resolucion} valueKey="b" label={oneDecimal} tooltipName="Promedio" tooltipExtra={(g) => `${oneDecimal(g.b)} días · ${num(g.a)} OTs`} allowDecimals barColor={resolucionRampFill} />
                 </ChartCard>
               </div>
-              <ChartCard title="Tiempo de resolución por tipo y torre" subtitle="Convencionales vs Preventivas · días promedio de cierre" empty={data.resolucionPorTipo.length === 0} emptyMsg="Sin OTs cerradas este mes.">
+              <ChartCard title="Tiempo de resolución por tipo y torre" subtitle="Preventivas (izq.) vs Convencionales (der.) · días promedio de cierre" empty={data.resolucionPorTipo.length === 0} emptyMsg="Sin OTs cerradas este mes.">
                 <DivergingResolucionBar data={data.resolucionPorTipo} />
               </ChartCard>
               <ChartCard title="OTs resueltas por técnico" subtitle="Cierres del mes, por el técnico que cerró la OT" empty={otsPorTecnico.length === 0} emptyMsg="Sin OTs cerradas este mes.">
