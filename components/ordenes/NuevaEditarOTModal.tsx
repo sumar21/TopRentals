@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, FileText, Loader2, Paperclip, Save, Upload, X } from 'lucide-react';
-import { Button, useModalAnimation } from '../ui/UIComponents';
+import { Button, Combobox, useModalAnimation } from '../ui/UIComponents';
 import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { NumberInput } from '../ui/NumberInput';
@@ -96,7 +96,9 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
 
   const edificioOptions = useMemo(() => edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: String(e.id) })), [edificios]);
   const unidadOptions = useMemo(
-    () => unidades.filter((u) => String(u.edificio_id ?? '') === edificioId && u.status === 'Alta').map((u) => ({ label: `${u.torre ?? ''} - ${u.depto ?? u.id_client ?? u.id}`, value: String(u.id) })),
+    () => unidades.filter((u) => String(u.edificio_id ?? '') === edificioId && u.status === 'Alta')
+      .map((u) => ({ label: `${u.torre ?? ''} - ${u.depto ?? u.id_client ?? u.id}`, value: String(u.id) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true })), // depto de menor a mayor (numeric: 0419 < 1106)
     [unidades, edificioId],
   );
 
@@ -210,7 +212,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Departamento *</label>
-              <Select value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Seleccionar…' : 'Elegí una torre primero'} disabled={readOnly || !edificioId} />
+              <Combobox value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Seleccionar…' : 'Elegí una torre primero'} searchPlaceholder="Buscar depto…" disabled={readOnly || !edificioId} />
             </div>
           </div>
 
