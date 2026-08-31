@@ -32,6 +32,7 @@ interface CartLine {
   key: string;
   articulo_id: number;
   articulo_nombre: string;
+  edificio_id: number;
   cantidad: number;
   costo: string; // masked money string
 }
@@ -82,13 +83,14 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   const [nuevoArticuloId, setNuevoArticuloId] = useState('');
   const [nuevaCantidad, setNuevaCantidad] = useState('1');
   const [nuevoCosto, setNuevoCosto] = useState('');
+  const [nuevaLineaEdificioId, setNuevaLineaEdificioId] = useState('');
 
   // Reset + preload every time the modal opens.
   useEffect(() => {
     if (!isOpen || !user) return;
     let cancelled = false;
     setError('');
-    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto('');
+    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto(''); setNuevaLineaEdificioId('');
     setLoading(true);
     Promise.all([
       api.usuarios.list(),
@@ -111,6 +113,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
           key: nextLineKey(),
           articulo_id: d.articulo_id ?? 0,
           articulo_nombre: d.articulo ?? '',
+          edificio_id: d.edificio_id ?? user.edificio_id ?? 0,
           cantidad: d.cantidad,
           costo: maskFromNumber(d.costo_unitario ?? 0),
         })));
@@ -146,6 +149,9 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   if (!visible || !user) return null;
 
   const buildingLocked = !canEditBuilding(user.perfil);
+  // Effective building for the next line: user's override in the add-line row, falling back
+  // to the header default (edificioId). Locked users always use their own building.
+  const nuevaLineaEdificioEfectivo = buildingLocked ? String(user.edificio_id ?? '') : (nuevaLineaEdificioId || edificioId);
 
   const handleSelectArticulo = (value: string) => {
     setNuevoArticuloId(value);
@@ -156,16 +162,17 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   const addLine = () => {
     const art = articulos.find((a) => String(a.id) === nuevoArticuloId);
     const cantidad = parseInt(nuevaCantidad, 10);
-    if (!art || !Number.isFinite(cantidad) || cantidad <= 0) return;
-    setCart((prev) => [...prev, { key: nextLineKey(), articulo_id: art.id, articulo_nombre: articuloLabel(art), cantidad, costo: nuevoCosto || maskFromNumber(art.precio_unitario ?? 0) }]);
-    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto('');
+    const edificio_id = Number(nuevaLineaEdificioEfectivo);
+    if (!art || !Number.isFinite(cantidad) || cantidad <= 0 || !edificio_id) return;
+    setCart((prev) => [...prev, { key: nextLineKey(), articulo_id: art.id, articulo_nombre: articuloLabel(art), edificio_id, cantidad, costo: nuevoCosto || maskFromNumber(art.precio_unitario ?? 0) }]);
+    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto(''); setNuevaLineaEdificioId('');
   };
 
   const updateLine = (key: string, patch: Partial<CartLine>) =>
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setCart((prev) => prev.filter((l) => l.key !== key));
 
-  const canSubmit = !!solicitanteId && !!edificioId && cart.length > 0 && !saving && !loading;
+  const canSubmit = !!solicitanteId && cart.length > 0 && cart.every((l) => l.edificio_id > 0) && !saving && !loading;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -174,7 +181,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
     try {
       const lineas: CompraLineaInput[] = cart.map((l) => ({
         articulo_id: l.articulo_id,
-        edificio_id: Number(edificioId),
+        edificio_id: l.edificio_id,
         cantidad: l.cantidad,
         costo_unitario: parseMoney(l.costo),
       }));
@@ -183,7 +190,9 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
         usuario_id: Number(solicitanteId),
         usuario_compra: solicitante?.concat_name ?? solicitanteNombre,
         urgencia,
-        edificio_id: Number(edificioId),
+        // CompraFormValues.edificio_id has no header meaning anymore (building lives per line —
+        // DetalleCompra.edificio_id). Kept for type-compat only: nothing consumes it downstream.
+        edificio_id: Number(edificioId) || cart[0]?.edificio_id || 0,
         observacion,
         lineas,
       });
@@ -244,7 +253,9 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    {headerEditable && !buildingLocked ? 'Edificio por defecto (para nuevas líneas)' : 'Edificio'}
+                  </label>
                   {headerEditable && !buildingLocked ? (
                     <Select value={edificioId} onChange={setEdificioId} options={edificioOptions} placeholder="Seleccionar edificio…" />
                   ) : (
@@ -261,11 +272,17 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Artículos</h3>
                   {cart.length > 0 && <span className="text-[11px] text-muted-foreground">{cart.length} {cart.length === 1 ? 'línea' : 'líneas'}</span>}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_100px_140px_auto] gap-2 items-end p-3 bg-secondary/20 rounded-lg border border-border/50">
+                <div className={`grid grid-cols-1 ${buildingLocked ? 'sm:grid-cols-[minmax(0,1fr)_100px_140px_auto]' : 'sm:grid-cols-[minmax(0,1fr)_160px_100px_140px_auto]'} gap-2 items-end p-3 bg-secondary/20 rounded-lg border border-border/50`}>
                   <div className="min-w-0">
                     <label className="text-[11px] text-muted-foreground mb-1 block">Artículo</label>
                     <Combobox options={articuloOptions} value={nuevoArticuloId} onChange={handleSelectArticulo} placeholder="Buscar artículo…" searchPlaceholder="Buscar…" />
                   </div>
+                  {!buildingLocked && (
+                    <div className="min-w-0">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Edificio</label>
+                      <Select value={nuevaLineaEdificioEfectivo} onChange={setNuevaLineaEdificioId} options={edificioOptions} placeholder="Edificio…" />
+                    </div>
+                  )}
                   <div>
                     <label className="text-[11px] text-muted-foreground mb-1 block">Cantidad</label>
                     <NumberInput min={1} value={nuevaCantidad} onChange={(e) => setNuevaCantidad(e.target.value)} placeholder="Ej: 1" />
@@ -274,7 +291,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                     <label className="text-[11px] text-muted-foreground mb-1 block">Costo unit.</label>
                     <MoneyInput value={nuevoCosto} onChange={setNuevoCosto} readOnly disabled />
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!nuevoArticuloId} className="gap-1.5">
+                  <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!nuevoArticuloId || !nuevaLineaEdificioEfectivo} className="gap-1.5">
                     <Plus className="h-4 w-4" /> Agregar línea
                   </Button>
                 </div>
@@ -299,6 +316,16 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
+                          <div>
+                            <label className="text-[11px] text-muted-foreground mb-1 block">Edificio</label>
+                            {buildingLocked ? (
+                              <div className="flex h-8 items-center px-3 rounded-md border border-input bg-muted text-sm text-muted-foreground">
+                                {edificios.find((e) => e.id === l.edificio_id)?.nombre ?? '—'}
+                              </div>
+                            ) : (
+                              <Select value={String(l.edificio_id || '')} onChange={(v) => updateLine(l.key, { edificio_id: Number(v) })} options={edificioOptions} placeholder="Edificio…" className="h-8" />
+                            )}
+                          </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[11px] text-muted-foreground mb-1 block">Cantidad</label>
@@ -320,6 +347,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                         <TableHeader>
                           <TableRow>
                             <TableHead>Artículo</TableHead>
+                            <TableHead className="w-40">Edificio</TableHead>
                             <TableHead className="w-24 text-right">Cant.</TableHead>
                             <TableHead className="w-36 text-right whitespace-nowrap">Costo unit.</TableHead>
                             <TableHead className="w-36 text-right">Total</TableHead>
@@ -330,6 +358,13 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                           {cart.map((l) => (
                             <TableRow key={l.key}>
                               <TableCell className="text-sm">{l.articulo_nombre}</TableCell>
+                              <TableCell>
+                                {buildingLocked ? (
+                                  <span className="text-sm text-muted-foreground">{edificios.find((e) => e.id === l.edificio_id)?.nombre ?? '—'}</span>
+                                ) : (
+                                  <Select value={String(l.edificio_id || '')} onChange={(v) => updateLine(l.key, { edificio_id: Number(v) })} options={edificioOptions} placeholder="Edificio…" className="h-8" />
+                                )}
+                              </TableCell>
                               <TableCell className="text-right">
                                 <NumberInput min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
                               </TableCell>
