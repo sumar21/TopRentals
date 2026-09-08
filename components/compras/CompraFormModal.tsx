@@ -12,6 +12,7 @@ import { NumberInput } from '../ui/NumberInput';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
+import { errorMessage } from '../../utils/errorMessage';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/index.ts';
 import type { Articulo, Edificio, Usuario } from '../../services/types.ts';
@@ -198,7 +199,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
       });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo guardar la compra.');
+      setError(errorMessage(e, 'No se pudo guardar la compra.'));
     } finally {
       setSaving(false);
     }

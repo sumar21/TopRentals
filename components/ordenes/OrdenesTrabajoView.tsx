@@ -20,6 +20,7 @@ import { api } from '../../services/index';
 import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
 import { formatDate } from '../../utils/dates';
 import { capitalizeFirst } from '../../utils/strings';
+import { errorMessage } from '../../utils/errorMessage';
 import { otResueltaEmail } from '../../emails/templates';
 import { resolveRecipients, sendEmail } from '../../emails/send';
 import { FEATURES } from '../../config/features';
@@ -147,7 +148,7 @@ const OrdenesTrabajoView: React.FC = () => {
         if (FEATURES.emailOtResuelta) void sendResolutionEmail(saved);
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo completar la acción.', 'error');
+      showToast(errorMessage(e, 'No se pudo completar la acción.'), 'error');
     }
   };
 

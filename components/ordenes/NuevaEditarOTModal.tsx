@@ -16,6 +16,7 @@ import { APP_VERSION } from '../../config/appVersion';
 import { todayISO } from '../../utils/dates';
 import type { Documento, Edificio, OrdenTrabajo, Unidad } from '../../services/types';
 import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TAREA_OPTIONS, TIPO_TRABAJO_OPTIONS } from './otHelpers';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface StagedPhoto { id: string; file: File; url: string; }
 
@@ -170,7 +171,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
       onSaved(saved);
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo guardar la orden de trabajo.';
+      const msg = errorMessage(e, 'No se pudo guardar la orden de trabajo.');
       setError(msg);
       showToast(msg, 'error');
     } finally {

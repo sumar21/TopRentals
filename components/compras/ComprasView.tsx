@@ -21,6 +21,7 @@ import { useToast } from '../ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
 import { formatDate } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 import { api } from '../../services/index.ts';
 import type { Compra, Usuario } from '../../services/types.ts';
 import { compraEnviadaAprobacionEmail, type CompraLineaEmail } from '../../emails/templates.ts';
@@ -168,7 +169,7 @@ const ComprasView: React.FC = () => {
       showToast('Compra enviada a aprobación.', 'success');
       await load();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo enviar la compra a aprobación.', 'error');
+      showToast(errorMessage(e, 'No se pudo enviar la compra a aprobación.'), 'error');
     }
   };
 
@@ -179,7 +180,7 @@ const ComprasView: React.FC = () => {
       showToast('Compra anulada.', 'success');
       await load();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo anular la compra.', 'error');
+      showToast(errorMessage(e, 'No se pudo anular la compra.'), 'error');
     }
   };
 

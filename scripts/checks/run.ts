@@ -11,6 +11,7 @@ import {
 } from '../../services/supabase/rows.ts';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, trendExtremes } from '../../utils/dashboardStats.ts';
 import { estadoLimpieza } from '../../utils/ventilacion.ts';
+import { errorMessage } from '../../utils/errorMessage.ts';
 
 let passed = 0;
 
@@ -458,6 +459,15 @@ async function main() {
   } catch {
     console.log('skip - parseMoney/maskFromNumber roundtrip (utils/formatMoneyInput.ts not present yet)');
   }
+
+  await check('errorMessage: surfaces Supabase PostgrestError (not instanceof Error), falls back otherwise', () => {
+    // PostgrestError shape — the RPC RAISE text must reach the UI, not the generic fallback.
+    assert.equal(errorMessage({ message: 'Cantidad insuficiente.', code: 'P0001' }, 'gen'), 'Cantidad insuficiente.');
+    assert.equal(errorMessage(new Error('boom'), 'gen'), 'boom');
+    assert.equal(errorMessage({ message: '   ' }, 'gen'), 'gen'); // blank message -> fallback
+    assert.equal(errorMessage('just a string', 'gen'), 'gen'); // non-object -> fallback
+    assert.equal(errorMessage(null, 'gen'), 'gen');
+  });
 
   console.log(`\n${passed} check(s) passed.`);
 }

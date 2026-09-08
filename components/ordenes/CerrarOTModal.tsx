@@ -11,6 +11,7 @@ import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import type { EstadoOT, OrdenTrabajo } from '../../services/types';
 import { todayISO } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 
 const TIPO_CIERRE_OPTIONS = [{ label: 'Cerrada V', value: 'Cerrada V' }, { label: 'Cerrada F', value: 'Cerrada F' }];
 
@@ -48,7 +49,7 @@ const CerrarOTModal: React.FC<CerrarOTModalProps> = ({ isOpen, onClose, ot, onSa
       onSaved(saved);
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo cerrar la orden de trabajo.';
+      const msg = errorMessage(e, 'No se pudo cerrar la orden de trabajo.');
       setError(msg);
       showToast(msg, 'error');
     } finally {

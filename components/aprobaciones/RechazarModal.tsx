@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Save, X } from 'lucide-react';
 import { Button, useModalAnimation } from '../ui/UIComponents';
 import { backdropClose } from '../ui/backdropClose';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface RechazarModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ const RechazarModal: React.FC<RechazarModalProps> = ({ isOpen, onClose, idCompra
       await onConfirm(motivo.trim());
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo rechazar la compra.');
+      setError(errorMessage(e, 'No se pudo rechazar la compra.'));
     } finally {
       setSaving(false);
     }

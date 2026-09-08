@@ -12,6 +12,7 @@ import { api } from '../../services/index';
 import type { Bitacora, OrdenTrabajo } from '../../services/types';
 import { formatDate } from '../../utils/dates';
 import { fileToCompressedDataUrl } from './otHelpers';
+import { errorMessage } from '../../utils/errorMessage';
 
 export interface BitacorasModalProps {
   isOpen: boolean;
@@ -80,7 +81,7 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
       setShowForm(false);
       showToast('Bitácora agregada.', 'success');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo agregar la bitácora.', 'error');
+      showToast(errorMessage(e, 'No se pudo agregar la bitácora.'), 'error');
     } finally {
       setSaving(false);
     }

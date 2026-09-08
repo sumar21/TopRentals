@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { SalidaStock, Usuario } from '../../services/types.ts';
 import { formatDate } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 
 const TIPO_OPTIONS = [
   { label: 'Consumible', value: 'CONSUMIBLE' },
@@ -84,7 +85,7 @@ const SalidasStockView: React.FC = () => {
       await reload();
       showToast('Devolución confirmada: el stock fue reingresado.', 'success');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo confirmar la devolución.', 'error');
+      showToast(errorMessage(e, 'No se pudo confirmar la devolución.'), 'error');
     }
   };
 
@@ -306,7 +307,7 @@ const EditarSalidaModal: React.FC<{
       await onSaved();
       showToast('Cantidad actualizada. El stock fue reajustado.', 'success');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo actualizar la salida.', 'error');
+      showToast(errorMessage(e, 'No se pudo actualizar la salida.'), 'error');
     } finally {
       setSaving(false);
     }

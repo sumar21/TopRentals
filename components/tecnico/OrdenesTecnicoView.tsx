@@ -26,6 +26,7 @@ import { FEATURES } from '../../config/features';
 import { formatDate, todayISO } from '../../utils/dates';
 import { capitalizeFirst } from '../../utils/strings';
 import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, iconBtnPrimary, otAgendadaVisible, torresEnZona, zonaKey } from './shared';
+import { errorMessage } from '../../utils/errorMessage';
 import { useBuilding } from '../../contexts/BuildingContext';
 import BuildingChip from './BuildingChip';
 
@@ -309,7 +310,7 @@ const OrdenesTecnicoView: React.FC = () => {
       setStockAll(freshStock);
       setRepuestosSel(freshRepuestos);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo asignar el repuesto.', 'error');
+      showToast(errorMessage(e, 'No se pudo asignar el repuesto.'), 'error');
     } finally {
       setAssigningId(null);
     }

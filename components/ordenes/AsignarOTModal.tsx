@@ -16,6 +16,7 @@ import type { Articulo, Edificio, OrdenTrabajo, Usuario } from '../../services/t
 import { articuloLabel } from '../../utils/articulos';
 import type { StockRowWithEdificios } from '../../services/api';
 import { todayISO } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface StagedRepuesto { articulo_id: number; nombre: string; cantidad: number; }
 
@@ -98,7 +99,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
       onSaved(saved);
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo asignar la orden de trabajo.';
+      const msg = errorMessage(e, 'No se pudo asignar la orden de trabajo.');
       setError(msg);
       showToast(msg, 'error');
     } finally {

@@ -14,6 +14,7 @@ import { api } from '../../services/index.ts';
 import { resolveRecipients, sendEmail, type RecipientRow } from '../../emails/send.ts';
 import { compraRecibidaEmail, type CompraRecibidaLinea } from '../../emails/templates.ts';
 import type { CompraConDetalle } from '../../services/api.ts';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface RecibirCompraModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
       onReceived();
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo registrar la recepción.';
+      const msg = errorMessage(e, 'No se pudo registrar la recepción.');
       setError(msg);
       showToast(msg, 'error');
     } finally {
