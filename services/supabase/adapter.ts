@@ -119,6 +119,17 @@ async function invokeSharePointWrite<T = unknown>(action: string, payload: Recor
   return data as T;
 }
 
+// usuarios tiene UNIQUE(usuario_app): traduce esa violación (Postgres 23505) a un mensaje claro para la
+// UI. El PostgrestError NO es instanceof Error, así que devolvemos un Error real con el texto amigable;
+// cualquier otra causa se re-lanza tal cual para que errorMessage() muestre su mensaje original.
+function usuarioUniqueError(error: { code?: string; message?: string; details?: string }): unknown {
+  const blob = `${error.message ?? ''} ${error.details ?? ''}`;
+  if (error.code === '23505' && /usuario_app/.test(blob)) {
+    return new Error('Ya existe un usuario con ese nombre de usuario.');
+  }
+  return error;
+}
+
 /** Best-effort SharePoint mirror of a unit's ventilation flags (`requiere_ventilacion`/frecuencia on
  *  `99.ABM_TipoUnidades`). Postgres is what THIS app reads, and the RPC already committed the row +
  *  unit flag atomically — so a mirror outage (Edge Function not deployed / MS secrets unset) must
@@ -211,7 +222,7 @@ export function createSupabaseAdapter(): DataApi {
         const { status, ...rest } = input;
         const payload = { ...rest, activo: status === 'ALTA' };
         const { data, error } = await getSupabase().rpc('usuario_crear', { p_payload: payload });
-        if (error) throw error;
+        if (error) throw usuarioUniqueError(error);
         const id = Number(data);
         // Provisiona la cuenta auth.users (service-role, server-side) para que pueda loguear.
         await invokeSharePointWrite('user-provision', { usuario_id: id, usuario_app: input.usuario_app, password, auth_user_id: null });
@@ -222,7 +233,7 @@ export function createSupabaseAdapter(): DataApi {
         const p_patch: Record<string, unknown> = { ...rest };
         if (status !== undefined) p_patch.activo = status === 'ALTA';
         const { error } = await getSupabase().rpc('usuario_actualizar', { p_id: id, p_patch });
-        if (error) throw error;
+        if (error) throw usuarioUniqueError(error);
         const u = await selectOneRequired('usuarios', id, usuarioFromDb);
         // Solo re-provisiona/actualiza la contraseña si el caller la pasó (el toggle ALTA/BAJA no).
         if (password) {

@@ -20,6 +20,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 import { formatDate } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 
 const PERFIL_OPTIONS: { value: Perfil; label: string }[] = [
   { value: 'Admin', label: 'Admin' },
@@ -155,8 +156,10 @@ const UsuarioFormModal: React.FC<{
       showToast(usuario ? 'Usuario actualizado.' : 'Usuario creado.', 'success');
       onSaved();
       onClose();
-    } catch {
-      showToast('No se pudo guardar el usuario.', 'error');
+    } catch (e) {
+      // El adapter ya traduce el UNIQUE(usuario_app) a "Ya existe un usuario…"; el resto muestra su
+      // causa real (antes un `catch {}` pelado tapaba todo con el genérico).
+      showToast(errorMessage(e, 'No se pudo guardar el usuario.'), 'error');
     } finally {
       setSaving(false);
     }
