@@ -4,7 +4,7 @@
 // clipping; no date library — native Date only.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, Check } from 'lucide-react';
 import { cn } from './UIComponents';
 
 export interface DatePickerProps {
@@ -38,6 +38,7 @@ const POPUP_H = 336;
 
 export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeholder = 'dd/mm/aaaa', className, disabled = false, min, max }) => {
   const [open, setOpen] = useState(false);
+  const [yearOpen, setYearOpen] = useState(false); // año: dropdown propio (dentro del popup), no nativo
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,6 +58,9 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
     const p = parseIso(value);
     if (p) setView({ y: p.y, m: p.m });
   }, [open, value]);
+
+  // El dropdown de año nunca sobrevive al cierre del calendario.
+  useEffect(() => { if (!open) setYearOpen(false); }, [open]);
 
   const getCoords = useCallback(() => {
     if (!triggerRef.current) return { top: 0, left: 0, width: 0 };
@@ -120,17 +124,28 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange, placeho
         <button type="button" onClick={() => step(-1)} aria-label="Mes anterior" className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"><ChevronLeft className="h-4 w-4" /></button>
         <div className="flex items-center gap-1">
           <span className="text-sm font-medium capitalize">{monthName}</span>
-          <select
-            value={view.y}
-            onChange={(e) => setView((v) => ({ ...v, y: Number(e.target.value) }))}
-            onMouseDown={(e) => e.stopPropagation()}
-            aria-label="Año"
-            className="cursor-pointer rounded-md bg-transparent px-1 py-0.5 text-sm font-medium outline-none transition-colors hover:bg-accent focus:ring-2 focus:ring-ring">
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <button type="button" onClick={() => setYearOpen((o) => !o)} aria-label="Elegir año" aria-expanded={yearOpen}
+            className="flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-sm font-medium outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:ring-2 focus:ring-ring">
+            {view.y}
+            <ChevronDown className={cn('h-3.5 w-3.5 opacity-60 transition-transform', yearOpen && 'rotate-180')} />
+          </button>
         </div>
         <button type="button" onClick={() => step(1)} aria-label="Mes siguiente" className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"><ChevronRight className="h-4 w-4" /></button>
       </div>
+      {yearOpen && (
+        <div className="absolute inset-x-3 top-12 z-10 max-h-[244px] overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+          {years.map((y) => (
+            <button key={y} type="button"
+              ref={y === view.y ? (el) => el?.scrollIntoView({ block: 'center' }) : undefined}
+              onClick={() => { setView((v) => ({ ...v, y })); setYearOpen(false); }}
+              className={cn('flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm transition-colors',
+                y === view.y ? 'bg-accent font-medium text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground')}>
+              {y}
+              {y === view.y && <Check className="h-4 w-4 shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-7 gap-0.5">
         {WEEKDAYS.map((w) => <div key={w} className="flex h-7 items-center justify-center text-[10px] font-semibold uppercase text-muted-foreground">{w}</div>)}
         {cells.map((d, i) => {
