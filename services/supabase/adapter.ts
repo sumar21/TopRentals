@@ -224,8 +224,13 @@ export function createSupabaseAdapter(): DataApi {
         const { data, error } = await getSupabase().rpc('usuario_crear', { p_payload: payload });
         if (error) throw usuarioUniqueError(error);
         const id = Number(data);
-        // Provisiona la cuenta auth.users (service-role, server-side) para que pueda loguear.
-        await invokeSharePointWrite('user-provision', { usuario_id: id, usuario_app: input.usuario_app, password, auth_user_id: null });
+        // Provisiona la cuenta auth.users vía RPC DEFINER (escribe el hash bcrypt directo, esquivando el
+        // mínimo de 6 de GoTrue — las passwords son ddmm de 4). Reemplaza a la Edge Function user-provision,
+        // que dejó de andar cuando GoTrue empezó a enforzar el mínimo en la admin API. Ver 0014.
+        const { error: provErr } = await getSupabase().rpc('provision_auth_user', {
+          p_usuario_id: id, p_email: aliasFor(input.usuario_app), p_password: password, p_usuario_app: input.usuario_app,
+        });
+        if (provErr) throw provErr;
         return selectOneRequired('usuarios', id, usuarioFromDb);
       },
       async actualizar(id, patch, password) {
@@ -236,8 +241,12 @@ export function createSupabaseAdapter(): DataApi {
         if (error) throw usuarioUniqueError(error);
         const u = await selectOneRequired('usuarios', id, usuarioFromDb);
         // Solo re-provisiona/actualiza la contraseña si el caller la pasó (el toggle ALTA/BAJA no).
+        // provision_auth_user resuelve solo si crea la cuenta (auth_user_id null) o solo pisa el hash.
         if (password) {
-          await invokeSharePointWrite('user-provision', { usuario_id: id, usuario_app: u.usuario_app, password, auth_user_id: u.auth_user_id });
+          const { error: provErr } = await getSupabase().rpc('provision_auth_user', {
+            p_usuario_id: id, p_email: aliasFor(u.usuario_app), p_password: password, p_usuario_app: u.usuario_app,
+          });
+          if (provErr) throw provErr;
         }
         return u;
       },
