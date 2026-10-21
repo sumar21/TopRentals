@@ -42,6 +42,9 @@ export interface CompraLineaInput {
   costo_unitario: number;
 }
 
+/** The 7 OT fields the dashboard reads (see `ots.listResumen`). */
+export type OtResumen = Pick<OrdenTrabajo, 'id' | 'torre' | 'status' | 'tipo_trabajo' | 'fecha_inicio' | 'fecha_cierre' | 'tecnico_id'>;
+
 /** Domain topics for live change subscriptions (see `DataApi.realtime.subscribe`). */
 export type RealtimeTopic =
   | 'ots'
@@ -173,6 +176,8 @@ export interface DataApi {
 
   ots: {
     list(): Promise<OrdenTrabajo[]>;
+    /** Light projection (7 columns) of every OT, for the dashboard. */
+    listResumen(): Promise<OtResumen[]>;
     get(id: number): Promise<OrdenTrabajo | null>;
     crear(input: NewEntity<OrdenTrabajo>): Promise<OrdenTrabajo>;
     actualizar(id: number, patch: Partial<NewEntity<OrdenTrabajo>>): Promise<OrdenTrabajo>;

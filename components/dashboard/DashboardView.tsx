@@ -37,7 +37,8 @@ import { Loader } from '../ui/Loader';
 import { LoadErrorState } from '../LoadErrorState';
 import { EmptyState } from '../EmptyState';
 import { api } from '../../services/index.ts';
-import type { MovimientoStock, OrdenTrabajo, SalidaStock, Usuario, Ventilacion } from '../../services/types.ts';
+import type { MovimientoStock, SalidaStock, Usuario, Ventilacion } from '../../services/types.ts';
+import type { OtResumen } from '../../services/api.ts';
 import type { Grouped, MonthlyPoint, ResolucionPorTipo } from '../../utils/dashboardStats';
 import { todayISO } from '../../utils/dates';
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, monthKey, trendExtremes } from '../../utils/dashboardStats';
@@ -452,7 +453,7 @@ const DashboardView: React.FC = () => {
 
   const [movimientos, setMovimientos] = useState<MovimientoStock[]>([]);
   const [salidas, setSalidas] = useState<SalidaStock[]>([]);
-  const [ots, setOts] = useState<OrdenTrabajo[]>([]);
+  const [ots, setOts] = useState<OtResumen[]>([]);
   const [ventilaciones, setVentilaciones] = useState<Ventilacion[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -473,7 +474,7 @@ const DashboardView: React.FC = () => {
     const myId = ++reqSeq.current;
     if (!silent) { setLoading(true); setLoadError(false); }
     try {
-      const [mov, sal, o, v, us] = await Promise.all([api.stock.movimientos(), api.stock.salidas(), api.ots.list(), api.ventilaciones.list(), api.usuarios.list()]);
+      const [mov, sal, o, v, us] = await Promise.all([api.stock.movimientos(), api.stock.salidas(), api.ots.listResumen(), api.ventilaciones.list(), api.usuarios.list()]);
       if (myId !== reqSeq.current) return; // superseded by a newer load() — drop the stale response
       setMovimientos(mov);
       setSalidas(sal);
@@ -488,8 +489,16 @@ const DashboardView: React.FC = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  // Realtime: silent refetch when any source table changes — no loader flash.
-  useEffect(() => api.realtime.subscribe(['movimientos', 'salidas', 'ots', 'ventilaciones'], () => { void load(true); }), [load]);
+  // Realtime: silent refetch when any source table changes — no loader flash. Debounced (trailing):
+  // bursts of events (batch inserts) would otherwise reload all 5 tables once per event.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = api.realtime.subscribe(['movimientos', 'salidas', 'ots', 'ventilaciones'], () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { void load(true); }, 1500);
+    });
+    return () => { clearTimeout(timer); unsubscribe(); };
+  }, [load]);
 
   // Usuario scopeado (no global): sus torres asignadas viven en `edificios_dash`, una lista de
   // NOMBRES separada por ';' (mismo patrón que emails_notificacion.emails) — no hay lookup por id

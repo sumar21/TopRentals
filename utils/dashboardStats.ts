@@ -2,7 +2,8 @@
 // (components/dashboard/DashboardView). Extracted from the view so both the number-crunching and the
 // label logic can be unit-checked (scripts/checks/run.ts) without React. `mes` is a 'YYYY-MM' key;
 // rows are attributed to a month via `monthKey` before aggregating.
-import type { MovimientoStock, OrdenTrabajo, SalidaStock, Ventilacion } from '../services/types.ts';
+import type { MovimientoStock, SalidaStock, Ventilacion } from '../services/types.ts';
+import type { OtResumen } from '../services/api.ts';
 
 export interface Grouped {
   key: string;
@@ -24,7 +25,7 @@ export interface ResolucionPorTipo {
 export interface DashboardSources {
   movimientos: MovimientoStock[];
   salidas: SalidaStock[];
-  ots: OrdenTrabajo[];
+  ots: OtResumen[];
   ventilaciones: Ventilacion[];
 }
 

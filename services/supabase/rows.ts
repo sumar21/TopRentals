@@ -15,6 +15,7 @@ import type {
   EmailNotificacion, Frecuencia, MovimientoStock, OrdenTrabajo, PerfilPermiso,
   RepuestoOT, SalidaStock, StockRow, Unidad, Usuario, Ventilacion,
 } from '../types.ts';
+import type { OtResumen } from '../api.ts';
 
 type Row = Record<string, any>;
 
@@ -166,7 +167,19 @@ export const ordenTrabajoFromDb = (r: Row): OrdenTrabajo => ({
   created_at: r.created_at,
 });
 
-export const bitacoraFromDb = (r: Row): Bitacora => ({
+// Light projection for the dashboard (ots.listResumen) — same coercions as ordenTrabajoFromDb
+// for these 7 fields; keep both in sync.
+export const ordenTrabajoResumenFromDb = (r: Row): OtResumen => ({
+  id: Number(r.id),
+  torre: r.torre ?? null,
+  status: r.status,
+  tipo_trabajo: r.tipo_trabajo ?? null,
+  fecha_inicio: r.fecha_inicio ?? null,
+  fecha_cierre: r.fecha_cierre ?? null,
+  tecnico_id: r.tecnico_id == null ? null : Number(r.tecnico_id),
+});
+
+export const bitacoraFromDb =(r: Row): Bitacora => ({
   id: Number(r.id),
   orden_trabajo_id: Number(r.orden_trabajo_id),
   id_univoco_bitacora: r.id_univoco_bitacora,

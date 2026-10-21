@@ -756,6 +756,10 @@ export function createMockAdapter(): DataApi {
         await sleep();
         return structuredClone(db.ordenesTrabajo);
       },
+      async listResumen() {
+        await sleep();
+        return structuredClone(db.ordenesTrabajo); // a full OrdenTrabajo is structurally an OtResumen
+      },
       async get(id) {
         await sleep();
         return structuredClone(db.ordenesTrabajo.find((o) => o.id === id) ?? null);

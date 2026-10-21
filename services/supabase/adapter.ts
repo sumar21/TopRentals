@@ -27,6 +27,7 @@ import {
   frecuenciaFromDb,
   movimientoStockFromDb,
   ordenTrabajoFromDb,
+  ordenTrabajoResumenFromDb,
   perfilPermisoFromDb,
   repuestoOTFromDb,
   salidaStockFromDb,
@@ -71,15 +72,36 @@ const aliasFor = (usuarioApp: string) =>
 // ponytail: this fetches every row client-side (the app filters in memory). Fine at
 // current volumes; if a table grows large, push the filter server-side instead.
 const PAGE_ROWS = 1000;
-async function selectAll<T>(table: string, mapper: (row: any) => T): Promise<T[]> {
+// Page 0 brings the exact count, then the remaining pages go out in PARALLEL (were 7 back-to-back
+// round-trips for ordenes_trabajo). If the last page is still full (rows inserted after the
+// count), keep going sequentially until a short page so nothing is dropped.
+async function selectAll<T>(table: string, mapper: (row: any) => T, columns = '*'): Promise<T[]> {
   const sb = getSupabase();
-  const rows: any[] = [];
-  for (let from = 0; ; from += PAGE_ROWS) {
-    const { data, error } = await sb.from(table).select('*').order('id', { ascending: true }).range(from, from + PAGE_ROWS - 1);
+  const page = async (from: number, withCount = false) => {
+    const { data, error, count } = await sb
+      .from(table)
+      .select(columns, withCount ? { count: 'exact' } : undefined)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_ROWS - 1);
     if (error) throw error;
-    const batch = data ?? [];
-    rows.push(...batch);
-    if (batch.length < PAGE_ROWS) break;
+    return { batch: (data ?? []) as any[], count };
+  };
+  const first = await page(0, true);
+  const rows: any[] = [...first.batch];
+  let last = first.batch;
+  let next = PAGE_ROWS;
+  if (last.length === PAGE_ROWS) {
+    const froms: number[] = [];
+    for (let f = PAGE_ROWS; f < (first.count ?? 0); f += PAGE_ROWS) froms.push(f);
+    const pages = await Promise.all(froms.map((f) => page(f)));
+    for (const p of pages) rows.push(...p.batch);
+    if (pages.length) last = pages[pages.length - 1].batch;
+    next += froms.length * PAGE_ROWS;
+    while (last.length === PAGE_ROWS) {
+      last = (await page(next)).batch;
+      rows.push(...last);
+      next += PAGE_ROWS;
+    }
   }
   return rows.map(mapper);
 }
@@ -518,6 +540,7 @@ export function createSupabaseAdapter(): DataApi {
 
     ots: {
       list: () => selectAll('ordenes_trabajo', ordenTrabajoFromDb),
+      listResumen: () => selectAll('ordenes_trabajo', ordenTrabajoResumenFromDb, 'id,torre,status,tipo_trabajo,fecha_inicio,fecha_cierre,tecnico_id'),
       get: (id) => selectOne('ordenes_trabajo', id, ordenTrabajoFromDb),
       async crear(input) {
         const sb = getSupabase();
