@@ -5,24 +5,29 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/build-api.mjs",
+    "build:api": "node scripts/build-api.mjs",
     "preview": "vite preview",
     "check": "node --experimental-strip-types scripts/checks/run.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "clsx": "^2.1.1",
+    "jose": "6.2.3",
     "lucide-react": "^0.525.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.0",
+    "recharts": "^3.10.1",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vercel/node": "^3.2.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "esbuild": "^0.25.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",

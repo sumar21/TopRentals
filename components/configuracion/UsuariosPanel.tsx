@@ -6,10 +6,12 @@
 // de la tarea "BOTH live").
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Plus, Pencil, UserX, UserCheck2, Save, X, Loader2, AlertCircle, Users } from 'lucide-react';
+import { Search, Plus, Pencil, UserX, UserCheck2, Save, X, Loader2, AlertCircle, Users, KeyRound, UserCircle2 } from 'lucide-react';
 import { api } from '../../services/index.ts';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Edificio, Perfil, Usuario } from '../../services/types.ts';
-import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, Badge, cn, useModalAnimation } from '../ui/UIComponents';
+import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, Badge, cn, useModalAnimation, MultiCombobox } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -18,6 +20,7 @@ import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 import { formatDate } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 
 const PERFIL_OPTIONS: { value: Perfil; label: string }[] = [
   { value: 'Admin', label: 'Admin' },
@@ -34,15 +37,28 @@ function normalizar(s: string): string {
   // descarta junto con cualquier otro carácter no-ascii (espacios, ñ, etc.).
   return s.normalize('NFD').replace(/[^a-zA-Z]/g, '').toLowerCase();
 }
+// Usuario (login) autogenerado: 3 primeras letras del nombre + apellido, con inicial mayúscula.
+// Ej: "Facundo Rombola" -> "Facrombola". No editable (regla del cliente).
 function sugerirUsuarioApp(nombre: string, apellido: string): string {
-  const inicial = normalizar(nombre).slice(0, 1);
-  return `${inicial}${normalizar(apellido)}`;
+  const base = normalizar(nombre).slice(0, 3) + normalizar(apellido);
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : '';
+}
+// Contraseña autogenerada = ddmm de la fecha de nacimiento. Ej: 19/07/2003 -> "1907" (4 dígitos,
+// como la Power App vieja). Se guarda CRUDA vía la Edge Function user-provision (admin API, que se
+// saltea el mínimo de 6 del signup público — ese mínimo no aplica acá). El login la manda tal cual,
+// SIN transformar: NADA de padding (un padding rompió los logins de los migrados con clave corta).
+// En editar se recalcula y se muestra read-only.
+function passwordFromFechaNac(fechaNac: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaNac);
+  return m ? `${m[3]}${m[2]}` : '';
 }
 
 interface FormState {
-  nombre: string; apellido: string; perfil: Perfil | ''; edificioId: string; mail: string; usuarioApp: string; fechaNac: string;
+  nombre: string; apellido: string; perfil: Perfil | ''; pais: string; edificioId: string; mail: string; usuarioApp: string; fechaNac: string; dashboardGlobal: boolean; edificiosDash: string[];
 }
-const emptyForm: FormState = { nombre: '', apellido: '', perfil: '', edificioId: '', mail: '', usuarioApp: '', fechaNac: '' };
+const emptyForm: FormState = { nombre: '', apellido: '', perfil: '', pais: 'Argentina', edificioId: '', mail: '', usuarioApp: '', fechaNac: '', dashboardGlobal: false, edificiosDash: [] };
+// ';'-separated (mismo patrón que emails_notificacion) -> lista de nombres, sin vacíos.
+const parseEdificiosDash = (v: string | null): string[] => (v ?? '').split(';').map((s) => s.trim()).filter(Boolean);
 
 const UsuarioFormModal: React.FC<{
   isOpen: boolean; onClose: () => void; onSaved: () => void; usuario: Usuario | null; edificios: Edificio[];
@@ -50,33 +66,56 @@ const UsuarioFormModal: React.FC<{
   const { visible, overlayClass, modalClass } = useModalAnimation(isOpen);
   const { showToast } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [usuarioAppTocado, setUsuarioAppTocado] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saving, setSaving] = useState(false);
+  const isNew = !usuario;
 
   useEffect(() => {
     if (isOpen) {
       setForm(usuario
-        ? { nombre: usuario.nombre, apellido: usuario.apellido, perfil: usuario.perfil, edificioId: usuario.edificio_id ? String(usuario.edificio_id) : '', mail: usuario.mail ?? '', usuarioApp: usuario.usuario_app, fechaNac: usuario.fecha_nac ?? '' }
+        ? { nombre: usuario.nombre, apellido: usuario.apellido, perfil: usuario.perfil, pais: usuario.pais ?? '', edificioId: usuario.edificio_id ? String(usuario.edificio_id) : '', mail: usuario.mail ?? '', usuarioApp: usuario.usuario_app, fechaNac: usuario.fecha_nac ?? '', dashboardGlobal: usuario.dashboard_global ?? false, edificiosDash: parseEdificiosDash(usuario.edificios_dash) }
         : emptyForm);
-      setUsuarioAppTocado(!!usuario);
       setErrors({});
     }
   }, [isOpen, usuario]);
 
   if (!visible) return null;
 
-  const edificioOptions = edificios.filter((e) => e.status === 'Activo').map((e) => ({ value: String(e.id), label: e.nombre }));
+  // País gobierna qué edificios ve el usuario en la app (BuildingContext filtra por país). Opciones
+  // derivadas de los países reales de la tabla edificios (no una lista fija) + el del usuario editado.
+  const paisOptions = [...new Set([...edificios.map((e) => e.pais), usuario?.pais].filter((p): p is string => !!p))]
+    .sort()
+    .map((p) => ({ value: p, label: p }));
+  // Edificios filtrados por el país elegido: evita asignar un edificio de otro país (que el usuario no vería).
+  const edificioOptions = edificios
+    .filter((e) => e.status === 'Activo' && (!form.pais || (e.pais ?? '') === form.pais))
+    .map((e) => ({ value: String(e.id), label: e.nombre }));
+  // Mismo filtro por país que edificioOptions, pero por NOMBRE — así es como se persiste edificios_dash.
+  const edificiosDashOptions = edificios
+    .filter((e) => e.status === 'Activo' && (!form.pais || (e.pais ?? '') === form.pais))
+    .map((e) => ({ value: e.nombre, label: e.nombre }));
+  // Cambiar de país invalida el edificio elegido y los edificios del dashboard (quedan de otro país) → se resetean.
+  const setPais = (pais: string) => setForm((f) => ({ ...f, pais, edificioId: '', edificiosDash: [] }));
 
-  const setNombre = (nombre: string) => setForm((f) => ({ ...f, nombre, usuarioApp: usuarioAppTocado ? f.usuarioApp : sugerirUsuarioApp(nombre, f.apellido) }));
-  const setApellido = (apellido: string) => setForm((f) => ({ ...f, apellido, usuarioApp: usuarioAppTocado ? f.usuarioApp : sugerirUsuarioApp(f.nombre, apellido) }));
+  // El usuario se autogenera del nombre/apellido SOLO en alta. En edición no se re-deriva:
+  // cambiar el usuario_app rompería el alias de login del auth ya provisionado.
+  const setNombre = (nombre: string) => setForm((f) => ({ ...f, nombre, usuarioApp: isNew ? sugerirUsuarioApp(nombre, f.apellido) : f.usuarioApp }));
+  const setApellido = (apellido: string) => setForm((f) => ({ ...f, apellido, usuarioApp: isNew ? sugerirUsuarioApp(f.nombre, apellido) : f.usuarioApp }));
+
+  // La contraseña real (migrada de SharePoint) tiene prioridad; si no hay (usuario nuevo), se
+  // deriva del ddmm de la fecha de nacimiento.
+  const passwordPreview = usuario?.password_seed || passwordFromFechaNac(form.fechaNac);
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.nombre.trim()) next.nombre = 'El nombre es obligatorio.';
     if (!form.apellido.trim()) next.apellido = 'El apellido es obligatorio.';
     if (!form.perfil) next.perfil = 'Elegí un perfil.';
+    if (!form.pais) next.pais = 'Elegí un país.';
     if (!form.usuarioApp.trim()) next.usuarioApp = 'El usuario es obligatorio.';
+    // Fecha de nacimiento obligatoria SOLO cuando la contraseña sale de ella (usuario nuevo).
+    // Los migrados ya tienen su contraseña real (password_seed) y pueden no tener fecha cargada.
+    if (!form.fechaNac && !usuario?.password_seed) next.fechaNac = 'La fecha de nacimiento es obligatoria (define la contraseña).';
     if (form.mail && !/^\S+@\S+\.\S+$/.test(form.mail)) next.mail = 'El mail no es válido.';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -100,7 +139,9 @@ const UsuarioFormModal: React.FC<{
         num_cel: usuario?.num_cel ?? null,
         edificio_id: edificio?.id ?? null,
         edificio_default: edificio?.nombre ?? null,
-        pais: usuario?.pais ?? 'Argentina',
+        pais: form.pais || usuario?.pais || 'Argentina',
+        dashboard_global: form.dashboardGlobal,
+        edificios_dash: form.edificiosDash.length ? form.edificiosDash.join(';') : null,
         perfil: form.perfil,
         validado: usuario?.validado ?? true,
         wapp_default: usuario?.wapp_default ?? null,
@@ -110,13 +151,15 @@ const UsuarioFormModal: React.FC<{
         status: usuario?.status ?? ('ALTA' as const),
         legacy_id_usr: usuario?.legacy_id_usr ?? null,
       };
-      if (usuario) await api.usuarios.actualizar(usuario.id, payload);
-      else await api.usuarios.crear(payload);
+      if (usuario) await api.usuarios.actualizar(usuario.id, payload, passwordPreview);
+      else await api.usuarios.crear(payload, passwordPreview);
       showToast(usuario ? 'Usuario actualizado.' : 'Usuario creado.', 'success');
       onSaved();
       onClose();
-    } catch {
-      showToast('No se pudo guardar el usuario.', 'error');
+    } catch (e) {
+      // El adapter ya traduce el UNIQUE(usuario_app) a "Ya existe un usuario…"; el resto muestra su
+      // causa real (antes un `catch {}` pelado tapaba todo con el genérico).
+      showToast(errorMessage(e, 'No se pudo guardar el usuario.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -127,57 +170,115 @@ const UsuarioFormModal: React.FC<{
   );
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h2>
-            <p className="text-xs text-muted-foreground">Cuentas de acceso al back-office</p>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 shrink-0 rounded-full bg-brand/10 flex items-center justify-center">
+              <UserCircle2 className="h-5 w-5 text-brand" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold tracking-tight truncate">{usuario ? 'Editar usuario' : 'Nuevo usuario'}</h2>
+              <p className="text-xs text-muted-foreground">Cuentas de acceso al back-office</p>
+            </div>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors shrink-0"><X className="h-5 w-5 text-muted-foreground" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.nombre} onChange={(e) => setNombre(e.target.value)} aria-invalid={!!errors.nombre}
-                className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('nombre')}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Datos personales */}
+          <section className="space-y-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Datos personales</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Nombre<span className="text-destructive ml-0.5">*</span></label>
+                <Input value={form.nombre} onChange={(e) => setNombre(e.target.value)} aria-invalid={!!errors.nombre} placeholder="Nombre"
+                  className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                {err('nombre')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Apellido<span className="text-destructive ml-0.5">*</span></label>
+                <Input value={form.apellido} onChange={(e) => setApellido(e.target.value)} aria-invalid={!!errors.apellido} placeholder="Apellido"
+                  className={cn(errors.apellido && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                {err('apellido')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Perfil<span className="text-destructive ml-0.5">*</span></label>
+                <Select value={form.perfil} onChange={(v) => setForm((f) => ({ ...f, perfil: v as Perfil }))} options={PERFIL_OPTIONS} placeholder="Elegí un perfil" />
+                {err('perfil')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">País<span className="text-destructive ml-0.5">*</span></label>
+                <Select value={form.pais} onChange={setPais} options={paisOptions} placeholder="Elegí un país" />
+                {err('pais')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
+                <Select value={form.edificioId} onChange={(v) => setForm((f) => ({ ...f, edificioId: v }))} options={edificioOptions} placeholder={form.pais ? 'Sin edificio asignado' : 'Elegí un país primero'} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento<span className="text-destructive ml-0.5">*</span></label>
+                <DatePicker value={form.fechaNac} onChange={(v) => setForm((f) => ({ ...f, fechaNac: v }))} />
+                {err('fechaNac')}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>
+                <Input type="email" value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} aria-invalid={!!errors.mail}
+                  placeholder="correo@ejemplo.com" className={cn(errors.mail && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                {err('mail')}
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Apellido<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.apellido} onChange={(e) => setApellido(e.target.value)} aria-invalid={!!errors.apellido}
-                className={cn(errors.apellido && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('apellido')}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Perfil<span className="text-destructive ml-0.5">*</span></label>
-              <Select value={form.perfil} onChange={(v) => setForm((f) => ({ ...f, perfil: v as Perfil }))} options={PERFIL_OPTIONS} placeholder="Elegí un perfil" />
-              {err('perfil')}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
-              <Select value={form.edificioId} onChange={(v) => setForm((f) => ({ ...f, edificioId: v }))} options={edificioOptions} placeholder="Sin edificio asignado" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario<span className="text-destructive ml-0.5">*</span></label>
-              <Input value={form.usuarioApp} onChange={(e) => { setUsuarioAppTocado(true); setForm((f) => ({ ...f, usuarioApp: e.target.value })); }}
-                aria-invalid={!!errors.usuarioApp} className={cn(errors.usuarioApp && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+            <label className="flex items-start gap-2.5 rounded-lg border bg-secondary/30 p-3">
+              <input
+                type="checkbox"
+                className="h-4 w-4 mt-0.5 rounded border-input accent-brand cursor-pointer"
+                checked={form.dashboardGlobal}
+                onChange={(e) => setForm((f) => ({ ...f, dashboardGlobal: e.target.checked }))}
+              />
+              <span>
+                <span className="block text-sm font-medium">Dashboard general (todas las torres)</span>
+                <span className="block text-[11px] text-muted-foreground mt-0.5">Si está apagado, este usuario ve el dashboard solo de las torres asignadas abajo.</span>
+              </span>
+            </label>
+            {!form.dashboardGlobal && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificios del dashboard</label>
+                <MultiCombobox
+                  options={edificiosDashOptions}
+                  value={form.edificiosDash}
+                  onChange={(v) => setForm((f) => ({ ...f, edificiosDash: v }))}
+                  placeholder={form.pais ? 'Sin edificios asignados' : 'Elegí un país primero'}
+                  searchPlaceholder="Buscar edificio…"
+                  disabled={!form.pais}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Torres que verá en el dashboard. Vacío = no ve datos (salvo que tenga dashboard general).</p>
+              </div>
+            )}
+          </section>
+
+          {/* Credenciales de acceso — valores DERIVADOS (no editables): se muestran como texto, sin
+              placeholders. Usuario = 3 letras del nombre + apellido; contraseña = ddmm de nacimiento. */}
+          <section>
+            <div className="rounded-lg border bg-secondary/30 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <KeyRound className="h-4 w-4 text-brand shrink-0" />
+                <h3 className="text-sm font-semibold">Credenciales de acceso</h3>
+                <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">Automáticas</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[11px] text-muted-foreground mb-1">Usuario</div>
+                  <div className={cn('font-mono text-sm font-semibold break-all', !form.usuarioApp && 'text-muted-foreground/50')}>{form.usuarioApp || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-muted-foreground mb-1">Contraseña</div>
+                  <div className={cn('font-mono text-sm font-semibold', passwordPreview ? 'tracking-[0.25em]' : 'text-muted-foreground/50')}>{passwordPreview || '—'}</div>
+                </div>
+              </div>
               {err('usuarioApp')}
+              <p className="text-[11px] text-muted-foreground mt-3">Usuario = 3 letras del nombre + apellido · Contraseña = día y mes de nacimiento (ddmm).</p>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de nacimiento</label>
-              <Input type="date" value={form.fechaNac} onChange={(e) => setForm((f) => ({ ...f, fechaNac: e.target.value }))} />
-            </div>
-            <div className="sm:col-span-3">
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Mail</label>
-              <Input type="email" value={form.mail} onChange={(e) => setForm((f) => ({ ...f, mail: e.target.value }))} aria-invalid={!!errors.mail}
-                className={cn(errors.mail && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
-              {err('mail')}
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground/80 italic">La gestión de contraseñas llega con el backend definitivo.</p>
+          </section>
         </div>
 
         <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:justify-end gap-2">
@@ -194,6 +295,7 @@ const UsuarioFormModal: React.FC<{
 
 const UsuariosPanel: React.FC = () => {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,27 +304,29 @@ const UsuariosPanel: React.FC = () => {
   const [formTarget, setFormTarget] = useState<Usuario | 'new' | null>(null);
   const [toggleTarget, setToggleTarget] = useState<Usuario | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    setLoadError(false);
+  const load = async (silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       const [userRows, edRows] = await Promise.all([api.usuarios.list(), api.edificios.list()]);
       setUsuarios(userRows);
       setEdificios(edRows);
     } catch {
-      showToast('No se pudieron cargar los usuarios.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar los usuarios.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
   useEffect(() => { load(); }, []);
+  // Realtime: silent refetch when usuarios change.
+  useEffect(() => api.realtime.subscribe(['usuarios'], () => { void load(true); }), []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return usuarios;
-    return usuarios.filter((u) => `${u.nombre} ${u.apellido} ${u.perfil} ${u.usuario_app}`.toLowerCase().includes(q));
-  }, [usuarios, search]);
+    // PA hides the Admin account from any non-Admin viewer (Filter(..., UsuarioApp_Usr <> "Admin")).
+    const base = user?.usuario_app === 'Admin' ? usuarios : usuarios.filter((u) => u.usuario_app !== 'Admin');
+    if (!q) return base;
+    return base.filter((u) => `${u.nombre} ${u.apellido} ${u.perfil} ${u.usuario_app}`.toLowerCase().includes(q));
+  }, [usuarios, search, user]);
 
   const handleToggle = async () => {
     if (!toggleTarget) return;
@@ -246,7 +350,7 @@ const UsuariosPanel: React.FC = () => {
           <UserX className="h-4 w-4" />
         </Button>
       ) : (
-        <Button variant="ghost" size="icon" aria-label="Reactivar" title="Reactivar" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setToggleTarget(u)}>
+        <Button variant="ghost" size="icon" aria-label="Reactivar" title="Reactivar" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" onClick={() => setToggleTarget(u)}>
           <UserCheck2 className="h-4 w-4" />
         </Button>
       )}
@@ -259,7 +363,7 @@ const UsuariosPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:flex-1 md:min-h-0">
       {/* En pantallas grandes (≥1024, lg) el toolbar sube a la fila de los tabs (ConfiguracionView);
           en mobile y tablet queda debajo (a 768px el sidebar + los tabs no dejan lugar para search +
           botón en la misma fila). */}
@@ -298,8 +402,8 @@ const UsuariosPanel: React.FC = () => {
               </div>
             ))}
           </div>
-          <Card className="hidden md:block border shadow-sm">
-            <Table className="min-w-[1100px]">
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table className="min-w-[1100px]" wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>

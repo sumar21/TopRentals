@@ -33,7 +33,7 @@ CREATE TYPE perfil_usuario AS ENUM (
 );
 
 CREATE TYPE estado_compra AS ENUM (
-  'Pendiente', 'Aprobacion', 'Aprobada', 'Rechazada', 'Recibida', 'En proceso'
+  'Pendiente', 'Aprobacion', 'Aprobada', 'Rechazada', 'Recibida', 'En proceso', 'Anulada'
 );
 
 CREATE TYPE estado_aprobacion AS ENUM (
@@ -131,6 +131,8 @@ CREATE TABLE usuarios (
   edificio_id bigint NULL REFERENCES edificios (id) ON DELETE SET NULL,
   edificio_default text,
   pais text,
+  dashboard_global boolean NOT NULL DEFAULT false, -- Admin sees ALL buildings on /dashboard only when true; otherwise scoped to edificios_dash
+  edificios_dash text NULL, -- ';'-separated edificios.nombre values (like emails_notificacion); dashboard scope for non-global Admin
   perfil perfil_usuario NOT NULL,
   validado boolean,
   wapp_default text,
@@ -349,6 +351,8 @@ CREATE TABLE salidas_stock (
   -- Stock row actually debited: the only safe credit target for edit/devolución.
   -- NULL on rows migrated from SharePoint (the source has no such column).
   stock_id bigint NULL REFERENCES stock (id) ON DELETE SET NULL,
+  -- For a TRASLADO: destination building credited at salida time, so editing the qty rebalances both (PA parity).
+  edificio_destino_id bigint NULL REFERENCES edificios (id) ON DELETE SET NULL,
   concat_articulo text,
   tecnico_id bigint NULL REFERENCES usuarios (id) ON DELETE SET NULL,
   tipo tipo_salida_stock,
@@ -451,7 +455,7 @@ CREATE TABLE ventilaciones (
   version_asignado text,
   fecha_finalizacion timestamptz,
   version_resuelto text,
-  es_incidente boolean, -- was EsIncidente_VE 'SI'/'NO'
+  es_incidente boolean DEFAULT false, -- was EsIncidente_VE 'SI'/'NO'
   orden numeric,
   -- Deviation from data_model.md: the doc doesn't give ventilaciones a photo
   -- column, but finalizar_ventilacion() (below) takes p_foto_path and needs
@@ -543,10 +547,13 @@ CREATE INDEX idx_documentos_compra_id ON documentos (compra_id);
 CREATE OR REPLACE FUNCTION finalizar_ventilacion(
   p_id bigint,
   p_obs text,
-  p_foto_path text
+  p_foto_path text,
+  p_version text DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_unidad_id bigint;
@@ -554,31 +561,39 @@ DECLARE
   v_edificio text;
   v_habitacion text;
   v_frecuencia_dias numeric;
-  v_asignado_id bigint;
   v_new_id bigint;
 BEGIN
+  -- version_resuelto stamps the CLOSED row only; the auto-created next cycle stays
+  -- version_asignado = NULL, version_resuelto = NULL (mock parity — it isn't assigned/resolved yet).
   UPDATE ventilaciones
   SET
     estado = 'Realizada',
     obs_resuelto = p_obs,
     foto_path = coalesce(p_foto_path, foto_path),
-    fecha_finalizacion = now()
+    fecha_finalizacion = now(),
+    version_resuelto = p_version,
+    orden = 1  -- PA re-stamps Orden_VE:1 on the closed row (drives the desktop list sort)
   WHERE id = p_id
   RETURNING
-    unidad_id, direccion_edificio, edificio, habitacion, frecuencia_dias, asignado_id
-    INTO v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion, v_frecuencia_dias, v_asignado_id;
+    unidad_id, direccion_edificio, edificio, habitacion, frecuencia_dias
+    INTO v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion, v_frecuencia_dias;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'finalizar_ventilacion: ventilacion % not found', p_id;
   END IF;
 
+  -- Next cycle is always UNASSIGNED (PA leaves IDAsignado_VE blank; the back office re-assigns it),
+  -- starts at Orden_VE:4, es_incidente = false, and proxima_limpieza = today + frecuencia_dias
+  -- (fallback 90 days when the unit has no frequency, matching the mock — NOT 0/today).
+  -- #6: the STORED frecuencia_dias is coalesced to 90 too (not left NULL), exactly like the mock — so a
+  -- null-frequency lineage heals to a concrete 90 instead of staying null forever in Postgres only.
   INSERT INTO ventilaciones (
     estado, unidad_id, direccion_edificio, edificio, habitacion,
-    frecuencia_dias, fecha_ultima, proxima_limpieza, asignado_id
+    frecuencia_dias, fecha_ultima, proxima_limpieza, asignado_id, es_incidente, orden
   )
   VALUES (
     'Pendiente', v_unidad_id, v_direccion_edificio, v_edificio, v_habitacion,
-    v_frecuencia_dias, current_date, current_date + coalesce(v_frecuencia_dias, 0)::int, v_asignado_id
+    coalesce(v_frecuencia_dias, 90), current_date, current_date + coalesce(v_frecuencia_dias, 90)::int, NULL, false, 4
   )
   RETURNING id INTO v_new_id;
 
@@ -586,32 +601,60 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION finalizar_ventilacion(bigint, text, text) IS
+COMMENT ON FUNCTION finalizar_ventilacion(bigint, text, text, text) IS
   'Closes a ventilacion cycle (estado=Realizada, obs + foto) and atomically '
   'inserts the next cycle (estado=Pendiente, proxima_limpieza = current_date + '
   'frecuencia_dias). Returns the new row''s id. Replaces the desktop/mobile '
   '"finalizar ventilacion" flow.';
 
 -- ============================================================================
--- ROW LEVEL SECURITY — placeholder policies only
--- TODO: replace with real per-perfil policies once the backend/auth model is
--- decided (see data_model.md "## Auth"). For now every table is RLS-enabled
--- with a single permissive policy so `anon`/service-role access stops working
--- accidentally, while any authenticated Supabase user can read/write everything.
+-- ROW LEVEL SECURITY — high-value hardening
+-- Authz is still enforced client-side (utils/permissions.ts) and inside the
+-- vetted DEFINER RPCs; RLS is not the per-perfil authorization layer. What RLS
+-- does here is close the direct-write holes with real blast radius:
+--   * READ-ONLY tables: catalogs (shared with the Hotel app + the permission
+--     matrix itself), usuarios (closes the raw-UPDATE path, so perfil/activo
+--     can't be rewritten with direct table SQL), and the stock/audit tables
+--     (protects the append-only trail). authenticated may SELECT only; every
+--     write goes through a DEFINER RPC or the service-role sync (both bypass RLS).
+--     NOTE: the usuarios RPCs carry no per-perfil check, so an authenticated
+--     caller can still reach perfil via usuario_actualizar — real self-promotion
+--     prevention is the separate per-perfil-authz layer (deferred).
+--   * READ-WRITE tables: the operational records (OTs, ventilaciones, compras…).
+--     Left writable by authenticated — locking them adds no real security since
+--     the same client could call the equivalent RPC anyway (see rpc.sql header).
+-- Keep the SELECT-only list in sync with 0002_rls_hardening.sql (the migration
+-- for the already-deployed DB). The `_todo_authenticated_all` name on the
+-- read-write tables is intentionally the SAME as the migration/legacy name so
+-- neither path drifts.
 -- ============================================================================
 DO $$
 DECLARE
   t text;
 BEGIN
+  -- SELECT-only for authenticated (writes only via DEFINER RPC / service-role sync)
   FOR t IN SELECT unnest(ARRAY[
     'edificios', 'articulos', 'frecuencias', 'unidades', 'usuarios',
-    'perfiles_permisos', 'iconos_app', 'emails_notificacion', 'ordenes_trabajo',
-    'bitacoras', 'fotos_bitacora', 'repuestos_ot', 'stock', 'stock_edificios',
-    'movimientos_stock', 'salidas_stock', 'compras', 'detalle_compras',
-    'aprobaciones', 'ventilaciones', 'documentos'
+    'perfiles_permisos', 'iconos_app', 'emails_notificacion',
+    'stock', 'stock_edificios', 'movimientos_stock', 'salidas_stock'
   ])
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I;', t || '_authenticated_read', t);
+    EXECUTE format(
+      'CREATE POLICY %I ON %I FOR SELECT TO authenticated USING (true);',
+      t || '_authenticated_read', t
+    );
+  END LOOP;
+
+  -- Read/write for authenticated (operational records)
+  FOR t IN SELECT unnest(ARRAY[
+    'ordenes_trabajo', 'bitacoras', 'fotos_bitacora', 'repuestos_ot',
+    'compras', 'detalle_compras', 'aprobaciones', 'ventilaciones', 'documentos'
+  ])
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I;', t || '_todo_authenticated_all', t);
     EXECUTE format(
       'CREATE POLICY %I ON %I FOR ALL TO authenticated USING (true) WITH CHECK (true);',
       t || '_todo_authenticated_all', t

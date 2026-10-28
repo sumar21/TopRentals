@@ -4,7 +4,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Save, Trash2, Upload, X, XCircle } from 'lucide-react';
-import { Button, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,6 +14,7 @@ import { api } from '../../services/index.ts';
 import { resolveRecipients, sendEmail, type RecipientRow } from '../../emails/send.ts';
 import { compraRecibidaEmail, type CompraRecibidaLinea } from '../../emails/templates.ts';
 import type { CompraConDetalle } from '../../services/api.ts';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface RecibirCompraModalProps {
   isOpen: boolean;
@@ -78,18 +80,27 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
     try {
       const lineas = lines.map((l) => ({ detalle_id: l.detalle_id, recibido: l.noRecibido ? 0 : Math.max(0, parseInt(l.recibidoInput, 10) || 0) }));
       const updated = await api.compras.recibir(compra.id, lineas, obs);
+      // Persist the receipt file to Storage (best-effort — never undoes the recepción).
+      if (comprobante) {
+        try {
+          const blob = await (await fetch(comprobante.dataUrl)).blob();
+          await api.documentos.crear({ file: blob, nombre: comprobante.name, carpeta: 'Compras', compra_id: compra.id, content_type: blob.type });
+        } catch {
+          showToast('Compra recibida, pero el comprobante no se pudo subir.', 'error');
+        }
+      }
       const emailLineas: CompraRecibidaLinea[] = updated.detalle
         .filter((d) => d.status === 'Activo')
         .map((d) => ({ edificio: d.edificio ?? '', articulo: d.articulo ?? '', cantidad: d.cantidad, costo_unitario: d.costo_unitario ?? 0, costo_total: d.costo_total ?? 0, recibido: d.recibido }));
       const emailRows = await api.emailsNotificacion.list();
       const recipients: RecipientRow[] = emailRows.filter((r) => r.status === 'Activo').map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' }));
-      const email = compraRecibidaEmail(compra.id_compra, emailLineas, obs || null, user.concat_name);
+      const email = compraRecibidaEmail(compra.id, emailLineas, obs || null, user.concat_name);
       await sendEmail(resolveRecipients('Compra', recipients), email);
       showToast('Compra recibida correctamente.', 'success');
       onReceived();
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo registrar la recepción.';
+      const msg = errorMessage(e, 'No se pudo registrar la recepción.');
       setError(msg);
       showToast(msg, 'error');
     } finally {
@@ -98,14 +109,14 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
   };
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-3xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Recibir compra</h2>
-            {compra && <p className="text-xs text-muted-foreground">{compra.id_compra}</p>}
+            {compra && <p className="text-xs text-muted-foreground">N° {compra.id}</p>}
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -116,7 +127,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
           ) : (
             <>
               {error && (
-                <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+                <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
                   <AlertCircle className="h-4 w-4 shrink-0" /> {error}
                 </div>
               )}
@@ -127,7 +138,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                   <div key={l.detalle_id} className="rounded-lg border bg-card p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm"><span className="text-muted-foreground">{l.edificio}</span> | {l.articulo}</p>
-                      <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
+                      <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} title={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
                         className={`p-1.5 -m-1.5 rounded-md shrink-0 transition-colors ${l.noRecibido ? 'text-destructive bg-destructive/10' : 'text-muted-foreground hover:bg-muted'}`}>
                         <XCircle className="h-4 w-4" />
                       </button>
@@ -139,7 +150,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                       </div>
                       <div>
                         <label className="text-[11px] text-muted-foreground mb-1 block">Recibido</label>
-                        <Input type="number" min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
+                        <NumberInput min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
                           onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 text-right" />
                       </div>
                     </div>
@@ -165,11 +176,11 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{l.cantidad}</TableCell>
                         <TableCell className="text-right">
-                          <Input type="number" min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
+                          <NumberInput min={0} max={l.cantidad} disabled={l.noRecibido} value={l.noRecibido ? 0 : l.recibidoInput}
                             onChange={(e) => updateLine(l.detalle_id, { recibidoInput: e.target.value })} className="h-8 w-20 text-right ml-auto" />
                         </TableCell>
                         <TableCell className="text-center">
-                          <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
+                          <button type="button" onClick={() => toggleNoRecibido(l.detalle_id)} title={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'} aria-label={l.noRecibido ? 'Marcar como recibido' : 'Marcar como no recibido'}
                             className={`p-1.5 rounded-md transition-colors ${l.noRecibido ? 'text-destructive bg-destructive/10' : 'text-muted-foreground hover:bg-muted'}`}>
                             <XCircle className="h-4 w-4" />
                           </button>
@@ -183,6 +194,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas de recepción</label>
                 <textarea rows={3} maxLength={1000} value={obs} onChange={(e) => setObs(e.target.value)}
+                  placeholder="Notas de recepción (opcional)"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
               </div>
 
@@ -191,7 +203,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                 {comprobante ? (
                   <div className="flex items-center gap-3 rounded-lg border border-input bg-muted/20 p-2.5">
                     <span className="text-sm truncate flex-1">{comprobante.name}</span>
-                    <button type="button" aria-label="Quitar comprobante" onClick={() => setComprobante(null)} className="h-8 w-8 rounded-md border border-input hover:text-destructive hover:bg-destructive/10 flex items-center justify-center">
+                    <button type="button" title="Quitar comprobante" aria-label="Quitar comprobante" onClick={() => setComprobante(null)} className="h-8 w-8 rounded-md border border-input hover:text-destructive hover:bg-destructive/10 flex items-center justify-center">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -203,9 +215,7 @@ const RecibirCompraModal: React.FC<RecibirCompraModalProps> = ({ isOpen, onClose
                     <span className="text-xs text-muted-foreground">Arrastrá o hacé click para adjuntar</span>
                   </label>
                 )}
-                {/* ponytail: staged client-side only — no Storage backend yet. Upgrade path: upload
-                    to a bucket on submit and persist the resulting path via services/documentos. */}
-                <p className="text-[11px] text-muted-foreground/70 mt-1">El comprobante se adjunta cuando el backend de almacenamiento esté definido.</p>
+                <p className="text-[11px] text-muted-foreground/70 mt-1">El comprobante se sube al confirmar la recepción.</p>
               </div>
             </>
           )}

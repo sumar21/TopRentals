@@ -1,6 +1,10 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { BuildingProvider } from './contexts/BuildingContext';
+import { AppVersionProvider } from './contexts/AppVersionContext';
+import NewVersionModal from './components/NewVersionModal';
 import { ToastProvider } from './components/ui/Toast';
 import { Loader } from './components/ui/Loader';
 import { canAccessModule, canAccessTecnico, isTecnicoOnly } from './utils/permissions';
@@ -10,11 +14,13 @@ import Login from './components/Login';
 import HomeView from './components/home/HomeView';
 import StockView from './components/stock/StockView';
 import SalidasStockView from './components/stock/SalidasStockView';
+import ConsumoOTView from './components/stock/ConsumoOTView';
 import OrdenesTrabajoView from './components/ordenes/OrdenesTrabajoView';
 import ComprasView from './components/compras/ComprasView';
 import AprobacionesView from './components/aprobaciones/AprobacionesView';
 import VentilacionesView from './components/ventilaciones/VentilacionesView';
 import ConfiguracionView from './components/configuracion/ConfiguracionView';
+import DashboardView from './components/dashboard/DashboardView';
 import HomeTecnicoView from './components/tecnico/HomeTecnicoView';
 import OrdenesTecnicoView from './components/tecnico/OrdenesTecnicoView';
 import ActivosView from './components/tecnico/ActivosView';
@@ -55,11 +61,22 @@ const RequireModule = ({ modulo, children }: { modulo: string; children: ReactNo
   return <>{children}</>;
 };
 
+/** Admin-only gate — the Dashboard has no perfiles_permisos row; only Admin may reach it. */
+const RequireAdmin = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  if (user && user.perfil !== 'Admin') return <Navigate to="/home" replace />;
+  return <>{children}</>;
+};
+
 /** Technician module: Tecnico + Admin only. */
 const Tecnico = () => {
   const { user } = useAuth();
   if (user && !canAccessTecnico(user.perfil)) return <Navigate to="/home" replace />;
-  return <LayoutTecnico />;
+  return (
+    <BuildingProvider>
+      <LayoutTecnico />
+    </BuildingProvider>
+  );
 };
 
 const RootRedirect = () => {
@@ -70,9 +87,13 @@ const RootRedirect = () => {
 };
 
 const App = () => (
-  <BrowserRouter>
-    <AuthProvider>
-      <ToastProvider>
+  <ThemeProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
+        {/* One mount covers back-office and /tecnico: it needs only the session, not a layout. */}
+        <AppVersionProvider>
+        <NewVersionModal />
         <Routes>
           <Route path="/login" element={<Login />} />
 
@@ -85,9 +106,11 @@ const App = () => (
           >
             {/* Back-office */}
             <Route element={<BackOffice />}>
+              <Route path="/dashboard" element={<RequireAdmin><DashboardView /></RequireAdmin>} />
               <Route path="/home" element={<HomeView />} />
               <Route path="/stock" element={<RequireModule modulo="Stock"><StockView /></RequireModule>} />
               <Route path="/salidas-stock" element={<RequireModule modulo="Stock"><SalidasStockView /></RequireModule>} />
+              <Route path="/consumo-ot" element={<RequireModule modulo="Stock"><ConsumoOTView /></RequireModule>} />
               <Route path="/ordenes-trabajo" element={<RequireModule modulo="Ordenes de Trabajo"><OrdenesTrabajoView /></RequireModule>} />
               <Route path="/compras" element={<RequireModule modulo="Compras"><ComprasView /></RequireModule>} />
               <Route path="/aprobaciones" element={<RequireModule modulo="Aprobaciones"><AprobacionesView /></RequireModule>} />
@@ -108,9 +131,11 @@ const App = () => (
           <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<RootRedirect />} />
         </Routes>
-      </ToastProvider>
-    </AuthProvider>
-  </BrowserRouter>
+        </AppVersionProvider>
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </ThemeProvider>
 );
 
 export default App;

@@ -5,15 +5,19 @@
 import type { ComboboxOption } from '../ui/UIComponents';
 import type { EstadoOT, OrdenTrabajo, Perfil } from '../../services/types';
 import { FEATURES } from '../../config/features';
-import { todayISO } from '../../utils/dates';
 
 // ---------------------------------------------------------------------------
-// Domain option lists (spec "## statuses" — tipo_trabajo/tipo_tarea share the
-// same 8-value catalog; there is no separate list documented for each).
+// Domain option lists. The create form (PA Group_NuevaOT) uses two DISTINCT
+// catalogs, verified in Screen_OrdenesTrabajo.pa.yaml: cmbox_tipoTrabajo_OT and
+// cmbox_tipoTarea_OT. They are NOT the same 8-value list.
 // ---------------------------------------------------------------------------
-export const TIPO_TRABAJO_TAREA_OPTIONS: ComboboxOption[] = [
-  'Correctivo', 'Preventivo', 'Chequeo', 'Mejora', 'Pintura', 'Electrico', 'Ventilacion', 'Otros',
-].map((v) => ({ label: v, value: v }));
+export const TIPO_TRABAJO_OPTIONS: ComboboxOption[] = ['Correctivo', 'Preventivo', 'Chequeo'].map((v) => ({ label: v, value: v }));
+export const TIPO_TAREA_OPTIONS: ComboboxOption[] = ['Pintura', 'Electrico', 'Ventilacion', 'Otros'].map((v) => ({ label: v, value: v }));
+
+// Filter combos (PA Group_Filtros_OT), copied 1:1 including PA's own quirk: the
+// trabajo filter offers "Mejora" (not "Chequeo" like the create form). The tarea
+// filter is identical to the create form, so it reuses TIPO_TAREA_OPTIONS.
+export const TIPO_TRABAJO_FILTRO_OPTIONS: ComboboxOption[] = ['Correctivo', 'Preventivo', 'Mejora'].map((v) => ({ label: v, value: v }));
 
 export const PRIORIDAD_OPTIONS: ComboboxOption[] = ['Alta', 'Media', 'Baja'].map((v) => ({ label: v, value: v }));
 
@@ -31,12 +35,16 @@ export const ESTADO_OT_OPTIONS: ComboboxOption[] = ['Pendiente', 'Asignada', 'Ce
 export const isCompras = (perfil: Perfil) => perfil === 'Compras';
 export const isEstadoAbierto = (status: EstadoOT) => status === 'Pendiente' || status === 'Asignada';
 
-export const canEditar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Pendiente';
+// PA `img_edit_OT.Visible` = `Perfil <> "Compras" && Status_OT <> "Anulada"`: the pencil shows for any
+// status except Anulada. PA then locks the modal fields (DisplayMode.Disabled) for Cerrada V/F — mirrored
+// by opening the modal read-only for those states (see openEditar in OrdenesTrabajoView).
+export const canEditar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status !== 'Anulada';
 export const canVerRepuestos = (ot: OrdenTrabajo) => ot.status !== 'Pendiente';
 export const canBitacoras = (perfil: Perfil) => !isCompras(perfil);
 export const canAnular = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Asignada';
 export const canReplicar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Cerrada F';
-export const canCerrar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Asignada';
+// PA `img_cerrar_OT.Visible`: the V/F sub-classification step runs on a 'Cerrada' OT (Asignada→[Finalizar]→Cerrada→[Cerrar]→Cerrada V/F).
+export const canCerrar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Cerrada';
 export const canFinalizar = (ot: OrdenTrabajo, perfil: Perfil) => !isCompras(perfil) && ot.status === 'Asignada';
 /** Asignar OT: built complete, but only ever rendered while FEATURES.asignarOTDesktop is false→never (parity with the disabled PA feature). */
 export const canAsignar = (ot: OrdenTrabajo, perfil: Perfil) => FEATURES.asignarOTDesktop && !isCompras(perfil) && ot.status === 'Pendiente';
@@ -50,10 +58,10 @@ function diffDays(startIso: string, endIso: string): number {
   return Math.round((end - start) / 86400000);
 }
 
-/** "Días reales": fecha_inicio -> fecha_cierre, or -> hoy while todavía abierta. */
+/** "Días reales": fecha_inicio -> fecha_cierre. PA shows "-" until closed, so null while open. */
 export function diasReales(ot: Pick<OrdenTrabajo, 'fecha_inicio' | 'fecha_cierre'>): number | null {
-  if (!ot.fecha_inicio) return null;
-  return diffDays(ot.fecha_inicio, ot.fecha_cierre ?? todayISO());
+  if (!ot.fecha_inicio || !ot.fecha_cierre) return null;
+  return diffDays(ot.fecha_inicio, ot.fecha_cierre);
 }
 
 export function truncate(text: string | null | undefined, max = 42): string {

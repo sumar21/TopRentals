@@ -1,0 +1,88 @@
+// Globally selected building for the technician session (foundation — no view wired yet,
+// see EdificioPicker/BuildingChip). Mirrors ThemeContext/AuthContext's Provider+hook shape.
+// Must be mounted INSIDE AuthProvider (needs useAuth() for the edificio_id seed) and is
+// scoped to /tecnico only — the back-office never mounts it (see App.tsx).
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { api } from '../services/index.ts';
+import { useAuth } from './AuthContext';
+import type { Edificio } from '../services/types.ts';
+
+const STORAGE_KEY = 'toprentals:edificio';
+
+export interface BuildingContextValue {
+  /** Active buildings only, loaded once. */
+  edificios: Edificio[];
+  /** The globally selected building for this session. */
+  selected: Edificio | null;
+  /** Sets the selection and persists it (sessionStorage). */
+  setSelected: (e: Edificio) => void;
+  /** True while `edificios` is loading. */
+  loading: boolean;
+  pickerOpen: boolean;
+  openPicker: () => void;
+  closePicker: () => void;
+}
+
+const BuildingContext = createContext<BuildingContextValue | null>(null);
+
+export function BuildingProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [edificios, setEdificios] = useState<Edificio[]>([]);
+  const [selected, setSelectedState] = useState<Edificio | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.edificios.list()
+      .then((rows) => {
+        if (cancelled) return;
+        const activos = rows.filter((e) => e.status === 'Activo');
+        // País: cada usuario elige solo entre los edificios de su país. El Admin es multi-país y
+        // ve todos; si el usuario no tiene país cargado, no filtramos (para no dejarlo sin nada).
+        const samePais = (a: string | null, b: string | null) => (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase();
+        const visibles = user?.perfil === 'Admin' || !user?.pais
+          ? activos
+          : activos.filter((e) => samePais(e.pais, user.pais));
+        setEdificios(visibles);
+
+        // Memoria POR USUARIO: sin esto la elección quedaba en una key global que se arrastraba
+        // entre logins de la misma pestaña — un admin/técnico heredaba el edificio del usuario
+        // anterior en vez de ver el selector. Keyeada por id, cada sesión arranca limpia.
+        const key = user ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
+        const storedRaw = sessionStorage.getItem(key);
+        const stored = storedRaw != null ? visibles.find((e) => e.id === Number(storedRaw)) ?? null : null;
+        const seeded = visibles.find((e) => e.id === user?.edificio_id) ?? null;
+        // Único edificio visible → se autoselecciona (nunca hace falta el picker).
+        const initial = stored ?? seeded ?? (visibles.length === 1 ? visibles[0] : null);
+
+        if (initial) sessionStorage.setItem(key, String(initial.id));
+        setSelectedState(initial);
+        // Primera entrada sin selección resuelta y con más de un edificio → forzar el picker.
+        if (!initial && visibles.length > 1) setPickerOpen(true);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const setSelected = useCallback((e: Edificio) => {
+    setSelectedState(e);
+    const key = user ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
+    sessionStorage.setItem(key, String(e.id));
+  }, [user]);
+
+  const openPicker = useCallback(() => setPickerOpen(true), []);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+
+  return (
+    <BuildingContext.Provider value={{ edificios, selected, setSelected, loading, pickerOpen, openPicker, closePicker }}>
+      {children}
+    </BuildingContext.Provider>
+  );
+}
+
+export function useBuilding(): BuildingContextValue {
+  const ctx = useContext(BuildingContext);
+  if (!ctx) throw new Error('useBuilding debe usarse dentro de <BuildingProvider>');
+  return ctx;
+}

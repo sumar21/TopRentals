@@ -1,8 +1,9 @@
 // Modulo (perfiles_permisos.modulo) -> lucide-react icon. Single source for sidebar +
 // mobile nav so we never mix icon libraries (docs/DESIGN.md rule of gold #1).
-import { Building2, CheckSquare, ClipboardList, Fan, Package, Settings, ShoppingCart, type LucideIcon, Home } from 'lucide-react';
+import { Building2, CheckSquare, ClipboardList, Fan, LayoutDashboard, Package, Settings, ShoppingCart, type LucideIcon, Home } from 'lucide-react';
 
 export const MODULE_ICONS: Record<string, LucideIcon> = {
+  Dashboard: LayoutDashboard,
   Home: Home,
   Stock: Package,
   Compras: ShoppingCart,

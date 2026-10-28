@@ -3,6 +3,7 @@
 // ~150ms artificial latency on every call so loading states are visible in the UI.
 
 import type { CompraConDetalle, CompraLineaInput, DataApi, StockRowWithEdificios } from '../api.ts';
+import { APP_VERSION } from '../../config/appVersion.ts';
 import type {
   Articulo,
   Bitacora,
@@ -28,6 +29,11 @@ function nextId(rows: { id: number }[]): number {
 
 const nowIso = () => new Date().toISOString();
 const todayIso = todayISO; // single source of truth — local calendar day (utils/dates.ts)
+
+// Estados en los que una OT ya está cerrada/anulada. Se usa para NO volver a volcar los
+// repuestos al histórico de salidas si cerrar()/finalizar() se llaman sobre una OT que ya
+// estaba cerrada (idempotencia — ver registrarSalidasDeRepuestos).
+const ESTADOS_OT_CERRADA = new Set(['Cerrada', 'Cerrada V', 'Cerrada F', 'Anulada']);
 
 function addDaysIso(dateIso: string, days: number): string {
   const d = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`);
@@ -69,15 +75,31 @@ export function createMockAdapter(): DataApi {
   };
 
   const nombreArticulo = (id: number | null) => db.articulos.find((a) => a.id === id)?.nombre ?? null;
+  // PA stores ConcatArt_* = Concat_AR = `${codigo} - ${nombre}` (distinct from the bare-name Articulo_* field).
+  const concatArticulo = (id: number | null) => {
+    const a = db.articulos.find((a) => a.id === id);
+    return a ? (a.codigo ? `${a.codigo} - ${a.nombre}` : a.nombre) : null;
+  };
   const nombreEdificio = (id: number | null) => db.edificios.find((e) => e.id === id)?.nombre ?? null;
 
   function withEdificios(row: StockRow): StockRowWithEdificios {
     return { ...row, edificio_ids: db.stockEdificios.filter((se) => se.stock_id === row.id).map((se) => se.edificio_id) };
   }
 
+  // Buildings that share a stock pool. PA merged paired buildings (grupo_stock: Hollywood↔Dorrego,
+  // Hub↔Nuñez, Admin↔Admin 2) into ONE shared stock pool; a null grupo_stock is its own standalone pool.
+  function edificiosDelPool(edificio_id: number): number[] {
+    const e = db.edificios.find((x) => x.id === edificio_id);
+    if (!e || e.grupo_stock == null) return [edificio_id];
+    return db.edificios.filter((x) => x.grupo_stock === e.grupo_stock).map((x) => x.id);
+  }
+
+  // Pool-aware: resolves the stock row for the whole pool the building belongs to, so paired buildings
+  // draw from / credit the same row (agregar/salida/recibir/asignarRepuesto all route through here).
   function stockRowFor(articulo_id: number, edificio_id: number): StockRow | undefined {
+    const pool = edificiosDelPool(edificio_id);
     return db.stock.find(
-      (s) => s.articulo_id === articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && se.edificio_id === edificio_id),
+      (s) => s.articulo_id === articulo_id && db.stockEdificios.some((se) => se.stock_id === s.id && pool.includes(se.edificio_id)),
     );
   }
 
@@ -86,6 +108,35 @@ export function createMockAdapter(): DataApi {
     const row: MovimientoStock = { id: nextId(db.movimientosStock), ...input };
     db.movimientosStock.push(row);
     return row;
+  }
+
+  // NUEVO (no existe en Power Apps): al cerrar/finalizar una OT, cada repuesto consumido
+  // queda registrado en el histórico de salidas (salidas_stock). Es record-only: el stock
+  // YA se descontó al asignar el repuesto (asignarRepuesto), así que acá NO se vuelve a tocar.
+  // stock_id = null a propósito → estas salidas NO son editables ni devolvibles
+  // (editarSalida/confirmarDevolucion rechazan un stock_id null), que es lo correcto: el
+  // débito de stock ocurrió una sola vez.
+  function registrarSalidasDeRepuestos(ot: OrdenTrabajo): void {
+    for (const rep of db.repuestosOT) {
+      if (rep.orden_trabajo_id !== ot.id || rep.status !== 'Activo') continue;
+      db.salidasStock.push({
+        id: nextId(db.salidasStock),
+        articulo_id: rep.articulo_id,
+        stock_id: null,
+        edificio_destino_id: null,
+        concat_articulo: rep.repuesto,
+        tecnico_id: ot.tecnico_id,
+        tipo: 'CONSUMIBLE',
+        fecha_salida: todayIso(),
+        fecha_reingreso: null,
+        uso: ot.id_univoco,
+        centro_de_costo: null,
+        cantidad: rep.cantidad,
+        usuario_id: rep.usuario_id,
+        fecha: nowIso(),
+        version_app: APP_VERSION,
+      });
+    }
   }
 
   function detalleActivo(compra_id: number) {
@@ -115,7 +166,7 @@ export function createMockAdapter(): DataApi {
         status: 'Activo',
         usuario_id: null,
         fecha: nowIso(),
-        version_app: null,
+        version_app: APP_VERSION,
       };
       db.detalleCompras.push(row);
     }
@@ -157,18 +208,20 @@ export function createMockAdapter(): DataApi {
         await sleep();
         return structuredClone(db.usuarios.find((u) => u.id === id) ?? null);
       },
-      async crear(input) {
+      async crear(input, password) {
         await sleep();
         const row: Usuario = { id: nextId(db.usuarios), created_at: nowIso(), updated_at: nowIso(), ...input };
         db.usuarios.push(row);
-        db.credenciales[row.usuario_app] = '1234';
+        // Mock sin auth real: guardamos la credencial en memoria (equivale a provisionar auth.users).
+        db.credenciales[row.usuario_app] = password || '1234';
         return structuredClone(row);
       },
-      async actualizar(id, patch) {
+      async actualizar(id, patch, password) {
         await sleep();
         const row = db.usuarios.find((u) => u.id === id);
         if (!row) throw new Error(`Usuario ${id} no encontrado.`);
         Object.assign(row, patch, { updated_at: nowIso() });
+        if (password) db.credenciales[row.usuario_app] = password;
         return structuredClone(row);
       },
       async eliminar(id) {
@@ -201,6 +254,16 @@ export function createMockAdapter(): DataApi {
         const row = db.articulos.find((a) => a.id === id);
         if (!row) throw new Error(`Articulo ${id} no encontrado.`);
         Object.assign(row, patch, { updated_at: nowIso() });
+        // Match articulos_actualizar RPC + PA: cascade price/corte to active stock rows,
+        // and Status_AR -> Status_ST to every stock row of the article.
+        for (const s of db.stock) {
+          if (s.articulo_id !== id) continue;
+          if (s.status === 'Activo') {
+            s.precio_unitario = row.precio_unitario;
+            s.condicion_corte = row.corte;
+          }
+          if (patch.status) s.status = patch.status;
+        }
         return structuredClone(row);
       },
     },
@@ -224,6 +287,11 @@ export function createMockAdapter(): DataApi {
         await sleep();
         return structuredClone(db.emailsNotificacion);
       },
+      // Mock/dev must NEVER send real email — log and move on.
+      async enviar(to, subject) {
+        await sleep();
+        console.warn('[emails] mock adapter — not sending', { to, subject });
+      },
     },
 
     perfilesPermisos: {
@@ -236,7 +304,8 @@ export function createMockAdapter(): DataApi {
     stock: {
       async list() {
         await sleep();
-        return db.stock.map(withEdificios);
+        // PA reads stock as Filter('08.Stock', Status_ST = "Activo") — deactivated rows never appear.
+        return db.stock.filter((s) => s.status === 'Activo').map(withEdificios);
       },
 
       async agregar({ articulo_id, edificio_id, cantidad, precio_unitario, usuario_id }) {
@@ -259,7 +328,7 @@ export function createMockAdapter(): DataApi {
             fecha: nowIso(),
             ultima_mod: null,
             desde: 'Desktop',
-            version_app: null,
+            version_app: APP_VERSION,
           };
           db.stock.push(row);
           db.stockEdificios.push({ stock_id: row.id, edificio_id });
@@ -270,7 +339,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id,
           articulo_raw: String(articulo_id),
-          concat_articulo: nombreArticulo(articulo_id),
+          concat_articulo: concatArticulo(articulo_id),
           articulo: nombreArticulo(articulo_id),
           cant_anterior,
           cant_posterior: row.cantidad,
@@ -287,7 +356,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return withEdificios(row);
       },
@@ -302,7 +371,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id: row.articulo_id,
           articulo_raw: String(row.articulo_id),
-          concat_articulo: nombreArticulo(row.articulo_id),
+          concat_articulo: concatArticulo(row.articulo_id),
           articulo: nombreArticulo(row.articulo_id),
           cant_anterior,
           cant_posterior: row.cantidad,
@@ -319,7 +388,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         if (tipo === 'TRASLADO') {
           if (!edificio_destino_id) throw new Error('TRASLADO requiere edificio_destino_id.');
@@ -336,7 +405,8 @@ export function createMockAdapter(): DataApi {
           id: nextId(db.salidasStock),
           articulo_id: row.articulo_id,
           stock_id: row.id, // the row actually debited — credit target for edit/devolución
-          concat_articulo: nombreArticulo(row.articulo_id),
+          edificio_destino_id: tipo === 'TRASLADO' ? (edificio_destino_id ?? null) : null, // credited row, for edit rebalance
+          concat_articulo: concatArticulo(row.articulo_id),
           tecnico_id,
           tipo,
           fecha_salida: fecha_salida ?? todayIso(),
@@ -346,7 +416,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         };
         db.salidasStock.push(salidaRow);
         return structuredClone(salidaRow);
@@ -362,11 +432,14 @@ export function createMockAdapter(): DataApi {
         row.cantidad = cantidad;
         row.precio_unitario = precio_unitario;
         row.condicion_corte = condicion_corte;
+        // Screen_Stock parity: Editar Stock keeps the article master price in sync (like Agregar).
+        const artEdit = db.articulos.find((a) => a.id === row.articulo_id);
+        if (artEdit) artEdit.precio_unitario = precio_unitario;
         const edificio_id = db.stockEdificios.find((se) => se.stock_id === row.id)?.edificio_id ?? null;
         registrarMovimiento({
           articulo_id: row.articulo_id,
           articulo_raw: String(row.articulo_id),
-          concat_articulo: nombreArticulo(row.articulo_id),
+          concat_articulo: concatArticulo(row.articulo_id),
           articulo: nombreArticulo(row.articulo_id),
           cant_anterior,
           cant_posterior: cantidad,
@@ -383,7 +456,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return withEdificios(row);
       },
@@ -393,19 +466,35 @@ export function createMockAdapter(): DataApi {
         const salida = db.salidasStock.find((s) => s.id === salida_id);
         if (!salida) throw new Error(`Salida ${salida_id} no encontrada.`);
         if (salida.fecha_reingreso) throw new Error('La salida ya fue devuelta.');
+        // Registro histórico sin stock de origen (stock_id null, p. ej. salidas migradas de SharePoint o
+        // consumos-registro de OT): corregimos SOLO el dato de la fila, sin reajustar stock ni auditar. No hay
+        // estante contra el cual reconciliar y no queremos mover el inventario de HOY por un dato viejo.
+        if (salida.stock_id == null) {
+          salida.cantidad = cantidad;
+          return structuredClone(salida);
+        }
         // Credit target = the row actually debited. Never guess by centro_de_costo (free text).
-        const stockRow = salida.stock_id != null ? db.stock.find((s) => s.id === salida.stock_id) : undefined;
+        const stockRow = db.stock.find((s) => s.id === salida.stock_id);
         if (!stockRow) throw new Error('La salida no tiene stock de origen registrado (registro legacy) — no se puede reajustar.');
         const edificio = db.edificios.find((e) => db.stockEdificios.some((se) => se.stock_id === stockRow.id && se.edificio_id === e.id)) ?? null;
         const delta = salida.cantidad - cantidad; // positive delta returns stock to the shelf
         if (delta < 0 && stockRow.cantidad < -delta) throw new Error('Cantidad insuficiente.');
+        // TRASLADO parity: the destination building was credited at salida time — resolve + validate it
+        // BEFORE mutating anything, so both sides rebalance by the inverse delta or neither does.
+        const destino = salida.tipo === 'TRASLADO' && salida.edificio_destino_id != null
+          ? stockRowFor(salida.articulo_id ?? -1, salida.edificio_destino_id)
+          : undefined;
+        if (destino && delta > 0 && destino.cantidad < delta) {
+          throw new Error('El edificio destino ya no tiene el stock trasladado — no se puede reducir la cantidad.');
+        }
         const cant_anterior = stockRow.cantidad;
         stockRow.cantidad += delta;
+        if (destino) destino.cantidad -= delta; // rebalance the destination by the inverse delta
         salida.cantidad = cantidad;
         registrarMovimiento({
           articulo_id: salida.articulo_id,
           articulo_raw: String(salida.articulo_id),
-          concat_articulo: nombreArticulo(salida.articulo_id),
+          concat_articulo: concatArticulo(salida.articulo_id),
           articulo: nombreArticulo(salida.articulo_id),
           cant_anterior,
           cant_posterior: stockRow.cantidad,
@@ -422,7 +511,7 @@ export function createMockAdapter(): DataApi {
           cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return structuredClone(salida);
       },
@@ -444,7 +533,7 @@ export function createMockAdapter(): DataApi {
         registrarMovimiento({
           articulo_id: salida.articulo_id,
           articulo_raw: String(salida.articulo_id),
-          concat_articulo: nombreArticulo(salida.articulo_id),
+          concat_articulo: concatArticulo(salida.articulo_id),
           articulo: nombreArticulo(salida.articulo_id),
           cant_anterior,
           cant_posterior: stockRow.cantidad,
@@ -461,7 +550,7 @@ export function createMockAdapter(): DataApi {
           cantidad: salida.cantidad,
           usuario_id,
           fecha: nowIso(),
-          version_app: null,
+          version_app: APP_VERSION,
         });
         return structuredClone(salida);
       },
@@ -515,7 +604,7 @@ export function createMockAdapter(): DataApi {
         }
         return compraConDetalle(row);
       },
-      async enviarAprobacion(id) {
+      async enviarAprobacion(id, usuario_gen_id) {
         await sleep();
         const row = db.compras.find((c) => c.id === id);
         if (!row) throw new Error(`Compra ${id} no encontrada.`);
@@ -526,16 +615,16 @@ export function createMockAdapter(): DataApi {
           status: 'Pendiente' as const,
           fecha: todayIso(),
           urgencia: row.urgencia,
-          tecnico: row.usuario_compra,
+          tecnico: row.usuario_compra, // PA Tecnico_AP = the requester (UsuarioCompra_C)
           obs_compra: row.observacion,
           fecha_aprobada: null,
           obs_rechazo: null,
-          user_gen_id: row.usuario_id,
+          user_gen_id: usuario_gen_id, // PA UserGen_AP = whoever submits it for approval, not the requester
           user_aprob_id: null,
           cantidad: row.cantidad_total,
           monto: row.monto_total,
           sector: null,
-          version_app: null,
+          version_app: APP_VERSION,
           hora: new Date().toISOString().slice(11, 16),
         };
         db.aprobaciones.push(aprobacion);
@@ -551,6 +640,7 @@ export function createMockAdapter(): DataApi {
           const linea = db.detalleCompras.find((d) => d.id === detalle_id);
           if (!linea) continue;
           linea.recibido = recibido;
+          linea.costo_total = (linea.costo_unitario ?? 0) * recibido; // PA: CostoTotal_DC = CostoUnitario_DC * recibido
           if (linea.articulo_id && linea.edificio_id && recibido > 0) {
             let stockRow = stockRowFor(linea.articulo_id, linea.edificio_id);
             const cant_anterior = stockRow?.cantidad ?? 0;
@@ -569,7 +659,7 @@ export function createMockAdapter(): DataApi {
                 fecha: nowIso(),
                 ultima_mod: null,
                 desde: 'Desktop',
-                version_app: null,
+                version_app: APP_VERSION,
               };
               db.stock.push(stockRow);
               db.stockEdificios.push({ stock_id: stockRow.id, edificio_id: linea.edificio_id });
@@ -594,7 +684,7 @@ export function createMockAdapter(): DataApi {
               cantidad: recibido,
               usuario_id: row.usuario_id,
               fecha: nowIso(),
-              version_app: null,
+              version_app: APP_VERSION,
             });
           }
         }
@@ -666,6 +756,10 @@ export function createMockAdapter(): DataApi {
         await sleep();
         return structuredClone(db.ordenesTrabajo);
       },
+      async listResumen() {
+        await sleep();
+        return structuredClone(db.ordenesTrabajo); // a full OrdenTrabajo is structurally an OtResumen
+      },
       async get(id) {
         await sleep();
         return structuredClone(db.ordenesTrabajo.find((o) => o.id === id) ?? null);
@@ -696,20 +790,26 @@ export function createMockAdapter(): DataApi {
         row.status = 'Anulada';
         return structuredClone(row);
       },
-      async cerrar(id, tipo) {
+      async cerrar(id, tipo, opts) {
         await sleep();
         const row = db.ordenesTrabajo.find((o) => o.id === id);
         if (!row) throw new Error(`Orden de trabajo ${id} no encontrada.`);
+        const yaCerrada = ESTADOS_OT_CERRADA.has(row.status);
         row.status = tipo;
-        row.fecha_cierre = todayIso();
+        row.fecha_cierre = opts?.fecha_cierre ?? todayIso();
+        if (opts?.obs_cierre !== undefined) row.obs_cierre = opts.obs_cierre;
+        if (!yaCerrada) registrarSalidasDeRepuestos(row);
         return structuredClone(row);
       },
-      async finalizar(id) {
+      async finalizar(id, tecnico_id) {
         await sleep();
         const row = db.ordenesTrabajo.find((o) => o.id === id);
         if (!row) throw new Error(`Orden de trabajo ${id} no encontrada.`);
+        const yaCerrada = ESTADOS_OT_CERRADA.has(row.status);
         row.status = 'Cerrada';
         row.fecha_cierre = todayIso();
+        if (tecnico_id != null) row.tecnico_id = tecnico_id; // PA mobile close stamps Tecnico_IN = closing tech
+        if (!yaCerrada) registrarSalidasDeRepuestos(row);
         return structuredClone(row);
       },
       async replicar(id) {
@@ -723,9 +823,15 @@ export function createMockAdapter(): DataApi {
           id_univoco: `(OT)-TR-${String(newId).padStart(3, '0')}${todayIso().replace(/-/g, '')}${new Date().toISOString().slice(11, 19).replace(/:/g, '')}`,
           status: 'Pendiente',
           orden_revision_id: original.id,
+          // PA replicar builds from Defaults(): re-stamp FechaInicio_OT=Today(), leave Asignador + closure notes blank.
+          fecha_inicio: todayIso(),
           fecha_cierre: null,
           fecha_asignada: null,
           tecnico_id: null,
+          asignador_id: null,
+          obs_resuelto: null,
+          obs_asignacion: null,
+          obs_cierre: null,
           created_at: nowIso(),
         };
         db.ordenesTrabajo.push(row);
@@ -747,7 +853,7 @@ export function createMockAdapter(): DataApi {
             descripcion,
             fecha: nowIso(),
             usuario_id,
-            version_app: null,
+            version_app: APP_VERSION,
           };
           db.bitacoras.push(row);
           if (foto_path) {
@@ -755,12 +861,20 @@ export function createMockAdapter(): DataApi {
           }
           return structuredClone(row);
         },
+        async fotos(orden_trabajo_id) {
+          await sleep();
+          return structuredClone(db.fotosBitacora.filter((f) => f.orden_trabajo_id === orden_trabajo_id));
+        },
       },
 
       repuestos: {
         async list(orden_trabajo_id) {
           await sleep();
           return structuredClone(db.repuestosOT.filter((r) => r.orden_trabajo_id === orden_trabajo_id && r.status === 'Activo'));
+        },
+        async listAll() {
+          await sleep();
+          return structuredClone(db.repuestosOT.filter((r) => r.status === 'Activo'));
         },
         async asignarRepuesto({ orden_trabajo_id, articulo_id, edificio_id, cantidad, usuario_id }) {
           await sleep();
@@ -778,13 +892,13 @@ export function createMockAdapter(): DataApi {
             usuario_id,
             fecha: nowIso(),
             status: 'Activo',
-            version_app: null,
+            version_app: APP_VERSION,
           };
           db.repuestosOT.push(row);
           registrarMovimiento({
             articulo_id,
             articulo_raw: String(articulo_id),
-            concat_articulo: nombreArticulo(articulo_id),
+            concat_articulo: concatArticulo(articulo_id),
             articulo: nombreArticulo(articulo_id),
             cant_anterior,
             cant_posterior: stockRow.cantidad,
@@ -801,7 +915,7 @@ export function createMockAdapter(): DataApi {
             cantidad,
             usuario_id,
             fecha: nowIso(),
-            version_app: null,
+            version_app: APP_VERSION,
           });
           return structuredClone(row);
         },
@@ -822,9 +936,13 @@ export function createMockAdapter(): DataApi {
         await sleep();
         const row: Ventilacion = { id: nextId(db.ventilaciones), ...input };
         db.ventilaciones.push(row);
-        // PA parity: creating a schedule flags the unit as under ventilation control.
+        // PA parity: creating a schedule flags the unit as under ventilation control AND stores its
+        // frequency (PA patched both Ventilacion_ABMUnid + Frecuencia_ABMUnid on '99.ABM_TipoUnidades').
         const unidad = db.unidades.find((u) => u.id === row.unidad_id);
-        if (unidad) unidad.requiere_ventilacion = true;
+        if (unidad) {
+          unidad.requiere_ventilacion = true;
+          if (row.frecuencia_dias != null) unidad.frecuencia_ventilacion_dias = row.frecuencia_dias;
+        }
         return structuredClone(row);
       },
       async asignar({ id, tecnico_id, proxima_limpieza, frecuencia_dias }) {
@@ -859,7 +977,7 @@ export function createMockAdapter(): DataApi {
         row.estado = 'Realizada';
         row.obs_resuelto = obs_resuelto;
         row.fecha_finalizacion = nowIso();
-        row.version_resuelto = null;
+        row.version_resuelto = APP_VERSION;
         row.orden = 1;
         // KEY BUSINESS RULE (CLAUDE.md): closing a cycle atomically creates the next one.
         const frecuencia = row.frecuencia_dias ?? 90;
@@ -886,18 +1004,8 @@ export function createMockAdapter(): DataApi {
         };
         db.ventilaciones.push(siguiente);
         void usuario_id; // mock has no per-user audit column on ventilaciones; kept for API symmetry with other domains
-        if (foto_path) {
-          db.documentos.push({
-            id: nextId(db.documentos),
-            nombre: foto_path.split('/').pop() ?? foto_path,
-            storage_path: `ventilaciones/${id}/${foto_path}`,
-            carpeta: 'Ordenes',
-            orden_trabajo_id: null,
-            compra_id: null,
-            content_type: 'image/jpeg',
-            created_at: nowIso(),
-          });
-        }
+        // Igual que finalizar_ventilacion() en Postgres: la foto de cierre se guarda en la fila.
+        if (foto_path) row.foto_path = foto_path;
         return { cerrada: structuredClone(row), siguiente: structuredClone(siguiente) };
       },
       async adelantar({ id, obs_adelanto }) {
@@ -930,6 +1038,43 @@ export function createMockAdapter(): DataApi {
               (filter.compra_id === undefined || d.compra_id === filter.compra_id),
           ),
         );
+      },
+      async crear(input) {
+        await sleep();
+        // Mock has no real bucket — record the metadata row only (the storage_path is where the
+        // supabase adapter would have uploaded the bytes). Enough to exercise the list/attach flow.
+        const owner = input.orden_trabajo_id ?? input.compra_id ?? 0;
+        const doc = {
+          id: nextId(db.documentos),
+          nombre: input.nombre,
+          storage_path: `${input.carpeta.toLowerCase()}/${owner}/${input.nombre}`,
+          carpeta: input.carpeta,
+          orden_trabajo_id: input.orden_trabajo_id ?? null,
+          compra_id: input.compra_id ?? null,
+          content_type: input.content_type ?? input.file.type ?? null,
+          created_at: nowIso(),
+        };
+        db.documentos.push(doc);
+        return structuredClone(doc);
+      },
+      async url(storage_path) {
+        await sleep();
+        // Mock has no real bucket — echo the fake path (won't render as an image, but keeps the flow intact).
+        return storage_path;
+      },
+    },
+
+    // No releases table in the mock: there is never a newer version to offer.
+    appReleases: {
+      async latest() {
+        return null;
+      },
+    },
+
+    // No live backend to push from — subscriptions are a no-op (manual reload only).
+    realtime: {
+      subscribe() {
+        return () => {};
       },
     },
   };

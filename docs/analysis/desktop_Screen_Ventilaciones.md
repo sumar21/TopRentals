@@ -54,6 +54,7 @@ Shared app shell (background 001.svg): dark navy (#23313E) outer frame, white ro
 
 ## statuses
 - Estado_VE: Pendiente, Asignada, Programada, Realizada, Eliminada
+- TopRentals (agregado, pedido de negocio "se les es muy difícil entender ... A vencer y Limpio"): estado de LIMPIEZA **derivado** por días desde la última limpieza — `Limpio` (<60) / `A vencer` (60–90) / `Sucio` (>90) — mostrado como badge principal en la lista, con el `Estado_VE` operativo como chip chico secundario (sigue rigiendo asignar/programar/realizar; son ortogonales). Aplica a la vista back-office Y a la del técnico (componente compartido). Si nunca se limpió pero hay próxima + frecuencia, se deriva de `frecuencia − díasHasta(proxima)`; sin datos, cae al operativo. source: `utils/ventilacion.ts` (estadoLimpieza), `components/ventilaciones/EstadoVentilacionCell.tsx`, `components/ui/StatusBadge.tsx` (limpio/a vencer/sucio)
 - EsIncidente_VE: SI, NO
 - Status_ABMUnid: Alta (only 'Alta' units are loaded; 'Baja' implied as the other value)
 - Ventilacion_ABMUnid: SI, NO

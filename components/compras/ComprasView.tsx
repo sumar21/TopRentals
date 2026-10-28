@@ -18,8 +18,10 @@ import { LoadErrorState } from '../LoadErrorState';
 import ConfirmModal from '../ConfirmModal';
 import { backdropClose } from '../ui/backdropClose';
 import { useToast } from '../ui/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
 import { formatDate } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 import { api } from '../../services/index.ts';
 import type { Compra, Usuario } from '../../services/types.ts';
 import { compraEnviadaAprobacionEmail, type CompraLineaEmail } from '../../emails/templates.ts';
@@ -49,8 +51,8 @@ const DocumentoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
   const { visible, overlayClass, modalClass } = useModalAnimation(isOpen);
   if (!visible) return null;
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
-      <div className={`${modalClass} bg-background w-full max-w-md max-h-[90vh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(onClose)}>
+      <div className={`${modalClass} bg-background w-full max-w-md max-h-[90dvh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col`}>
         <div className="px-6 py-4 border-b bg-secondary/20"><h2 className="text-lg font-bold tracking-tight">Documento adjunto</h2></div>
         <div className="p-6 overflow-y-auto">
           <EmptyState icon={FileText} title="Documentos disponibles con el backend definitivo" />
@@ -64,6 +66,7 @@ const DocumentoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
 
 const ComprasView: React.FC = () => {
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const [compras, setCompras] = useState<Compra[]>([]);
   const [tecnicos, setTecnicos] = useState<Usuario[]>([]);
@@ -83,8 +86,8 @@ const ComprasView: React.FC = () => {
   const [enviarTarget, setEnviarTarget] = useState<Compra | null>(null);
   const [anularTarget, setAnularTarget] = useState<Compra | null>(null);
 
-  const load = () => {
-    setLoading(true);
+  const load = (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
     return Promise.all([api.compras.list(), api.usuarios.list()])
       .then(([c, u]) => { setCompras(c); setTecnicos(u.filter((x) => x.perfil === 'Tecnico')); })
@@ -92,6 +95,8 @@ const ComprasView: React.FC = () => {
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
+  // Live updates: silent refetch whenever a compra changes in the backend.
+  useEffect(() => api.realtime.subscribe(['compras'], () => { void load(true); }), []);
 
   const mesOptions = useMemo(() => {
     const meses = [...new Set(compras.map((c) => c.fecha.slice(0, 7)))].sort().reverse();
@@ -106,8 +111,10 @@ const ComprasView: React.FC = () => {
       .filter((c) => estados.includes(c.status))
       .filter((c) => mesFilter.length === 0 || mesFilter.includes(c.fecha.slice(0, 7)))
       .filter((c) => tecnicoFilter.length === 0 || tecnicoFilter.includes(String(c.usuario_id)))
-      .filter((c) => !query || c.id_compra.toLowerCase().includes(query) || (c.usuario_compra ?? '').toLowerCase().includes(query))
-      .sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+      // PA searches the row ID (the N° shown) + UsuarioCompra_C0 — not the hidden id_compra business code.
+      .filter((c) => !query || String(c.id).includes(query) || (c.usuario_compra ?? '').toLowerCase().includes(query))
+      // PA parity: SortByColumns(CollectCompras,"ID",SortOrder.Descending)
+      .sort((a, b) => b.id - a.id);
   }, [compras, estadoFilter, mesFilter, tecnicoFilter, q]);
 
   const activeFilterCount = estadoFilter.length + mesFilter.length + tecnicoFilter.length;
@@ -146,22 +153,23 @@ const ComprasView: React.FC = () => {
   };
 
   const handleEnviarAprobacion = async () => {
-    if (!enviarTarget) return;
+    if (!enviarTarget || !user) return;
     try {
-      await api.compras.enviarAprobacion(enviarTarget.id);
+      // PA stamps UserGen_AP with the acting user (who submits), not the compra's requester.
+      await api.compras.enviarAprobacion(enviarTarget.id, user.id);
       const detalle = await api.compras.get(enviarTarget.id);
       if (detalle) {
         const lineas: CompraLineaEmail[] = detalle.detalle.filter((d) => d.status === 'Activo')
           .map((d) => ({ edificio: d.edificio ?? '', articulo: d.articulo ?? '', cantidad: d.cantidad, costo_unitario: d.costo_unitario ?? 0, costo_total: d.costo_total ?? 0 }));
         const emailRows = await api.emailsNotificacion.list();
         const recipients: RecipientRow[] = emailRows.filter((r) => r.status === 'Activo').map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' }));
-        const email = compraEnviadaAprobacionEmail(enviarTarget.id_compra, lineas, enviarTarget.usuario_compra ?? '');
+        const email = compraEnviadaAprobacionEmail(enviarTarget.id, lineas, enviarTarget.usuario_compra ?? '');
         await sendEmail(resolveRecipients('Compra', recipients), email);
       }
       showToast('Compra enviada a aprobación.', 'success');
       await load();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo enviar la compra a aprobación.', 'error');
+      showToast(errorMessage(e, 'No se pudo enviar la compra a aprobación.'), 'error');
     }
   };
 
@@ -172,7 +180,7 @@ const ComprasView: React.FC = () => {
       showToast('Compra anulada.', 'success');
       await load();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo anular la compra.', 'error');
+      showToast(errorMessage(e, 'No se pudo anular la compra.'), 'error');
     }
   };
 
@@ -187,7 +195,7 @@ const ComprasView: React.FC = () => {
         </button>
       )}
       {c.status === 'Aprobada' && (
-        <button title="Recibir" aria-label="Recibir compra" onClick={() => setRecibirId(c.id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center">
+        <button title="Recibir" aria-label="Recibir compra" onClick={() => setRecibirId(c.id)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center">
           <FileCheck2 className="h-4 w-4" />
         </button>
       )}
@@ -197,7 +205,7 @@ const ComprasView: React.FC = () => {
         </button>
       )}
       {c.status === 'Pendiente' && (
-        <button title="Enviar a aprobación" aria-label="Enviar a aprobación" onClick={() => setEnviarTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center">
+        <button title="Enviar a aprobación" aria-label="Enviar a aprobación" onClick={() => setEnviarTarget(c)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center justify-center">
           <SendHorizonal className="h-4 w-4" />
         </button>
       )}
@@ -210,7 +218,7 @@ const ComprasView: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Compras</h1>
@@ -257,7 +265,7 @@ const ComprasView: React.FC = () => {
               <div key={c.id} className="rounded-lg border bg-card p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-sm">{c.id_compra}</p>
+                    <p className="font-medium text-sm tabular-nums">{c.id}</p>
                     <p className="text-xs text-muted-foreground">{c.usuario_compra ?? '—'}</p>
                   </div>
                   <StatusBadge status={c.status} />
@@ -274,8 +282,8 @@ const ComprasView: React.FC = () => {
               </div>
             ))}
           </div>
-          <Card className="hidden md:block border shadow-sm">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Estado</TableHead>
@@ -292,7 +300,7 @@ const ComprasView: React.FC = () => {
                 {filtered.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell><StatusBadge status={c.status} /></TableCell>
-                    <TableCell className="text-sm font-medium whitespace-nowrap">{c.id_compra}</TableCell>
+                    <TableCell className="text-sm font-medium whitespace-nowrap tabular-nums">{c.id}</TableCell>
                     <TableCell className="text-sm">{c.usuario_compra ?? '—'}</TableCell>
                     <TableCell><StatusBadge status={c.urgencia ?? ''} /></TableCell>
                     <TableCell className="text-sm">{formatDate(c.fecha)}</TableCell>
@@ -310,7 +318,7 @@ const ComprasView: React.FC = () => {
       <CompraFormModal
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
-        title={editingId != null ? 'Editar compra' : 'Nueva compra'}
+        title={editingId != null ? `Editar compra N° ${editingId}` : 'Nueva compra'}
         compraId={editingId}
         onSubmit={handleFormSubmit}
       />
@@ -322,7 +330,7 @@ const ComprasView: React.FC = () => {
         onClose={() => setEnviarTarget(null)}
         onConfirm={handleEnviarAprobacion}
         title="Enviar a aprobación"
-        description={`¿Enviar la compra ${enviarTarget?.id_compra ?? ''} al circuito de aprobación?`}
+        description={`¿Enviar la compra N° ${enviarTarget?.id ?? ''} al circuito de aprobación?`}
         confirmText="Enviar"
         cancelText="Cancelar"
       />
@@ -331,7 +339,7 @@ const ComprasView: React.FC = () => {
         onClose={() => setAnularTarget(null)}
         onConfirm={handleAnular}
         title="Anular compra"
-        description={`¿Anular la compra ${anularTarget?.id_compra ?? ''}? Esta acción no se puede deshacer.`}
+        description={`¿Anular la compra N° ${anularTarget?.id ?? ''}? Esta acción no se puede deshacer.`}
         confirmText="Anular"
         cancelText="Cancelar"
         variant="danger"

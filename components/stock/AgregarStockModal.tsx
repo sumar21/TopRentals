@@ -2,14 +2,16 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, PackagePlus, X } from 'lucide-react';
-import { Button, Combobox, Input, cn, useModalAnimation } from '../ui/UIComponents';
+import { Button, Combobox, cn, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
 import { api } from '../../services/index.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { Articulo, Edificio } from '../../services/types.ts';
+import { articuloLabel } from '../../utils/articulos';
 
 interface AgregarStockModalProps {
   isOpen: boolean;
@@ -36,12 +38,14 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
   // Article combobox excludes articles already stocked in the selected building (react_mapping).
   const articuloOptions = useMemo(() => {
     if (!edificioId) return [];
+    // PA excludes an article only if it has stock with Value(Cantidad_ST) > 0 at the building;
+    // a row depleted to 0 must stay available to re-stock.
     const yaStockeados = new Set(
-      rows.filter((r) => r.edificio_ids.includes(Number(edificioId))).map((r) => r.articulo_id),
+      rows.filter((r) => r.edificio_ids.includes(Number(edificioId)) && r.cantidad > 0).map((r) => r.articulo_id),
     );
     return articulos
       .filter((a) => a.status === 'Activo' && !yaStockeados.has(a.id))
-      .map((a) => ({ label: a.codigo ? `${a.codigo} — ${a.nombre}` : a.nombre, value: String(a.id) }));
+      .map((a) => ({ label: articuloLabel(a), value: String(a.id) }));
   }, [edificioId, articulos, rows]);
 
   const edificioOptions = edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: String(e.id) }));
@@ -80,14 +84,14 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
   if (!visible) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(close)}>
-      <div className={cn(modalClass, 'bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]')}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(close)}>
+      <div className={cn(modalClass, 'bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]')}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Ingresar Stock</h2>
             <p className="text-xs text-muted-foreground">Suma cantidad a un artículo en un edificio</p>
           </div>
-          <button onClick={close} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={close} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -112,7 +116,7 @@ export const AgregarStockModal: React.FC<AgregarStockModalProps> = ({ isOpen, on
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
-              <Input type="number" min={1} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" />
+              <NumberInput min={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 10" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Costo unitario</label>

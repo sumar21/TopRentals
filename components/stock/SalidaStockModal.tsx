@@ -6,7 +6,8 @@ import { createPortal } from 'react-dom';
 import { Loader2, PackageMinus, X } from 'lucide-react';
 import { Button, cn, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
-import { Input } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
+import { DatePicker } from '../ui/DatePicker';
 import { backdropClose } from '../ui/backdropClose';
 import { todayISO } from '../../utils/dates';
 import { api } from '../../services/index.ts';
@@ -37,13 +38,13 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
   const [tipo, setTipo] = useState<TipoSalidaStock | ''>('');
   const [tecnicoId, setTecnicoId] = useState('');
   const [cantidad, setCantidad] = useState('');
-  const [edificioId, setEdificioId] = useState('');
-  const [centroCosto, setCentroCosto] = useState('');
-  const [edificioDestinoId, setEdificioDestinoId] = useState('');
+  const [edificioId, setEdificioId] = useState('');            // origin row to debit (shown only when the stock pools >1 building)
+  const [edificioCcId, setEdificioCcId] = useState('');        // single building field: cost center, or (TRASLADO) the destination — mirrors PA's one "Centro de Costo/Edificio" field
   const [fecha, setFecha] = useState(todayISO());
   const [saving, setSaving] = useState(false);
 
-  const reset = () => { setTipo(''); setTecnicoId(''); setCantidad(''); setEdificioId(''); setCentroCosto(''); setEdificioDestinoId(''); setFecha(todayISO()); };
+  const esTraslado = tipo === 'TRASLADO';
+  const reset = () => { setTipo(''); setTecnicoId(''); setCantidad(''); setEdificioId(''); setEdificioCcId(''); setFecha(todayISO()); };
   const close = () => { if (!saving) { reset(); onClose(); } };
 
   const edificiosDelRow = useMemo(
@@ -56,22 +57,23 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
     if (isOpen && edificiosDelRow.length === 1 && !edificioId) setEdificioId(String(edificiosDelRow[0].id));
   }, [isOpen, edificiosDelRow, edificioId]);
 
-  const centroCostoOptions = edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: e.nombre }));
-  const destinoOptions = edificios
-    .filter((e) => e.status === 'Activo' && String(e.id) !== edificioId)
+  // Single building field (PA parity): destination for a TRASLADO (exclude the origin), otherwise the cost center (any active building).
+  const edificioCcOptions = edificios
+    .filter((e) => e.status === 'Activo' && (!esTraslado || String(e.id) !== edificioId))
     .map((e) => ({ label: e.nombre, value: String(e.id) }));
   const tecnicoOptions = tecnicos.map((t) => ({ label: t.concat_name, value: String(t.id) }));
 
   const disponible = row?.cantidad ?? 0;
   const cantidadNum = Number(cantidad);
   const cantidadValida = cantidadNum > 0 && cantidadNum <= disponible;
-  const valid = Boolean(tipo) && Boolean(tecnicoId) && cantidadValida && Boolean(edificioId) && Boolean(centroCosto)
-    && (tipo !== 'TRASLADO' || Boolean(edificioDestinoId));
+  const valid = Boolean(tipo) && Boolean(tecnicoId) && cantidadValida && Boolean(edificioId) && Boolean(edificioCcId)
+    && (!esTraslado || edificioCcId !== edificioId); // a traslado can't target its own origin
 
   const handleSave = async () => {
     if (!valid || !row || !tipo) return;
     setSaving(true);
     try {
+      const ccBuilding = edificios.find((e) => String(e.id) === edificioCcId);
       await api.stock.salida({
         stock_id: row.id,
         edificio_id: Number(edificioId),
@@ -79,10 +81,10 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
         cantidad: cantidadNum,
         tecnico_id: Number(tecnicoId),
         uso: 'Consumo Diario',
-        centro_de_costo: centroCosto,
+        centro_de_costo: ccBuilding?.nombre ?? null,
         usuario_id: usuarioId,
         fecha_salida: fecha,
-        ...(tipo === 'TRASLADO' ? { edificio_destino_id: Number(edificioDestinoId) } : {}),
+        ...(esTraslado ? { edificio_destino_id: Number(edificioCcId) } : {}),
       });
       onSaved();
       reset();
@@ -96,8 +98,8 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
   if (!visible || !row) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(close)}>
-      <div className={cn(modalClass, 'bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]')}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(close)}>
+      <div className={cn(modalClass, 'bg-background w-full max-w-3xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]')}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Salida de Stock</h2>
@@ -105,7 +107,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
               Disponible <span className="font-medium text-foreground">{disponible}</span>
             </p>
           </div>
-          <button onClick={close} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={close} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -119,7 +121,7 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
-              <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              <DatePicker value={fecha} onChange={setFecha} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico Responsable</label>
@@ -137,40 +139,30 @@ export const SalidaStockModal: React.FC<SalidaStockModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad</label>
-              <Input type="number" min={1} max={disponible} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" />
+              <NumberInput min={1} max={disponible} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 5" />
               {cantidad !== '' && !cantidadValida && (
                 <p className="text-[11px] text-red-600 mt-1">Cantidad insuficiente — disponible: {disponible}.</p>
               )}
             </div>
           </div>
 
-          {/* Fila 3 (PA): Uso (fijo) · Torre (centro de costo) */}
+          {/* Fila 3 (PA): Uso (fijo) · Torre / Edificio destino — un solo campo de edificio, como PA */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Uso</label>
               <div className="flex h-10 items-center px-3 rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">Consumo Diario</div>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre</label>
-              <Select value={centroCosto} onChange={setCentroCosto} options={centroCostoOptions} placeholder="Elegí una torre" />
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">{esTraslado ? 'Edificio destino' : 'Torre'}</label>
+              <Select value={edificioCcId} onChange={setEdificioCcId} options={edificioCcOptions} placeholder={esTraslado ? 'Elegí el edificio destino' : 'Elegí una torre'} />
             </div>
           </div>
 
-          {/* Extra: picker de origen solo si el row agrupa varios edificios; destino solo en TRASLADO */}
-          {(edificiosDelRow.length > 1 || tipo === 'TRASLADO') && (
-            <div className={cn('grid grid-cols-1 gap-4', edificiosDelRow.length > 1 && tipo === 'TRASLADO' ? 'sm:grid-cols-2' : '')}>
-              {edificiosDelRow.length > 1 && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio (origen del stock)</label>
-                  <Select value={edificioId} onChange={setEdificioId} options={edificioOptions} placeholder="Elegí un edificio" />
-                </div>
-              )}
-              {tipo === 'TRASLADO' && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio destino</label>
-                  <Select value={edificioDestinoId} onChange={setEdificioDestinoId} options={destinoOptions} placeholder="Elegí el edificio destino" />
-                </div>
-              )}
+          {/* Origen a debitar: solo cuando el stock se agrupa en más de un edificio */}
+          {edificiosDelRow.length > 1 && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio (origen del stock)</label>
+              <Select value={edificioId} onChange={setEdificioId} options={edificioOptions} placeholder="Elegí un edificio" />
             </div>
           )}
         </div>

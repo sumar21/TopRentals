@@ -9,9 +9,11 @@ import type {
   Aprobacion,
   Articulo,
   Bitacora,
+  FotoBitacora,
   Compra,
   DetalleCompra,
   Documento,
+  DocumentoCrearInput,
   Edificio,
   EmailNotificacion,
   EstadoOT,
@@ -40,6 +42,24 @@ export interface CompraLineaInput {
   costo_unitario: number;
 }
 
+/** The 7 OT fields the dashboard reads (see `ots.listResumen`). */
+export type OtResumen = Pick<OrdenTrabajo, 'id' | 'torre' | 'status' | 'tipo_trabajo' | 'fecha_inicio' | 'fecha_cierre' | 'tecnico_id'>;
+
+/** Domain topics for live change subscriptions (see `DataApi.realtime.subscribe`). */
+export type RealtimeTopic =
+  | 'ots'
+  | 'stock'
+  | 'movimientos'
+  | 'salidas'
+  | 'compras'
+  | 'aprobaciones'
+  | 'ventilaciones'
+  | 'articulos'
+  | 'usuarios'
+  | 'edificios'
+  | 'unidades'
+  | 'appReleases';
+
 /** Quick-access entry for the login demo panel — only meaningful on the mock backend. */
 export interface DemoUser {
   usuario_app: string;
@@ -60,8 +80,10 @@ export interface DataApi {
   usuarios: {
     list(): Promise<Usuario[]>;
     get(id: number): Promise<Usuario | null>;
-    crear(input: NewEntity<Usuario>): Promise<Usuario>;
-    actualizar(id: number, patch: Partial<NewEntity<Usuario>>): Promise<Usuario>;
+    /** `password` = contraseña derivada (ddmm de fecha_nac). Provisiona la cuenta auth.users. */
+    crear(input: NewEntity<Usuario>, password: string): Promise<Usuario>;
+    /** `password` opcional: si se pasa, re-setea la contraseña de auth. El toggle ALTA/BAJA no la manda. */
+    actualizar(id: number, patch: Partial<NewEntity<Usuario>>, password?: string): Promise<Usuario>;
     /** Soft-delete: sets status='BAJA'. */
     eliminar(id: number): Promise<void>;
   };
@@ -83,6 +105,8 @@ export interface DataApi {
   };
   emailsNotificacion: {
     list(): Promise<EmailNotificacion[]>;
+    /** Sends a notification email (Microsoft Graph Mail.Send on real backends; no-op on mock). */
+    enviar(to: string[], subject: string, html: string): Promise<void>;
   };
   perfilesPermisos: {
     list(): Promise<PerfilPermiso[]>;
@@ -133,7 +157,7 @@ export interface DataApi {
     crear(input: NewEntity<Compra>, lineas: CompraLineaInput[]): Promise<CompraConDetalle>;
     actualizar(id: number, patch: Partial<NewEntity<Compra>>, lineas?: CompraLineaInput[]): Promise<CompraConDetalle>;
     /** Status_C -> 'Aprobacion' + creates the matching aprobaciones row. */
-    enviarAprobacion(id: number): Promise<Aprobacion>;
+    enviarAprobacion(id: number, usuario_gen_id: number): Promise<Aprobacion>;
     /** Status_C -> 'Recibida'; writes received qty per line + stock intake + movimientos_stock. */
     recibir(id: number, lineas: { detalle_id: number; recibido: number }[], obs_recibir: string): Promise<CompraConDetalle>;
     anular(id: number): Promise<Compra>;
@@ -153,22 +177,29 @@ export interface DataApi {
 
   ots: {
     list(): Promise<OrdenTrabajo[]>;
+    /** Light projection (7 columns) of every OT, for the dashboard. */
+    listResumen(): Promise<OtResumen[]>;
     get(id: number): Promise<OrdenTrabajo | null>;
     crear(input: NewEntity<OrdenTrabajo>): Promise<OrdenTrabajo>;
     actualizar(id: number, patch: Partial<NewEntity<OrdenTrabajo>>): Promise<OrdenTrabajo>;
     anular(id: number): Promise<OrdenTrabajo>;
-    cerrar(id: number, tipo: Extract<EstadoOT, 'Cerrada V' | 'Cerrada F'>): Promise<OrdenTrabajo>;
-    finalizar(id: number): Promise<OrdenTrabajo>;
+    cerrar(id: number, tipo: Extract<EstadoOT, 'Cerrada V' | 'Cerrada F'>, opts?: { fecha_cierre?: string; obs_cierre?: string | null }): Promise<OrdenTrabajo>;
+    finalizar(id: number, tecnico_id?: number): Promise<OrdenTrabajo>;
     /** Clones a closed OT into a new linked 'Pendiente' one (orden_revision_id = source id). */
     replicar(id: number): Promise<OrdenTrabajo>;
 
     bitacoras: {
       list(orden_trabajo_id: number): Promise<Bitacora[]>;
       crear(input: { orden_trabajo_id: number; descripcion: string; usuario_id: number; foto_path?: string }): Promise<Bitacora>;
+      /** Fotos adjuntas a las bitácoras de una OT (list() solo trae texto). Se leen aparte para
+       *  poder mostrarlas al reabrir — el foto_path puede ser un storage key o un dataURL base64. */
+      fotos(orden_trabajo_id: number): Promise<FotoBitacora[]>;
     };
 
     repuestos: {
       list(orden_trabajo_id: number): Promise<RepuestoOT[]>;
+      /** Todos los repuestos activos consumidos en cualquier OT — alimenta el reporte "Consumo por OT". */
+      listAll(): Promise<RepuestoOT[]>;
       /** Assigns a spare part to the OT: decrements stock + writes movimientos_stock. */
       asignarRepuesto(input: {
         orden_trabajo_id: number;
@@ -195,5 +226,25 @@ export interface DataApi {
 
   documentos: {
     list(filter: { orden_trabajo_id?: number; compra_id?: number }): Promise<Documento[]>;
+    /** Upload a file to Storage + record its metadata row. Wires the OT-create photos and the
+     *  compra-receipt PDF the PA persisted (were staged client-side only). */
+    crear(input: DocumentoCrearInput): Promise<Documento>;
+    /** Short-lived signed URL to view/download a file from the private bucket by its storage_path.
+     *  A `list()` only returns metadata (the bucket is private) — the UI needs this to render/open a file. */
+    url(storage_path: string): Promise<string>;
+  };
+
+  /** Production releases recorded by the deploy webhook (public.app_releases). */
+  appReleases: {
+    /** APP_VERSION of the latest recorded release (by released_at), or null when there is none. */
+    latest(): Promise<string | null>;
+  };
+
+  /** Live change notifications (Supabase Realtime). On backends without realtime
+   *  (mock) `subscribe` is a no-op that returns an unsubscribe function. */
+  realtime: {
+    /** Invoke `onChange` (debounced) whenever any of the given topics changes in the
+     *  backend. Returns an unsubscribe function — call it on unmount. */
+    subscribe(topics: RealtimeTopic[], onChange: () => void): () => void;
   };
 }

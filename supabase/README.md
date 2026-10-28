@@ -38,17 +38,39 @@ real Supabase project (`auth.users`, `storage.buckets`) with
 tests); the RLS policies (`TO authenticated`) do not — that role only exists
 on a real Supabase project.
 
-## RLS — pending backend decision
+## RLS — high-value hardening (not per-perfil authorization)
 
-Every table (and the storage buckets) is RLS-**enabled** with a single
-permissive policy: `FOR ALL TO authenticated USING (true) WITH CHECK (true)`.
-This only blocks anonymous/unauthenticated access — any authenticated user can
-read/write everything. It is a placeholder, not real authorization.
+Per-`perfil_usuario` authorization stays client-side (`utils/permissions.ts`)
+and inside the vetted DEFINER RPCs — RLS here is **not** that layer. It closes
+the direct-write holes that actually have blast radius:
 
-**TODO**: replace these with real per-`perfil_usuario` policies once the
-auth model is decided (see `data_model.md` → `## Auth`: `usuarios.perfil` +
-`perfiles_permisos` need to drive RLS instead of the client-side permission
-gating the Power Apps did).
+- **SELECT-only for `authenticated`** — catalogs (`edificios`, `articulos`,
+  `frecuencias`, `unidades`, `perfiles_permisos`, `iconos_app`,
+  `emails_notificacion`), `usuarios`, and the stock/audit tables (`stock`,
+  `stock_edificios`, `movimientos_stock`, `salidas_stock`). Writes happen only
+  through `SECURITY DEFINER` RPCs (`supabase/rpc.sql`) or the service-role
+  catalog sync — both bypass RLS. This closes the **raw table-write** path:
+  no `UPDATE usuarios SET perfil='Admin'`, no direct tampering with the shared
+  catalogs / permission matrix, no rewriting the append-only audit trail. It does
+  **not** add per-perfil authz — an authenticated user can still call the
+  equivalent RPC (e.g. `usuario_actualizar` with any `perfil`); closing that is
+  the deferred per-perfil layer below.
+- **Function EXECUTE is restricted too** — since the RPCs are DEFINER (they
+  bypass RLS), `rpc.sql` / the migration `REVOKE EXECUTE … FROM PUBLIC, anon` and
+  grant it only to `authenticated` + `service_role`. Without this, a holder of the
+  public anon key could call the RPCs and bypass RLS entirely.
+- **Read/write for `authenticated`** — the operational records
+  (`ordenes_trabajo`, `ventilaciones`, `compras`, `detalle_compras`,
+  `aprobaciones`, `bitacoras`, `fotos_bitacora`, `repuestos_ot`, `documentos`).
+  Left writable because locking them adds no real security: the same client
+  could call the equivalent RPC anyway (the RPCs carry no per-perfil check).
+
+Fresh installs get this from `schema.sql`. An already-deployed DB is migrated by
+`migrations/0002_rls_hardening.sql` (after re-applying `rpc.sql` for the DEFINER
+flip + the new `usuario_*` / `articulo_insert_mirror` / `unidad_set_*` RPCs).
+
+**Still open**: true per-`perfil` policies at the DB (see `data_model.md` →
+`## Auth`) if the threat model ever needs authz enforced below the app.
 
 ## Deviations from `data_model.md`
 

@@ -22,6 +22,24 @@ const MODAL_DURATION = 200;
  *   modalClass   → 'modal-enter'   | 'modal-exit'
  * Emparejar con las reglas CSS de index.css.
  */
+// Body-scroll lock compartido: con un modal abierto, el fondo NO se tiene que poder scrollear
+// (en mobile, un scroll accidental sobre el backdrop movía la grilla de atrás y "trababa" el modal).
+// Hay dos scrollers según el layout — back-office scrollea en <main>, y técnico mobile scrollea el
+// documento — así que bloqueamos html + body + <main> a la vez. Contador de referencia para soportar
+// modales apilados (recién se desbloquea cuando se cierra el último).
+let scrollLockCount = 0;
+const scrollLockTargets = (): HTMLElement[] =>
+  typeof document === 'undefined' ? [] : [document.documentElement, document.body, ...Array.from(document.querySelectorAll('main'))];
+function lockBodyScroll() {
+  if (scrollLockCount++ > 0) return;
+  for (const el of scrollLockTargets()) el.style.overflow = 'hidden';
+}
+function unlockBodyScroll() {
+  if (scrollLockCount > 0) scrollLockCount--;
+  if (scrollLockCount > 0) return;
+  for (const el of scrollLockTargets()) el.style.overflow = '';
+}
+
 export function useModalAnimation(isOpen: boolean) {
   const [visible, setVisible] = useState(isOpen);
   const [closing, setClosing] = useState(false);
@@ -32,6 +50,12 @@ export function useModalAnimation(isOpen: boolean) {
       const t = setTimeout(() => { setVisible(false); setClosing(false); }, MODAL_DURATION);
       return () => clearTimeout(t);
     }
+  }, [isOpen]);
+  // Bloquear el scroll del fondo mientras el modal está abierto.
+  useEffect(() => {
+    if (!isOpen) return;
+    lockBodyScroll();
+    return unlockBodyScroll;
   }, [isOpen]);
   return {
     visible,
@@ -118,8 +142,11 @@ export const Badge = ({ className, variant = "default", ...props }: React.HTMLAt
 // §3.5 Table
 // ────────────────────────────────────────────────────────────────────────────
 
-export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto"><table ref={ref} className={cn("w-full caption-bottom text-[13px]", className)} {...props} /></div>
+// `wrapperClassName` targets the scroll container: pass a bounded height
+// (e.g. `max-h-[calc(100vh-16rem)]`) to make the header sticky and scroll the
+// rows internally instead of growing the page (DESIGN.md §7.10).
+export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement> & { wrapperClassName?: string }>(({ className, wrapperClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto", wrapperClassName)}><table ref={ref} className={cn("w-full caption-bottom text-[13px]", className)} {...props} /></div>
 ));
 export const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(({ className, ...props }, ref) => (
   <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
@@ -130,8 +157,12 @@ export const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAtt
 export const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(({ className, ...props }, ref) => (
   <tr ref={ref} className={cn("border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted", className)} {...props} />
 ));
+// Header is sticky by default (canonical grid-view header, DESIGN.md §7.10): it
+// only visibly sticks when the Table wrapper has a bounded height; otherwise the
+// muted background is a no-op restyle. The opaque bg + backdrop-blur keep rows
+// from bleeding through when they scroll underneath.
 export const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(({ className, ...props }, ref) => (
-  <th ref={ref} className={cn("h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0", className)} {...props} />
+  <th ref={ref} className={cn("sticky top-0 z-10 h-12 bg-muted/60 px-4 text-left align-middle font-medium text-muted-foreground backdrop-blur [&:has([role=checkbox])]:pr-0", className)} {...props} />
 ));
 export const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(({ className, ...props }, ref) => (
   <td ref={ref} className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />

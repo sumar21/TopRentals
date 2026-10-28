@@ -39,14 +39,14 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
   const showRecibido = compra?.status === 'Recibida';
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
-      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(onClose)}>
+      <div className={`${modalClass} bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Detalle de compra</h2>
-            {compra && <p className="text-xs text-muted-foreground">{compra.id_compra}</p>}
+            {compra && <p className="text-xs text-muted-foreground">N° {compra.id}</p>}
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -94,10 +94,10 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Artículo</TableHead>
+                      <TableHead>Edificio</TableHead>
                       <TableHead className="text-right">Cantidad</TableHead>
                       {showRecibido && <TableHead className="text-right">Recibido</TableHead>}
-                      <TableHead>Edificio</TableHead>
-                      <TableHead>Artículo</TableHead>
                       <TableHead className="text-right whitespace-nowrap">Costo unit.</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                     </TableRow>
@@ -105,10 +105,10 @@ const VerDetalleCompraModal: React.FC<VerDetalleCompraModalProps> = ({ isOpen, o
                   <TableBody>
                     {lineas.map((d) => (
                       <TableRow key={d.id}>
+                        <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
+                        <TableCell className="text-sm">{d.edificio ?? '—'}</TableCell>
                         <TableCell className="text-right tabular-nums">{d.cantidad}</TableCell>
                         {showRecibido && <TableCell className="text-right tabular-nums">{d.recibido ?? '—'}</TableCell>}
-                        <TableCell className="text-sm">{d.edificio ?? '—'}</TableCell>
-                        <TableCell className="text-sm">{d.articulo ?? '—'}</TableCell>
                         <TableCell className="text-right tabular-nums whitespace-nowrap">$ {maskFromNumber(d.costo_unitario ?? 0)}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium whitespace-nowrap">$ {maskFromNumber(d.costo_total ?? 0)}</TableCell>
                       </TableRow>

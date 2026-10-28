@@ -15,10 +15,10 @@ export const useToast = () => {
 
 const ICONS: Record<ToastType, React.ElementType> = { success: CheckCircle2, error: AlertCircle, warning: AlertTriangle, info: Info };
 const STYLES: Record<ToastType, string> = {
-  success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-  error:   'bg-red-50 border-red-200 text-red-800',
-  warning: 'bg-amber-50 border-amber-200 text-amber-800',
-  info:    'bg-blue-50 border-blue-200 text-blue-800',
+  success: 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-900 dark:text-emerald-200',
+  error:   'bg-red-50 border-red-200 text-red-800 dark:bg-red-950/50 dark:border-red-900 dark:text-red-200',
+  warning: 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/50 dark:border-amber-900 dark:text-amber-200',
+  info:    'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/50 dark:border-blue-900 dark:text-blue-200',
 };
 const ICON_COLORS: Record<ToastType, string> = { success: 'text-emerald-500', error: 'text-red-500', warning: 'text-amber-500', info: 'text-blue-500' };
 

@@ -1,6 +1,6 @@
 # TopRentals
 
-Single React web app replacing two Power Apps (back-office desktop + mobile technicians). One login; routing by user profile: `Tecnico` → `/tecnico` (mobile-first module), everyone else → `/home` (back-office).
+Single React web app replacing two Power Apps (back-office desktop + mobile technicians). One login; routing by user profile: `Tecnico` → `/tecnico` (mobile-first, responsive a desktop con sidebar en `md+`), everyone else → `/home` (back-office).
 
 ## Diseño / UI
 
@@ -12,9 +12,12 @@ cualquier UI (componentes, modales, vistas, tablas, dashboards, emails):
 - Respetá los tokens: `primary` (negro) y neutros son fijos; el color de marca vive en
   `--brand` (index.css). No hardcodees colores de marca fuera de ese token.
 - Seguí las recetas de composición de `docs/DESIGN.md` (modal, página estándar, sidebar, dashboard).
+- **Dashboards y charts**: por sobre el catálogo de charts del kit (§10 de `docs/DESIGN.md`), TopRentals aplica el método de la skill `dataviz`. Barras horizontales ordenadas de mayor a menor, **un solo hue de marca por serie** (nada de multi-tint `shade(i)`), labels de valor directos, grid hairline, y **nunca pie/donut para comparar magnitudes** (usá barra). Validá la paleta antes de shipear. Ejemplar: `components/dashboard/DashboardView.tsx` (`MagnitudeBar`).
 - Cumplí las "Reglas de oro" (sección 15 de `docs/DESIGN.md`).
 
 Brand color: navy `#23313E` (`--brand: 208 27% 19%`). Es el ÚNICO color de marca; se define solo en `index.css` (y en `BRAND.primary` de emails cuando exista envío real).
+
+`docs/DESIGN.md` es el kit **vendored read-only** (mirror de Kautapen); no se edita. Las divergencias intencionales de TopRentals respecto del kit (color de marca, dashboards con `dataviz`) están registradas formalmente en `docs/design-overrides.md`.
 
 ## Arquitectura
 

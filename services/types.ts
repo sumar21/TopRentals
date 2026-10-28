@@ -51,6 +51,10 @@ export interface Usuario {
   apellido: string;
   concat_name: string; // "Apellido, Nombre" — join key used across OT/stock/ventilaciones
   usuario_app: string; // login
+  /** Contraseña real migrada desde SharePoint (00.Usuarios field_8). No siempre es ddmm (Admin
+   *  tiene una custom), por eso se guarda en vez de derivarse. Ausente en usuarios nuevos → la UI
+   *  cae al ddmm de la fecha de nacimiento. */
+  password_seed?: string | null;
   dni: number | null;
   fecha_nac: string | null;
   mail: string | null;
@@ -58,6 +62,11 @@ export interface Usuario {
   edificio_id: number | null;
   edificio_default: string | null;
   pais: string | null;
+  /** Admin whose /dashboard shows ALL buildings instead of being scoped to edificios_dash. */
+  dashboard_global: boolean;
+  /** ';'-separated edificios.nombre values (same pattern as EmailNotificacion.emails) — the
+   *  towers a non-global Admin sees on /dashboard. null/empty = sees no data there. */
+  edificios_dash: string | null;
   perfil: Perfil;
   validado: boolean;
   wapp_default: string | null;
@@ -262,6 +271,9 @@ export interface SalidaStock {
   /** Stock row actually debited — the ONLY safe target to credit back on edit/devolución.
    *  Null on legacy rows migrated from SharePoint (no such column there). */
   stock_id: number | null;
+  /** For a TRASLADO: the destination building whose stock was credited, so editing the salida's
+   *  quantity can rebalance BOTH buildings (PA parity, 4-patch edit). Null for non-traslado / legacy rows. */
+  edificio_destino_id: number | null;
   concat_articulo: string | null;
   tecnico_id: number | null;
   tipo: TipoSalidaStock;
@@ -349,6 +361,8 @@ export interface Ventilacion {
   version_asignado: string | null;
   fecha_finalizacion: string | null;
   version_resuelto: string | null;
+  /** Storage key OR base64 dataURL de la foto de cierre (finalizar_ventilacion la guarda acá). */
+  foto_path?: string | null;
   es_incidente: boolean;
   orden: number | null;
 }
@@ -362,4 +376,14 @@ export interface Documento {
   compra_id: number | null;
   content_type: string | null;
   created_at: string;
+}
+
+/** Upload input for documentos.crear: the file bytes + where it belongs. */
+export interface DocumentoCrearInput {
+  file: Blob;
+  nombre: string;
+  carpeta: 'Ordenes' | 'Compras' | 'Bitacoras';
+  orden_trabajo_id?: number | null;
+  compra_id?: number | null;
+  content_type?: string | null;
 }

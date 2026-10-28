@@ -3,18 +3,79 @@
 @tailwind utilities;
 
 :root {
-  /* Neutros (fijos) */
+  /* ── Tema CLARO (default). Todos los tokens semánticos en HSL para poder invertirlos en `.dark`. ── */
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
   --border: 240 6% 90%;
   --input: 240 6% 90%;
   --ring: 240 5% 65%;
 
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 0 0% 10%;            /* #1a1a1a — negro casi puro */
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 5% 96%;        /* #f4f4f5 */
+  --secondary-foreground: 240 6% 10%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%; /* #71717a */
+  --accent: 240 5% 96%;
+  --accent-foreground: 240 6% 10%;
+  --destructive: 0 84% 60%;       /* #ef4444 */
+  --destructive-foreground: 0 0% 98%;
+
   /* ── COLOR DE MARCA DEL CLIENTE ──────────────────────────────────
      Único bloque a reemplazar por empresa. TopRentals = navy #23313E.
      Usá EL MISMO valor acá y en el backend de emails (DESIGN.md §13). */
   --brand: 209 28% 19%;           /* #23313E */
   --brand-foreground: 0 0% 100%;
+}
+
+/* ── Tema OSCURO (navy-charcoal elevado por capas; se activa con la clase `dark` en <html>). ──
+   NO negro puro: el fondo es navy profundo y las superficies suben por ELEVACIÓN — card 6 puntos
+   de luz por encima del fondo (se despega, no se funde), popover/modales aún más arriba (flotan),
+   borde como rim sutil. El tinte navy (hue ~216) da cohesión con la marca. primary se invierte a
+   blanco; el navy de marca `--brand` se aclara para seguir visible sobre superficies oscuras. */
+.dark {
+  --background: 216 33% 8%;       /* navy profundo, levantado del negro puro */
+  --foreground: 210 20% 96%;
+  /* Hairline apenas sobre la card (L=14): la elevación separa la card del fondo, el
+     borde NO debe agregar un rim blanco encima. `--input` sí queda visible aparte para
+     que los campos de formulario no desaparezcan. */
+  --border: 216 16% 17%;
+  --input: 216 18% 26%;
+  --ring: 216 16% 48%;
+
+  --card: 216 28% 14%;            /* +6 pts de luz sobre el fondo → elevación visible */
+  --card-foreground: 210 20% 96%;
+  --popover: 216 30% 16%;         /* flota más alto que la card */
+  --popover-foreground: 210 20% 96%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 216 30% 10%;
+  --secondary: 216 20% 19%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 216 19% 18%;
+  --muted-foreground: 215 16% 66%;
+  --accent: 216 20% 21%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 98%;
+
+  --brand: 209 45% 58%;           /* navy aclarado para contraste en oscuro */
+  --brand-foreground: 216 33% 8%;
+}
+
+/* Technician module: NO color override — primary matches the back-office (negro en claro,
+   blanco en oscuro). Antes era celeste (#2563eb); el cliente lo quiere idéntico al desktop.
+   La clase `.tecnico-theme` sigue en el layout por si se necesita scope a futuro, hoy no-op. */
+
+/* La clase `border` (a secas) setea solo el ANCHO; el color por defecto de Tailwind es un
+   gris-200 FIJO (#e5e7eb) que ignora el tema → en oscuro se veía como un rim claro. Atamos
+   el color de borde por defecto al token `--border` para que responda a claro/oscuro en toda
+   la app. Los `border-<color>` explícitos (border-primary, border-red-500…) siguen ganando. */
+@layer base {
+  *, ::before, ::after { border-color: hsl(var(--border)); }
 }
 
 /* Clamp del documento al ancho del viewport: sin esto, un elemento que
@@ -27,6 +88,15 @@ html { overflow-x: hidden; }
    backdrop no puede cubrir. */
 @media (min-width: 768px) { html { scrollbar-gutter: stable; } }
 body { margin: 0; padding: 0; overflow-x: hidden; max-width: 100vw; }
+
+/* Anti-zoom de iOS: Safari hace zoom al enfocar un input con font-size < 16px.
+   En mobile forzamos 16px en los controles de texto (gana a cualquier `text-sm`
+   de Tailwind por el !important) para que enfocar un campo no dispare el zoom. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select { font-size: 16px !important; }
+}
 
 /* ── Animaciones de modal/overlay (las usa useModalAnimation) ── */
 @keyframes detail-panel-in  { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -53,3 +123,15 @@ body { margin: 0; padding: 0; overflow-x: hidden; max-width: 100vw; }
 /* ── Tooltip global (data-tooltip) — ver Tooltip.tsx ── */
 @keyframes tooltip-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
 .kaut-tooltip { animation: tooltip-in 120ms ease-out both; }
+
+/* ── Scrollbar en oscuro (el thumb claro de index.html no se ve sobre fondo oscuro) ── */
+.dark ::-webkit-scrollbar-thumb { background: #2f3d4e; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #435368; }
+
+/* ── Swap de tema INSTANTÁNEO ────────────────────────────────────────────────────────
+   Sin esto, al togglear `.dark` los cientos de elementos con `transition-colors` (cada fila
+   de tabla, botones, inputs) animan su color a la vez: el fondo salta a oscuro al instante
+   pero el TEXTO se queda animando negro→blanco ~150ms que, con listas largas (OTs: 643 filas
+   sin paginar), se estira a 1-2s de jank = texto negro sobre fondo negro. ThemeContext pone
+   `.theme-switching` en <html> justo durante el cambio para que el tema aplique de una. */
+.theme-switching *, .theme-switching *::before, .theme-switching *::after { transition: none !important; }

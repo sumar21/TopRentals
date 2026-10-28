@@ -2,8 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Save, X } from 'lucide-react';
-import { Button, Input, cn, useModalAnimation } from '../ui/UIComponents';
+import { Button, cn, useModalAnimation } from '../ui/UIComponents';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
 import { api } from '../../services/index.ts';
@@ -66,8 +67,8 @@ export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onCl
   if (!visible || !row) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(close)}>
-      <div className={cn(modalClass, 'bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]')}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(close)}>
+      <div className={cn(modalClass, 'bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]')}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Editar Stock</h2>
@@ -76,7 +77,7 @@ export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onCl
               <span className="font-medium text-foreground">{edificioNombre}</span>
             </p>
           </div>
-          <button onClick={close} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={close} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -84,11 +85,11 @@ export const EditarStockModal: React.FC<EditarStockModalProps> = ({ isOpen, onCl
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Cantidad actual</label>
-            <Input type="number" min={0} step={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+            <NumberInput min={0} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 10" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Stock mínimo</label>
-            <Input type="number" min={0} step={1} value={minimo} onChange={(e) => setMinimo(e.target.value)} />
+            <NumberInput min={0} value={minimo} onChange={(e) => setMinimo(e.target.value)} placeholder="Ej: 5" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Costo unitario</label>

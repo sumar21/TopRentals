@@ -1,44 +1,49 @@
 // mobile/Detalle Activos — read-only OT history for a chosen unit. No writes.
 // docs/analysis/mobile_Detalle_Activos.md react_mapping.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Filter, ClipboardList, Building2 } from 'lucide-react';
+import { ArrowLeft, Filter, ClipboardList, Building2, FileText, Wrench } from 'lucide-react';
 import { Button, Badge } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
+import { useBuilding } from '../../contexts/BuildingContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
-import type { Edificio, OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
-import { BottomSheet } from './shared';
+import type { Documento, OrdenTrabajo, RepuestoOT, Unidad, Usuario } from '../../services/types.ts';
+import { capitalizeFirst } from '../../utils/strings.ts';
+import { formatDate } from '../../utils/dates';
+import { BottomSheet, groupRepuestos } from './shared';
+import BuildingChip from './BuildingChip';
 
 type ActiveSheet = 'filter' | 'obs' | 'repuestos' | null;
 
 const ActivosView: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { selected, openPicker, loading: buildingLoading } = useBuilding();
 
-  const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
-  const [appliedUnidad, setAppliedUnidad] = useState<Unidad | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
-  const [filterEdificioId, setFilterEdificioId] = useState('');
-  const [filterUnidadId, setFilterUnidadId] = useState('');
+  const [filterUnidadId, setFilterUnidadId] = useState(''); // '' = todas las unidades del edificio
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
   const [repuestosSel, setRepuestosSel] = useState<RepuestoOT[]>([]);
+  const docsReqRef = useRef<number | null>(null);
+  const [docs, setDocs] = useState<{ doc: Documento; url: string }[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
 
   const loadInit = () => {
     setLoadError(false);
-    return Promise.all([api.edificios.list(), api.unidades.list(), api.usuarios.list()])
-      .then(([eds, uns, us]) => { setEdificios(eds); setUnidades(uns); setUsuarios(us); })
-      .catch(() => { showToast('No se pudieron cargar los edificios.', 'error'); setLoadError(true); });
+    return Promise.all([api.unidades.list(), api.usuarios.list()])
+      .then(([uns, us]) => { setUnidades(uns); setUsuarios(us); })
+      .catch(() => { showToast('No se pudieron cargar las unidades.', 'error'); setLoadError(true); });
   };
 
   useEffect(() => {
@@ -46,36 +51,70 @@ const ActivosView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const edificioOptions = useMemo(
-    () => edificios.filter((e) => e.status === 'Activo').sort((a, b) => a.nombre.localeCompare(b.nombre)).map((e) => ({ value: String(e.id), label: e.nombre })),
-    [edificios],
-  );
-  const unidadOptions = useMemo(
-    () => unidades
-      .filter((u) => String(u.edificio_id) === filterEdificioId && u.status === 'Alta')
-      .sort((a, b) => (a.depto ?? '').localeCompare(b.depto ?? ''))
-      .map((u) => ({ value: String(u.id), label: u.depto ?? `Unidad ${u.id}` })),
-    [unidades, filterEdificioId],
-  );
-  const usuariosMap = useMemo(() => new Map(usuarios.map((u) => [u.id, u.concat_name])), [usuarios]);
-
-  const handleAceptarFiltro = async () => {
-    const unidad = unidades.find((u) => String(u.id) === filterUnidadId);
-    if (!unidad) return;
-    setLoading(true);
+  // #11: el edificio (global) ya alcanza para ver algo — antes hacía falta elegir edificio Y
+  // unidad. El historial completo del edificio se carga solo; la unidad queda como recorte opcional.
+  const loadOts = useCallback(async (edificioId: number, edificioNombre: string) => {
+    setLoading(true); setLoadError(false);
     try {
       const rows = await api.ots.list();
-      setOts(rows.filter((o) => o.unidad_id === unidad.id));
-      setAppliedUnidad(unidad);
-      setActiveSheet(null);
+      const idsUnidad = new Set(unidades.filter((u) => u.edificio_id === edificioId).map((u) => u.id));
+      // Match por unidad (preciso) O por torre = nombre del edificio (robusto). En la data migrada
+      // el `unidad_id` de la OT puede no haberse resuelto (FK por matching), pero `torre` viene como
+      // texto directo — mismo criterio que OrdenesTecnicoView, así no se pierden OTs del edificio.
+      setOts(
+        rows
+          .filter((o) => (o.unidad_id != null && idsUnidad.has(o.unidad_id)) || (o.torre != null && o.torre === edificioNombre))
+          .sort((a, b) => b.id - a.id), // #12: más nuevas primero
+      );
     } catch {
-      showToast('No se pudo cargar el historial de la unidad.', 'error');
+      showToast('No se pudo cargar el historial de órdenes de trabajo.', 'error');
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [unidades, showToast]);
 
-  const openObs = (ot: OrdenTrabajo) => { setSelectedOt(ot); setActiveSheet('obs'); };
+  useEffect(() => {
+    // Sin guard por `unidades`: el match por torre funciona aunque las unidades no hayan cargado
+    // todavía (o falten en la data); cuando cargan, el efecto re-corre y suma el match por unidad.
+    if (!selected) return;
+    void loadOts(selected.id, selected.nombre);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, unidades]);
+
+  // Cambiar de edificio (chip global) descarta el recorte por unidad del edificio anterior.
+  useEffect(() => { setFilterUnidadId(''); }, [selected]);
+
+  const unidadOptions = useMemo(
+    () => unidades
+      .filter((u) => u.edificio_id === selected?.id)
+      .sort((a, b) => (a.depto ?? '').localeCompare(b.depto ?? ''))
+      .map((u) => ({ value: String(u.id), label: u.depto ?? `Unidad ${u.id}` })),
+    [unidades, selected],
+  );
+  const usuariosMap = useMemo(() => new Map(usuarios.map((u) => [u.id, u.concat_name])), [usuarios]);
+  const visible = useMemo(() => {
+    if (!filterUnidadId) return ots;
+    const id = Number(filterUnidadId);
+    return ots.filter((o) => o.unidad_id === id);
+  }, [ots, filterUnidadId]);
+
+  const openObs = async (ot: OrdenTrabajo) => {
+    setSelectedOt(ot);
+    setActiveSheet('obs');
+    setDocs([]);
+    setDocsLoading(true);
+    docsReqRef.current = ot.id;
+    try {
+      const rows = await api.documentos.list({ orden_trabajo_id: ot.id });
+      const withUrls = await Promise.all(rows.map(async (d) => ({ doc: d, url: await api.documentos.url(d.storage_path) })));
+      if (docsReqRef.current === ot.id) setDocs(withUrls);
+    } catch {
+      // silencioso: la observación sigue siendo útil sin las fotos
+    } finally {
+      if (docsReqRef.current === ot.id) setDocsLoading(false);
+    }
+  };
   const openRepuestos = async (ot: OrdenTrabajo) => {
     setSelectedOt(ot);
     setActiveSheet('repuestos');
@@ -87,67 +126,85 @@ const ActivosView: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={() => navigate('/tecnico')} aria-label="Volver" title="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Activos</h1>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setFilterEdificioId(appliedUnidad ? String(appliedUnidad.edificio_id ?? '') : ''); setFilterUnidadId(appliedUnidad ? String(appliedUnidad.id) : ''); setActiveSheet('filter'); }}>
-          <Filter className="h-3.5 w-3.5" />Filtrar
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <BuildingChip />
+          {selected && (
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setActiveSheet('filter')}>
+              <Filter className="h-3.5 w-3.5" />Filtrar
+            </Button>
+          )}
+        </div>
       </div>
 
-      {loadError ? (
-        <LoadErrorState onRetry={loadInit} />
-      ) : !appliedUnidad ? (
-        <EmptyState icon={Building2} title="Elegí un edificio y una unidad" message="Usá 'Filtrar' para ver el historial de órdenes de trabajo de un activo." />
+      {buildingLoading ? (
+        <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : !selected ? (
+        <div className="space-y-3">
+          <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver el historial de órdenes de trabajo de sus activos." />
+          <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>
+        </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
-      ) : ots.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="Esta unidad no tiene órdenes de trabajo registradas." />
+      ) : loadError ? (
+        <LoadErrorState onRetry={() => loadOts(selected.id, selected.nombre)} />
+      ) : visible.length === 0 ? (
+        <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="Este edificio no tiene órdenes de trabajo registradas." />
       ) : (
-        <div className="space-y-2">
-          {ots.map((ot) => (
-            <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-1.5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {visible.map((ot) => (
+            <div key={ot.id} className="rounded-xl border bg-card p-3.5 shadow-sm">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold truncate">{ot.torre} - {ot.departamento} {ot.problema ? `| ${ot.problema}` : ''}</p>
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Building2 className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{ot.torre} - {ot.departamento}{ot.problema ? ` | ${ot.problema}` : ''}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {usuariosMap.get(ot.tecnico_id ?? -1) ?? 'Sin técnico asignado'} · {formatDate(ot.fecha_asignada ?? ot.fecha_inicio ?? ot.created_at) || 'Sin fecha'}
+                    </p>
+                  </div>
+                </div>
                 <StatusBadge status={ot.status} />
               </div>
-              <p className="text-xs text-muted-foreground">{usuariosMap.get(ot.tecnico_id ?? -1) ?? 'Sin técnico asignado'}</p>
-              <div className="flex items-center gap-4 pt-1">
-                <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => openObs(ot)}>Ver observación</button>
-                <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => openRepuestos(ot)}>Ver repuestos</button>
+              <div className="mt-2.5 flex items-center gap-1.5 border-t pt-2.5">
+                <button onClick={() => openObs(ot)} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
+                  <FileText className="h-3.5 w-3.5" />Ver observación
+                </button>
+                <button onClick={() => openRepuestos(ot)} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
+                  <Wrench className="h-3.5 w-3.5" />Ver repuestos
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Filtrar */}
+      {/* Filtrar — recorte opcional por unidad sobre el historial ya cargado del edificio. */}
       <BottomSheet
         isOpen={activeSheet === 'filter'}
         onClose={() => setActiveSheet(null)}
-        title="Filtrar activos"
+        title="Filtrar por unidad"
+        subtitle={selected?.nombre}
         footer={
           <>
-            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
-            <Button className="flex-1" disabled={!filterUnidadId} onClick={handleAceptarFiltro}>Aceptar</Button>
+            <Button variant="outline" className="flex-1" onClick={() => { setFilterUnidadId(''); setActiveSheet(null); }}>Ver todas</Button>
+            <Button className="flex-1" onClick={() => setActiveSheet(null)}>Cerrar</Button>
           </>
         }
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
-            <Select value={filterEdificioId} onChange={(v) => { setFilterEdificioId(v); setFilterUnidadId(''); }} options={edificioOptions} placeholder="Seleccioná un edificio" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidad</label>
-            <Select value={filterUnidadId} onChange={setFilterUnidadId} options={unidadOptions} placeholder="Seleccioná una unidad" disabled={!filterEdificioId} />
-          </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Unidad</label>
+          <Select value={filterUnidadId} onChange={setFilterUnidadId} options={unidadOptions} placeholder="Todas las unidades" />
         </div>
       </BottomSheet>
 
@@ -159,7 +216,34 @@ const ActivosView: React.FC = () => {
         subtitle={selectedOt?.concat_activo ?? undefined}
         footer={<Button className="flex-1" onClick={() => setActiveSheet(null)}>Cerrar</Button>}
       >
-        <p className="text-sm whitespace-pre-wrap">{selectedOt?.detalle || 'Sin observaciones.'}</p>
+        <div className="space-y-4">
+          <div className="min-h-[6rem] rounded-lg border bg-muted/20 px-3 py-2.5">
+            <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt?.detalle) || 'Sin observaciones.'}</p>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fotos y archivos</p>
+            {docsLoading ? (
+              <div className="flex items-center justify-center py-4"><Loader size="sm" /></div>
+            ) : docs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin archivos adjuntos.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {docs.map(({ doc, url }) =>
+                  (doc.content_type ?? '').startsWith('image/') ? (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="block active:scale-95 transition-transform">
+                      <img src={url} alt={doc.nombre} loading="lazy" className="h-20 w-20 rounded-md object-cover border" />
+                    </a>
+                  ) : (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate max-w-[10rem]">{doc.nombre}</span>
+                    </a>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </BottomSheet>
 
       {/* Ver repuestos */}
@@ -168,10 +252,10 @@ const ActivosView: React.FC = () => {
           <p className="text-sm text-muted-foreground text-center py-6">Sin repuestos asignados.</p>
         ) : (
           <div className="space-y-2">
-            {repuestosSel.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
-                <span className="text-sm">{r.repuesto}</span>
-                <Badge>{r.cantidad}</Badge>
+            {groupRepuestos(repuestosSel).map((g) => (
+              <div key={g.key} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
+                <span className="text-sm">{g.nombre}</span>
+                <Badge>{g.cantidad}</Badge>
               </div>
             ))}
           </div>

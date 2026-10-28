@@ -4,7 +4,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Save, X, Loader2, AlertCircle, FileImage } from 'lucide-react';
-import { Button, Input, useModalAnimation } from '../ui/UIComponents';
+import { Button, useModalAnimation } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
@@ -69,7 +70,7 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
         edificio: edificio.nombre,
         habitacion: unidad.depto,
         frecuencia_dias: frecuencia.dias,
-        fecha_ultima: fechaInicio,
+        fecha_ultima: null, // PA leaves FechaUltima_VE blank on a new ventilación → the list shows "Primera Vez"
         proxima_limpieza: addDays(fechaInicio, frecuencia.dias),
         fecha_programada: null,
         obs_adelanto: null,
@@ -92,21 +93,21 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
   };
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Nueva ventilación</h2>
             <p className="text-xs text-muted-foreground">Programar limpieza recurrente de una unidad</p>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+            <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}
@@ -130,7 +131,7 @@ export const CrearVentilacionModal: React.FC<CrearVentilacionModalProps> = ({ is
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima fecha<span className="text-destructive ml-0.5">*</span></label>
-              <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+              <DatePicker value={fechaInicio} onChange={setFechaInicio} />
             </div>
           </div>
         </div>
@@ -210,28 +211,28 @@ export const AsignarVentilacionModal: React.FC<AsignarVentilacionModalProps> = (
   };
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Asignar ventilación</h2>
             <p className="text-xs text-muted-foreground">{ventilacion.edificio} · {ventilacion.habitacion}</p>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+            <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Próxima limpieza<span className="text-destructive ml-0.5">*</span></label>
-              <Input type="date" value={fecha} min={todayISO()} onChange={(e) => setFecha(e.target.value)} />
+              <DatePicker value={fecha} min={todayISO()} onChange={setFecha} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Técnico<span className="text-destructive ml-0.5">*</span></label>
@@ -294,14 +295,14 @@ export const DetalleVentilacionModal: React.FC<DetalleVentilacionModalProps> = (
   if (!visible || !ventilacion) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(onClose)}>
-      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(onClose)}>
+      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Detalle de la ventilación</h2>
             <p className="text-xs text-muted-foreground">{ventilacion.edificio} · {ventilacion.habitacion} — finalizada {formatDate(ventilacion.fecha_finalizacion) || '-'}</p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>

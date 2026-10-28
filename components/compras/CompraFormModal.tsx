@@ -4,16 +4,20 @@
 // only accepts `lineas` — it never touches the compra header fields.
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
-import { Button, Combobox, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { AlertCircle, Loader2, Package, Plus, Save, ShoppingCart, Trash2, X } from 'lucide-react';
+import { Button, Combobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { Loader } from '../ui/Loader';
 import { backdropClose } from '../ui/backdropClose';
 import { maskFromNumber, parseMoney } from '../../utils/formatMoneyInput';
+import { errorMessage } from '../../utils/errorMessage';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/index.ts';
 import type { Articulo, Edificio, Usuario } from '../../services/types.ts';
+import { articuloLabel } from '../../utils/articulos';
+import ConfirmModal from '../ConfirmModal';
 import type { CompraLineaInput } from '../../services/api.ts';
 
 export interface CompraFormValues {
@@ -29,6 +33,7 @@ interface CartLine {
   key: string;
   articulo_id: number;
   articulo_nombre: string;
+  edificio_id: number;
   cantidad: number;
   costo: string; // masked money string
 }
@@ -63,6 +68,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [edificios, setEdificios] = useState<Edificio[]>([]);
@@ -78,13 +84,14 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   const [nuevoArticuloId, setNuevoArticuloId] = useState('');
   const [nuevaCantidad, setNuevaCantidad] = useState('1');
   const [nuevoCosto, setNuevoCosto] = useState('');
+  const [nuevaLineaEdificioId, setNuevaLineaEdificioId] = useState('');
 
   // Reset + preload every time the modal opens.
   useEffect(() => {
     if (!isOpen || !user) return;
     let cancelled = false;
     setError('');
-    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto('');
+    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto(''); setNuevaLineaEdificioId('');
     setLoading(true);
     Promise.all([
       api.usuarios.list(),
@@ -107,6 +114,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
           key: nextLineKey(),
           articulo_id: d.articulo_id ?? 0,
           articulo_nombre: d.articulo ?? '',
+          edificio_id: d.edificio_id ?? user.edificio_id ?? 0,
           cantidad: d.cantidad,
           costo: maskFromNumber(d.costo_unitario ?? 0),
         })));
@@ -134,7 +142,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   }, [usuarios, user, solicitanteId]);
 
   const edificioOptions = useMemo(() => edificios.map((e) => ({ value: String(e.id), label: e.nombre })), [edificios]);
-  const articuloOptions = useMemo(() => articulos.map((a) => ({ value: String(a.id), label: a.nombre })), [articulos]);
+  const articuloOptions = useMemo(() => articulos.map((a) => ({ value: String(a.id), label: articuloLabel(a) })), [articulos]);
 
   const total = useMemo(() => cart.reduce((sum, l) => sum + l.cantidad * parseMoney(l.costo), 0), [cart]);
 
@@ -142,6 +150,9 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   if (!visible || !user) return null;
 
   const buildingLocked = !canEditBuilding(user.perfil);
+  // Effective building for the next line: user's override in the add-line row, falling back
+  // to the header default (edificioId). Locked users always use their own building.
+  const nuevaLineaEdificioEfectivo = buildingLocked ? String(user.edificio_id ?? '') : (nuevaLineaEdificioId || edificioId);
 
   const handleSelectArticulo = (value: string) => {
     setNuevoArticuloId(value);
@@ -152,16 +163,17 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
   const addLine = () => {
     const art = articulos.find((a) => String(a.id) === nuevoArticuloId);
     const cantidad = parseInt(nuevaCantidad, 10);
-    if (!art || !Number.isFinite(cantidad) || cantidad <= 0) return;
-    setCart((prev) => [...prev, { key: nextLineKey(), articulo_id: art.id, articulo_nombre: art.nombre, cantidad, costo: nuevoCosto || maskFromNumber(art.precio_unitario ?? 0) }]);
-    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto('');
+    const edificio_id = Number(nuevaLineaEdificioEfectivo);
+    if (!art || !Number.isFinite(cantidad) || cantidad <= 0 || !edificio_id) return;
+    setCart((prev) => [...prev, { key: nextLineKey(), articulo_id: art.id, articulo_nombre: articuloLabel(art), edificio_id, cantidad, costo: nuevoCosto || maskFromNumber(art.precio_unitario ?? 0) }]);
+    setNuevoArticuloId(''); setNuevaCantidad('1'); setNuevoCosto(''); setNuevaLineaEdificioId('');
   };
 
   const updateLine = (key: string, patch: Partial<CartLine>) =>
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setCart((prev) => prev.filter((l) => l.key !== key));
 
-  const canSubmit = !!solicitanteId && !!edificioId && cart.length > 0 && !saving && !loading;
+  const canSubmit = !!solicitanteId && cart.length > 0 && cart.every((l) => l.edificio_id > 0) && !saving && !loading;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -170,7 +182,7 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
     try {
       const lineas: CompraLineaInput[] = cart.map((l) => ({
         articulo_id: l.articulo_id,
-        edificio_id: Number(edificioId),
+        edificio_id: l.edificio_id,
         cantidad: l.cantidad,
         costo_unitario: parseMoney(l.costo),
       }));
@@ -179,27 +191,34 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
         usuario_id: Number(solicitanteId),
         usuario_compra: solicitante?.concat_name ?? solicitanteNombre,
         urgencia,
-        edificio_id: Number(edificioId),
+        // CompraFormValues.edificio_id has no header meaning anymore (building lives per line —
+        // DetalleCompra.edificio_id). Kept for type-compat only: nothing consumes it downstream.
+        edificio_id: Number(edificioId) || cart[0]?.edificio_id || 0,
         observacion,
         lineas,
       });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo guardar la compra.');
+      setError(errorMessage(e, 'No se pudo guardar la compra.'));
     } finally {
       setSaving(false);
     }
   };
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-            {!headerEditable && <p className="text-xs text-muted-foreground">Solo se pueden editar los renglones de esta solicitud.</p>}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 shrink-0 rounded-full bg-brand/10 flex items-center justify-center">
+              <ShoppingCart className="h-5 w-5 text-brand" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold tracking-tight truncate">{title}</h2>
+              <p className="text-xs text-muted-foreground">{headerEditable ? 'Solicitud de compra de insumos' : 'Solo se pueden editar los renglones de esta solicitud.'}</p>
+            </div>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors shrink-0">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -210,12 +229,14 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
           ) : (
             <>
               {error && (
-                <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+                <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
                   <AlertCircle className="h-4 w-4 shrink-0" /> {error}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Datos de la solicitud</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Usuario</label>
                   {headerEditable ? (
@@ -233,7 +254,9 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Edificio</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    {headerEditable && !buildingLocked ? 'Edificio por defecto (para nuevas líneas)' : 'Edificio'}
+                  </label>
                   {headerEditable && !buildingLocked ? (
                     <Select value={edificioId} onChange={setEdificioId} options={edificioOptions} placeholder="Seleccionar edificio…" />
                   ) : (
@@ -242,46 +265,72 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                     </div>
                   )}
                 </div>
-              </div>
+                </div>
+              </section>
 
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">Artículos</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_100px_140px_auto] gap-2 items-end p-3 bg-secondary/20 rounded-lg border border-border/50">
-                  <div>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Artículos</h3>
+                  {cart.length > 0 && <span className="text-[11px] text-muted-foreground">{cart.length} {cart.length === 1 ? 'línea' : 'líneas'}</span>}
+                </div>
+                <div className={`grid grid-cols-1 ${buildingLocked ? 'sm:grid-cols-[minmax(0,1fr)_100px_140px_auto]' : 'sm:grid-cols-[minmax(0,1fr)_160px_100px_140px_auto]'} gap-2 items-end p-3 bg-secondary/20 rounded-lg border border-border/50`}>
+                  <div className="min-w-0">
                     <label className="text-[11px] text-muted-foreground mb-1 block">Artículo</label>
                     <Combobox options={articuloOptions} value={nuevoArticuloId} onChange={handleSelectArticulo} placeholder="Buscar artículo…" searchPlaceholder="Buscar…" />
                   </div>
+                  {!buildingLocked && (
+                    <div className="min-w-0">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">Edificio</label>
+                      <Select value={nuevaLineaEdificioEfectivo} onChange={setNuevaLineaEdificioId} options={edificioOptions} placeholder="Edificio…" />
+                    </div>
+                  )}
                   <div>
                     <label className="text-[11px] text-muted-foreground mb-1 block">Cantidad</label>
-                    <Input type="number" min={1} value={nuevaCantidad} onChange={(e) => setNuevaCantidad(e.target.value)} />
+                    <NumberInput min={1} value={nuevaCantidad} onChange={(e) => setNuevaCantidad(e.target.value)} placeholder="Ej: 1" />
                   </div>
                   <div>
                     <label className="text-[11px] text-muted-foreground mb-1 block">Costo unit.</label>
                     <MoneyInput value={nuevoCosto} onChange={setNuevoCosto} readOnly disabled />
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!nuevoArticuloId} className="gap-1.5">
+                  <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!nuevoArticuloId || !nuevaLineaEdificioEfectivo} className="gap-1.5">
                     <Plus className="h-4 w-4" /> Agregar línea
                   </Button>
                 </div>
 
                 {cart.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">Todavía no agregaste artículos.</p>
+                  <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-8 text-center">
+                    <Package className="h-8 w-8 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">Todavía no agregaste artículos.</p>
+                    <p className="text-xs text-muted-foreground/70">Buscá un artículo arriba y tocá «Agregar línea».</p>
+                  </div>
                 ) : (
                   <>
-                    {/* Mobile: cart rows as cards (line-items table doesn't fit at 375px). */}
-                    <div className="sm:hidden space-y-2">
+                    {/* Mobile: cart rows as cards (line-items table doesn't fit at 375px).
+                        Bounded height so the cart scrolls internally instead of pushing the
+                        add-line row + footer out of view when many items are added. */}
+                    <div className="sm:hidden space-y-2 max-h-[280px] overflow-y-auto">
                       {cart.map((l) => (
                         <div key={l.key} className="rounded-lg border bg-card p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-sm font-medium">{l.articulo_nombre}</p>
-                            <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 -m-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0">
+                            <button type="button" title="Quitar línea" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 -m-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0">
                               <Trash2 className="h-4 w-4" />
                             </button>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-muted-foreground mb-1 block">Edificio</label>
+                            {buildingLocked ? (
+                              <div className="flex h-8 items-center px-3 rounded-md border border-input bg-muted text-sm text-muted-foreground">
+                                {edificios.find((e) => e.id === l.edificio_id)?.nombre ?? '—'}
+                              </div>
+                            ) : (
+                              <Select value={String(l.edificio_id || '')} onChange={(v) => updateLine(l.key, { edificio_id: Number(v) })} options={edificioOptions} placeholder="Edificio…" className="h-8" />
+                            )}
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[11px] text-muted-foreground mb-1 block">Cantidad</label>
-                              <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 text-right" />
+                              <NumberInput min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 text-right" />
                             </div>
                             <div>
                               <label className="text-[11px] text-muted-foreground mb-1 block">Costo unit.</label>
@@ -292,12 +341,14 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                         </div>
                       ))}
                     </div>
-                    {/* Tablet/desktop: full table. */}
+                    {/* Tablet/desktop: full table — bounded so the cart scrolls internally
+                        (sticky header via the kit Table) instead of growing the whole dialog. */}
                     <div className="hidden sm:block">
-                      <Table>
+                      <Table wrapperClassName="max-h-[280px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead>Artículo</TableHead>
+                            <TableHead className="w-40">Edificio</TableHead>
                             <TableHead className="w-24 text-right">Cant.</TableHead>
                             <TableHead className="w-36 text-right whitespace-nowrap">Costo unit.</TableHead>
                             <TableHead className="w-36 text-right">Total</TableHead>
@@ -308,15 +359,22 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                           {cart.map((l) => (
                             <TableRow key={l.key}>
                               <TableCell className="text-sm">{l.articulo_nombre}</TableCell>
+                              <TableCell>
+                                {buildingLocked ? (
+                                  <span className="text-sm text-muted-foreground">{edificios.find((e) => e.id === l.edificio_id)?.nombre ?? '—'}</span>
+                                ) : (
+                                  <Select value={String(l.edificio_id || '')} onChange={(v) => updateLine(l.key, { edificio_id: Number(v) })} options={edificioOptions} placeholder="Edificio…" className="h-8" />
+                                )}
+                              </TableCell>
                               <TableCell className="text-right">
-                                <Input type="number" min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
+                                <NumberInput min={1} value={l.cantidad} onChange={(e) => updateLine(l.key, { cantidad: Math.max(1, parseInt(e.target.value, 10) || 1) })} className="h-8 w-20 text-right ml-auto" />
                               </TableCell>
                               <TableCell className="text-right">
                                 <MoneyInput value={l.costo} onChange={(v) => updateLine(l.key, { costo: v })} readOnly disabled className="h-8 w-28 text-right ml-auto" />
                               </TableCell>
                               <TableCell className="text-right text-sm font-medium tabular-nums whitespace-nowrap">$ {maskFromNumber(l.cantidad * parseMoney(l.costo))}</TableCell>
                               <TableCell>
-                                <button type="button" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                                <button type="button" title="Quitar línea" aria-label="Quitar línea" onClick={() => removeLine(l.key)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                                   <Trash2 className="h-4 w-4" />
                                 </button>
                               </TableCell>
@@ -327,27 +385,39 @@ const CompraFormModal: React.FC<CompraFormModalProps> = ({ isOpen, onClose, titl
                     </div>
                   </>
                 )}
-                {cart.length > 0 && (
-                  <div className="flex justify-end text-sm font-bold font-mono text-brand whitespace-nowrap">Total: $ {maskFromNumber(total)}</div>
-                )}
-              </div>
+              </section>
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Observación</label>
                 <textarea rows={3} maxLength={1000} value={observacion} onChange={(e) => setObservacion(e.target.value)}
+                  placeholder="Observación (opcional)"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
               </div>
             </>
           )}
         </div>
 
-        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row flex-wrap justify-end gap-2">
+        <div className="p-4 border-t bg-muted/20 flex flex-col sm:flex-row sm:items-center flex-wrap justify-end gap-2 sm:gap-4">
+          {!loading && cart.length > 0 && (
+            <span className="order-first sm:order-none text-base font-bold font-mono text-brand whitespace-nowrap text-center sm:text-left">Total: $ {maskFromNumber(total)}</span>
+          )}
           <Button variant="outline" onClick={onClose} disabled={saving} className="w-full sm:w-auto">Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit} className="min-w-[140px] w-full sm:w-auto gap-2">
+          <Button onClick={() => setConfirmOpen(true)} disabled={!canSubmit} className="min-w-[140px] w-full sm:w-auto gap-2">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar
           </Button>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleSubmit}
+        title="Confirmar compra"
+        description="¿Confirmás guardar esta solicitud de compra?"
+        confirmText="Confirmar"
+        cancelText="Volver"
+        icon={<Save className="h-6 w-6" />}
+      />
     </div>,
     document.body,
   );

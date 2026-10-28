@@ -3,17 +3,19 @@
 // Layout.tsx (out of scope here); the dead "Planificaciones" toggle is intentionally dropped.
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, Inbox, Loader2 } from 'lucide-react';
+import { Search, Inbox } from 'lucide-react';
 import { api } from '../../services/index.ts';
 import type { OrdenTrabajo, Usuario } from '../../services/types.ts';
-import { Badge, Card, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
+import { Badge, cn, Tabs, TabsList, TabsTrigger } from '../ui/UIComponents';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
 import { EmptyState } from '../EmptyState';
 import { LoadErrorState } from '../LoadErrorState';
 import { formatDate } from '../../utils/dates.ts';
+import { capitalizeFirst } from '../../utils/strings.ts';
 import { bucketOf, matchesSearch, type BoardColumn } from './otBoard.ts';
+import HomeAlerts from './HomeAlerts';
 
 const COLUMN_DEFS: { key: BoardColumn; title: string }[] = [
   { key: 'pendiente', title: 'Pendiente' },
@@ -48,29 +50,40 @@ const TipoTag: React.FC<{ tipo: OrdenTrabajo['tipo'] }> = ({ tipo }) =>
     </span>
   );
 
-const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColumn; onClick: () => void }> = ({ ot, asignador, column, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="w-full text-left rounded-lg border bg-card p-3 shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
-  >
-    <div className="flex items-start justify-between gap-2">
-      <p className="text-sm font-medium leading-snug line-clamp-2">{ot.detalle || 'Sin detalle'}</p>
-      {column === 'pendiente' && <StatusBadge status={ot.prioridad} className="shrink-0" />}
-    </div>
-    {column === 'pendiente' && (
+// Left-accent colored by board column so each card reads at a glance: Pendiente azul, Alta rojo,
+// Media ámbar, Baja verde. The priority pill still shows each OT's actual priority.
+const COLUMN_ACCENT: Record<BoardColumn, string> = {
+  pendiente: 'border-l-blue-400',
+  alta: 'border-l-red-400',
+  media: 'border-l-amber-400',
+  baja: 'border-l-green-400',
+};
+
+const OtCard: React.FC<{ ot: OrdenTrabajo; asignador: string; column: BoardColumn; onClick: () => void }> = ({ ot, asignador, column, onClick }) => {
+  const accent = COLUMN_ACCENT[column] ?? 'border-l-slate-200';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn('w-full text-left rounded-lg border border-l-4 bg-card p-3 shadow-sm hover:shadow-md active:scale-[0.99] transition-all', accent)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium leading-snug line-clamp-2">{capitalizeFirst(ot.detalle) || 'Sin detalle'}</p>
+        <StatusBadge status={ot.prioridad} className="shrink-0" />
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <TipoTag tipo={ot.tipo} />
       </div>
-    )}
-    <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-      <p>Inicio: {formatDate(ot.fecha_inicio) || '-'}</p>
-      <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
-      <p>{[ot.tipo_trabajo, ot.tipo_tarea].filter(Boolean).join(' · ') || 'Sin tipo de tarea'}</p>
-      <p>Asignador: {asignador}</p>
-    </div>
-  </button>
-);
+      <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        <p>Inicio: {formatDate(ot.fecha_inicio) || '-'}</p>
+        <p>{[ot.torre || '-', ot.departamento || '-'].join(' - ')}</p>
+        <p>{capitalizeFirst(ot.tipo_tarea) || 'Sin tipo de tarea'}</p>
+        <p>{capitalizeFirst(ot.tipo_trabajo) || '-'}</p>
+        <p>Asignador: {capitalizeFirst(asignador) || '-'}</p>
+      </div>
+    </button>
+  );
+};
 
 const ColumnHeader: React.FC<{ title: string; count: number; column: BoardColumn }> = ({ title, count, column }) => (
   <div className="flex items-center justify-between px-1">
@@ -102,14 +115,14 @@ const HomeView: React.FC = () => {
     return map;
   }, [usuarios]);
 
-  const load = async (isRefresh: boolean) => {
+  const load = async (isRefresh: boolean, silent = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
     setLoadError(false);
     try {
       const [otRows, userRows] = await Promise.all([api.ots.list(), api.usuarios.list()]);
       setOts(otRows);
       setUsuarios(userRows);
-      if (isRefresh) showToast('Tablero actualizado.', 'success');
+      if (isRefresh && !silent) showToast('Tablero actualizado.', 'success');
     } catch {
       showToast('No se pudo cargar el tablero de OTs.', 'error');
       setLoadError(true);
@@ -122,6 +135,9 @@ const HomeView: React.FC = () => {
     load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Live updates: silent refetch whenever an OT changes (no toast, no full-page spinner).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => api.realtime.subscribe(['ots'], () => { void load(true, true); }), []);
 
   const board = useMemo(() => {
     const buckets: Record<BoardColumn, OrdenTrabajo[]> = { pendiente: [], alta: [], media: [], baja: [] };
@@ -153,14 +169,13 @@ const HomeView: React.FC = () => {
   const mobileList = mobileTab === 'todas' ? [...board.pendiente, ...board.alta, ...board.media, ...board.baja] : board[mobileTab as BoardColumn] ?? [];
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Inicio</h1>
-          <p className="text-sm text-muted-foreground mt-1">Tablero de Órdenes de Trabajo en curso.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap lg:justify-end">
-          <div className="relative flex-1 sm:w-64 sm:flex-none min-w-[7rem]">
+          <div className="relative flex-1 sm:w-80 lg:w-96 sm:flex-none min-w-[7rem]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
               value={search}
@@ -169,18 +184,12 @@ const HomeView: React.FC = () => {
               className="flex h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
           </div>
-          <button
-            type="button"
-            aria-label="Actualizar tablero"
-            title="Actualizar"
-            disabled={refreshing || loading}
-            onClick={() => load(true)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none shrink-0"
-          >
-            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          </button>
         </div>
       </div>
+
+      <HomeAlerts />
+
+      <p className="hidden md:block text-sm text-muted-foreground shrink-0">Tablero de Órdenes de Trabajo en curso.</p>
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -189,7 +198,7 @@ const HomeView: React.FC = () => {
       ) : loadError ? (
         <LoadErrorState onRetry={() => load(false)} />
       ) : (
-        <div className={`transition-opacity duration-300 ${refreshing ? 'opacity-60' : ''}`}>
+        <div className={`transition-opacity duration-300 md:flex-1 md:min-h-0 md:flex md:flex-col ${refreshing ? 'opacity-60' : ''}`}>
           {/* MOBILE: single list gated by a segmented Tabs filter */}
           <div className="md:hidden flex flex-col gap-3">
             <Tabs value={mobileTab} onValueChange={(v: string) => setMobileTab(v as (typeof MOBILE_TABS)[number]['key'])}>
@@ -209,20 +218,24 @@ const HomeView: React.FC = () => {
           </div>
 
           {/* DESKTOP: grupos (paridad PA) — pendientes vs asignadas, para no repetir "Asignada" por columna */}
-          <div className="hidden md:block space-y-3">
+          <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 space-y-3">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <h2 className="text-sm font-bold tracking-tight text-foreground">Asignaciones de tarea pendientes</h2>
               <h2 className="text-sm font-bold tracking-tight text-foreground lg:col-span-3">Tareas Asignadas · Sin Resolver</h2>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:flex-1 md:min-h-0">
               {COLUMN_DEFS.map(({ key, title }) => {
                 const items = board[key];
                 return (
-                  <div key={key} className="flex flex-col gap-2 min-w-0">
+                  <div key={key} className="flex flex-col gap-2 min-w-0 min-h-0">
                     <ColumnHeader title={title} count={items.length} column={key} />
-                    <Card className="border shadow-sm p-2 flex flex-col gap-2 min-h-[10rem] max-h-[70vh] overflow-y-auto">
+                    {/* Columna = superficie sutil que recede (no otra card): evita el "card dentro de otra caja".
+                        En claro `bg-muted/20` sobre blanco es casi invisible; en oscuro se levantaría lo
+                        suficiente para leerse como caja, así que ahí la columna es transparente (las cards ya
+                        se despegan del fondo por elevación) y el efecto percibido es el mismo en ambos temas. */}
+                    <div className="rounded-lg bg-muted/20 dark:bg-transparent p-2 flex flex-col gap-2 min-h-[10rem] md:h-full overflow-y-auto">
                       {items.length === 0 ? <ColumnEmpty label={title.toLowerCase()} /> : items.map(renderCard)}
-                    </Card>
+                    </div>
                   </div>
                 );
               })}

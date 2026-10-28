@@ -1,13 +1,13 @@
 // Shared building blocks for the Módulo Técnico (mobile-first) views.
-// DESIGN.md §5.6/§5.5/§4.1: modals here are bottom-sheets (fixed inset-x-0 bottom-0
-// rounded-t-2xl, dvh-aware), built once here on top of useModalAnimation + backdropClose
-// + createPortal, and reused by every view in this folder.
+// DESIGN.md §5.6/§5.5/§4.1: modals here are always a centered card (dvh-aware) — bottom
+// sheets fight the phone keyboard — built once here on top of useModalAnimation +
+// backdropClose + createPortal, and reused by every view in this folder.
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn, useModalAnimation } from '../ui/UIComponents';
 import { backdropClose } from '../ui/backdropClose';
-import type { Edificio } from '../../services/types.ts';
+import type { Edificio, OrdenTrabajo, RepuestoOT } from '../../services/types.ts';
 
 // ────────────────────────────────────────────────────────────────────────────
 // BottomSheet — the one modal recipe every view in this module reuses.
@@ -31,14 +31,14 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
   const guardedClose = () => { if (!locked) onClose(); };
   return createPortal(
     <div
-      className={cn('fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4', closing ? 'overlay-exit' : 'overlay-enter')}
+      className={cn('tecnico-theme fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh]', closing ? 'overlay-exit' : 'overlay-enter')}
       {...backdropClose(guardedClose)}
     >
-      {/* Mobile: bottom-sheet (rounded top, slides up). Desktop (sm+): centered card (§5.5). */}
+      {/* Always a centered card — bottom-anchored sheets fight the phone keyboard on mobile. */}
       <div
         className={cn(
-          'w-full max-w-md bg-background rounded-t-2xl shadow-2xl border-t overflow-hidden flex flex-col max-h-[85dvh] sm:rounded-2xl sm:border sm:max-h-[90vh]',
-          closing ? 'animate-out slide-out-to-bottom fade-out duration-200' : 'animate-in slide-in-from-bottom-full fade-in duration-300',
+          'w-full max-w-md bg-background rounded-2xl shadow-2xl border overflow-hidden flex flex-col max-h-[85dvh] sm:max-h-[90dvh]',
+          closing ? 'animate-out fade-out zoom-out-95 duration-200' : 'animate-in fade-in zoom-in-95 duration-200',
         )}
       >
         <div className="px-4 py-3 border-b flex items-start justify-between gap-3 shrink-0 bg-secondary/20">
@@ -51,12 +51,38 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">{children}</div>
-        {footer && <div className="p-3 border-t bg-muted/20 flex flex-col sm:flex-row gap-2 shrink-0">{footer}</div>}
+        {/* Botones siempre en el mismo renglón (Cancelar/Aceptar) — no se apilan en mobile. */}
+        {footer && <div className="p-3 border-t bg-muted/20 flex flex-row gap-2 shrink-0">{footer}</div>}
       </div>
     </div>,
     document.body,
   );
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// Header action icon-buttons — un único cuadrado (36×36, rounded-lg) para que TODOS
+// los headers del módulo técnico se vean iguales. `primary` = CTA relleno celeste
+// (agregar, cambiar edificio); `outline` = acción secundaria (adelantar, etc.).
+// ────────────────────────────────────────────────────────────────────────────
+const iconBtnBase = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none';
+export const iconBtnPrimary = `${iconBtnBase} bg-primary text-primary-foreground shadow-sm hover:bg-primary/90`;
+export const iconBtnOutline = `${iconBtnBase} border border-input text-primary hover:bg-primary/10 hover:border-primary/40`;
+
+// ────────────────────────────────────────────────────────────────────────────
+// Repuestos display grouping — repuestos_ot stays append-only; this only affects rendering.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Groups repuesto rows by article (fallback: name), summing quantities — for display only. */
+export function groupRepuestos(rows: RepuestoOT[]): { key: string; nombre: string; cantidad: number }[] {
+  const map = new Map<string, { key: string; nombre: string; cantidad: number }>();
+  for (const r of rows) {
+    const key = r.articulo_id != null ? `a:${r.articulo_id}` : `n:${(r.repuesto ?? '').trim().toLowerCase()}`;
+    const prev = map.get(key);
+    if (prev) prev.cantidad += r.cantidad;
+    else map.set(key, { key, nombre: r.repuesto ?? '—', cantidad: r.cantidad });
+  }
+  return [...map.values()];
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Building groupings — data-driven (Edificio.zona / Edificio.grupo_stock), never a
@@ -71,6 +97,16 @@ export const grupoStockKey = (e: Edificio): string => e.grupo_stock ?? e.nombre;
 /** Building names sharing `zona` (or the same name if it has no zona) — matches Unidad/OT `torre`. */
 export function torresEnZona(edificios: Edificio[], zona: string): string[] {
   return edificios.filter((e) => zonaKey(e) === zona).map((e) => e.nombre);
+}
+
+/**
+ * Una OT agendada a futuro queda OCULTA para el técnico hasta su día: el alta del back-office
+ * estampa `fecha_asignada` = fecha elegida cuando es futura, y hasta que esa fecha llega la OT no
+ * aparece en sus listas. Sin `fecha_asignada` = visible siempre. Aplica a CUALQUIER status (no solo
+ * Pendiente): así una OT 'Asignada' programada para más adelante tampoco se filtra antes de tiempo.
+ */
+export function otAgendadaVisible(ot: Pick<OrdenTrabajo, 'fecha_asignada'>, hoyISO: string): boolean {
+  return !ot.fecha_asignada || ot.fecha_asignada.slice(0, 10) <= hoyISO;
 }
 
 /** Edificio ids sharing a stock pool with `edificioId`. */

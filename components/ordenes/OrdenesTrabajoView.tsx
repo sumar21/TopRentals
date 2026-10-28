@@ -2,13 +2,14 @@
 // Page skeleton per DESIGN.md §4.4; filters per §4.7 pattern C (collapsible bar, never a modal).
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Ban, CheckCircle2, ChevronLeft, ChevronRight,
-  Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, RefreshCw, Search,
+  Ban, CheckCircle2,
+  Copy, Eye, FileCheck2, NotebookText, PackageSearch, Pencil, Plus, Search,
   UserCog,
 } from 'lucide-react';
-import { Badge, Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
+import { Button, Card, cn, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/UIComponents';
 import { FilterPopover } from '../ui/FilterPopover';
 import { StatusBadge } from '../ui/StatusBadge';
+import { CategoriaBadge } from '../ui/CategoriaBadge';
 import { Loader } from '../ui/Loader';
 import ConfirmModal from '../ConfirmModal';
 import EmptyState from '../EmptyState';
@@ -18,12 +19,14 @@ import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
 import { formatDate } from '../../utils/dates';
+import { capitalizeFirst } from '../../utils/strings';
+import { errorMessage } from '../../utils/errorMessage';
 import { otResueltaEmail } from '../../emails/templates';
 import { resolveRecipients, sendEmail } from '../../emails/send';
 import { FEATURES } from '../../config/features';
 import {
   canAnular, canAsignar, canBitacoras, canCerrar, canEditar, canFinalizar, canReplicar, canVerRepuestos,
-  diasReales, ESTADO_OT_OPTIONS, isVisibleByDefault, monthKey, rollingMonths, TIPO_TRABAJO_TAREA_OPTIONS, truncate,
+  diasReales, ESTADO_OT_OPTIONS, isVisibleByDefault, monthKey, rollingMonths, TIPO_TAREA_OPTIONS, TIPO_TRABAJO_FILTRO_OPTIONS, truncate,
 } from './otHelpers';
 import NuevaEditarOTModal from './NuevaEditarOTModal';
 import BitacorasModal from './BitacorasModal';
@@ -31,7 +34,31 @@ import VerRepuestosModal from './VerRepuestosModal';
 import CerrarOTModal from './CerrarOTModal';
 import AsignarOTModal from './AsignarOTModal';
 
-const PAGE_SIZE = 30;
+// Etiqueta corta del tipo para la grilla (color sigue por el valor completo en CategoriaBadge).
+// Normalizamos a minúscula/trim como categoriaColor: el valor real viene en mayúsculas
+// ('ORDEN DE TRABAJO', 'SOLICITUD OT'), así que un match por casing exacto no servía.
+const tipoCorto = (tipo: string | null | undefined): string => {
+  const k = (tipo ?? '').trim().toLowerCase();
+  if (k === 'orden de trabajo') return 'OT';
+  if (k === 'solicitud ot') return 'Sol OT';
+  return (tipo ?? '').trim();
+};
+
+// Excel-style frozen columns forming a "sandwich": the leading columns (Estado · Tipo · ID · ID F)
+// pin to the LEFT, Acciones pins to the RIGHT (sticky right-0), and the middle scrolls between them.
+// Fixed widths so the cumulative `left` offsets line up. Acciones is sized to its worst REAL case
+// (estado Asignada = 5 icon-buttons: ver/editar · repuestos · bitácoras · anular · finalizar) so the
+// pinned column never clips — a pinned cell can't scroll to reveal overflow. Tipo se angostó
+// (etiquetas "OT"/"Sol OT") → los offsets left de ID / ID F se recalculan en cadena.
+const FZ_TH = 'sticky z-20 bg-muted'; // header wins the corner (opaque over scrolling cells)
+const FZ_TD = 'sticky z-[5] bg-card group-hover:bg-muted'; // fully opaque (incl. hover) so scrolled cells never bleed through
+const FZ_COL = {
+  estado: 'left-0 w-[104px] min-w-[104px] max-w-[104px]',
+  tipo: 'left-[104px] w-[84px] min-w-[84px] max-w-[84px]',
+  id: 'left-[188px] w-[60px] min-w-[60px] max-w-[60px]',
+  idf: 'left-[248px] w-[68px] min-w-[68px] max-w-[68px] border-r border-border',
+  acciones: 'right-0 w-[192px] min-w-[192px] max-w-[192px] border-l border-border', // border-l = costura con la zona de scroll
+};
 
 interface OtFiltros { meses: string[]; estados: string[]; edificios: string[]; tiposTrabajo: string[]; tiposTarea: string[]; }
 const EMPTY_FILTROS: OtFiltros = { meses: [], estados: [], edificios: [], tiposTrabajo: [], tiposTarea: [] };
@@ -46,13 +73,11 @@ const OrdenesTrabajoView: React.FC = () => {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   const [search, setSearch] = useState('');
   const [draftFiltros, setDraftFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
   const [appliedFiltros, setAppliedFiltros] = useState<OtFiltros>(EMPTY_FILTROS);
-  const [page, setPage] = useState(0);
 
   const [formModal, setFormModal] = useState<{ ot: OrdenTrabajo | null; readOnly: boolean } | null>(null);
   const [bitacorasOt, setBitacorasOt] = useState<OrdenTrabajo | null>(null);
@@ -72,8 +97,8 @@ const OrdenesTrabajoView: React.FC = () => {
   };
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
-
-  const handleRefresh = () => { setRefreshing(true); load().finally(() => setRefreshing(false)); };
+  // Live updates: silent refetch whenever an OT changes in the backend.
+  useEffect(() => api.realtime.subscribe(['ots'], () => { void load(); }), []);
 
   const upsertOt = (saved: OrdenTrabajo) => setOts((prev) => {
     const exists = prev.some((o) => o.id === saved.id);
@@ -120,10 +145,10 @@ const OrdenesTrabajoView: React.FC = () => {
         const saved = await api.ots.finalizar(ot.id);
         upsertOt(saved);
         showToast('Orden de trabajo finalizada.', 'success');
-        void sendResolutionEmail(saved);
+        if (FEATURES.emailOtResuelta) void sendResolutionEmail(saved);
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo completar la acción.', 'error');
+      showToast(errorMessage(e, 'No se pudo completar la acción.'), 'error');
     }
   };
 
@@ -145,29 +170,28 @@ const OrdenesTrabajoView: React.FC = () => {
 
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return baseFiltered;
-    return baseFiltered.filter((ot) => [ot.status, ot.concat_activo, ot.tipo_trabajo, ot.tipo_tarea, ot.detalle, String(ot.id)]
-      .some((v) => (v ?? '').toString().toLowerCase().includes(q)));
+    const rows = !q
+      ? baseFiltered
+      : baseFiltered.filter((ot) => [ot.status, ot.concat_activo, ot.tipo_trabajo, ot.tipo_tarea, ot.detalle, String(ot.id)]
+          .some((v) => (v ?? '').toString().toLowerCase().includes(q)));
+    // PA parity: SortByColumns(CollectOT,"ID",SortOrder.Descending)
+    return [...rows].sort((a, b) => b.id - a.id);
   }, [baseFiltered, search]);
-
-  useEffect(() => { setPage(0); }, [search, appliedFiltros]);
-
-  const pageCount = Math.max(1, Math.ceil(searched.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const visible = searched.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
   const aplicarFiltros = () => setAppliedFiltros(draftFiltros);
   const limpiarFiltros = () => { setDraftFiltros(EMPTY_FILTROS); setAppliedFiltros(EMPTY_FILTROS); };
 
   const openVer = (ot: OrdenTrabajo) => setFormModal({ ot, readOnly: true });
-  const openEditar = (ot: OrdenTrabajo) => setFormModal({ ot, readOnly: false });
+  // PA shows the pencil for any non-Anulada OT but locks the fields (DisplayMode.Disabled) for
+  // Cerrada V/F. Mirror it: open read-only for those terminal states, fully editable otherwise.
+  const openEditar = (ot: OrdenTrabajo) => setFormModal({ ot, readOnly: ot.status === 'Cerrada V' || ot.status === 'Cerrada F' });
   const openNueva = () => setFormModal({ ot: null, readOnly: false });
 
   const RowActions = ({ ot }: { ot: OrdenTrabajo }) => {
     if (!perfil) return null;
     const editable = canEditar(ot, perfil);
     return (
-      <div className="flex items-center justify-end gap-0.5 flex-nowrap">
+      <div className="flex items-center justify-start gap-0.5 flex-nowrap">
         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" title={editable ? 'Editar' : 'Ver detalle'} aria-label={editable ? 'Editar' : 'Ver detalle'}
           onClick={() => (editable ? openEditar(ot) : openVer(ot))}>
           {editable ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -193,7 +217,7 @@ const OrdenesTrabajoView: React.FC = () => {
           </Button>
         )}
         {canFinalizar(ot, perfil) && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Finalizar" aria-label="Finalizar" onClick={() => setConfirmAction({ type: 'finalizar', ot })}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" title="Finalizar" aria-label="Finalizar" onClick={() => setConfirmAction({ type: 'finalizar', ot })}>
             <CheckCircle2 className="h-4 w-4" />
           </Button>
         )}
@@ -214,7 +238,7 @@ const OrdenesTrabajoView: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Órdenes de Trabajo</h1>
@@ -225,9 +249,6 @@ const OrdenesTrabajoView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" title="Actualizar" aria-label="Actualizar" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
           <FilterPopover activeCount={activeCount} onClear={limpiarFiltros}>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</label>
@@ -243,11 +264,11 @@ const OrdenesTrabajoView: React.FC = () => {
             </div>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de trabajo</label>
-              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTrabajo} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTrabajo: v }))} placeholder="Todos" searchPlaceholder="Buscar tipo…" className="w-full" />
+              <MultiCombobox options={TIPO_TRABAJO_FILTRO_OPTIONS} value={draftFiltros.tiposTrabajo} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTrabajo: v }))} placeholder="Todos" searchPlaceholder="Buscar tipo…" className="w-full" />
             </div>
             <div className="w-full">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de tarea</label>
-              <MultiCombobox options={TIPO_TRABAJO_TAREA_OPTIONS} value={draftFiltros.tiposTarea} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTarea: v }))} placeholder="Todas" searchPlaceholder="Buscar tarea…" className="w-full" />
+              <MultiCombobox options={TIPO_TAREA_OPTIONS} value={draftFiltros.tiposTarea} onChange={(v) => setDraftFiltros((p) => ({ ...p, tiposTarea: v }))} placeholder="Todas" searchPlaceholder="Buscar tarea…" className="w-full" />
             </div>
             <Button size="sm" className="w-full" onClick={aplicarFiltros}>Filtrar</Button>
           </FilterPopover>
@@ -269,7 +290,7 @@ const OrdenesTrabajoView: React.FC = () => {
         <>
           {/* MOBILE: una card por fila */}
           <div className="md:hidden space-y-2">
-            {visible.map((ot) => (
+            {searched.map((ot) => (
               <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -284,7 +305,7 @@ const OrdenesTrabajoView: React.FC = () => {
                     <StatusBadge status={ot.prioridad} />
                   </div>
                 </div>
-                <p className="text-sm">{truncate(ot.detalle, 90)}</p>
+                <p className="text-sm">{truncate(capitalizeFirst(ot.detalle), 90)}</p>
                 <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
                   <span>{ot.tipo_trabajo ?? '—'} · {ot.tipo_tarea ?? '—'}</span>
                   <span>· Días: {ot.dias_estimado ?? '—'} est. / {diasReales(ot) ?? '—'} real</span>
@@ -299,72 +320,71 @@ const OrdenesTrabajoView: React.FC = () => {
 
           {/* DESKTOP: tabla ancha con scroll horizontal — columnas 1:1 con gal_incidentes (PA).
               min-w fuerza el ancho natural para que el contenedor del kit haga scroll en vez de clippear. */}
-          <Card className="hidden md:block border shadow-sm">
-            <Table className="min-w-[1500px]">
-              {/* Orden exacto de gal_incidentes (PA), por coordenada X del .msapp:
-                  Estado · ID · ID F · Acciones · Detalle · Torre · Departamento · Prioridad ·
-                  Requiere parada de equipo · F. inicio · Tipo trabajo · Tipo tarea · F. asignada ·
-                  Días est. · F. cierre · Días reales · Tipo */}
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table className="min-w-[1240px]" wrapperClassName="h-full">
+              {/* Columnas: fijas (Estado · Tipo · ID · ID F) + scroll (Detalle · Ubicación · Prioridad ·
+                  Requiere parada · F. inicio · Trabajo/Tarea · Asignada · Cierre · Acciones).
+                  Campos apareados en una sola columna apilada (torre/depto, trabajo/tarea,
+                  fecha+días est., fecha+días real) para achicar el scroll horizontal. */}
               <TableHeader>
                 <TableRow>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead className="whitespace-nowrap">ID F</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.estado)}>Estado</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.tipo)}>Tipo</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.id)}>ID</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.idf, 'whitespace-nowrap')}>ID F</TableHead>
                   <TableHead>Detalle</TableHead>
-                  <TableHead>Torre</TableHead>
-                  <TableHead>Departamento</TableHead>
+                  <TableHead className="whitespace-nowrap">Torre</TableHead>
                   <TableHead>Prioridad</TableHead>
-                  <TableHead className="whitespace-nowrap">Requiere parada de equipo</TableHead>
+                  <TableHead className="whitespace-nowrap">Requiere parada</TableHead>
                   <TableHead className="whitespace-nowrap">F. inicio</TableHead>
-                  <TableHead className="whitespace-nowrap">Tipo trabajo</TableHead>
-                  <TableHead className="whitespace-nowrap">Tipo tarea</TableHead>
-                  <TableHead className="whitespace-nowrap">F. asignada</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Días est.</TableHead>
-                  <TableHead className="whitespace-nowrap">F. cierre</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Días reales</TableHead>
-                  {!compras && <TableHead>Tipo</TableHead>}
+                  <TableHead className="whitespace-nowrap">Trabajo / Tarea</TableHead>
+                  <TableHead className="whitespace-nowrap">Asignada</TableHead>
+                  <TableHead className="whitespace-nowrap">Cierre</TableHead>
+                  <TableHead className={cn(FZ_TH, FZ_COL.acciones, 'whitespace-nowrap')}>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((ot) => (
-                  <TableRow key={ot.id}>
-                    <TableCell><StatusBadge status={ot.status} /></TableCell>
-                    <TableCell className="whitespace-nowrap font-medium">#{ot.id}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap"><RowActions ot={ot} /></TableCell>
-                    <TableCell className="max-w-[240px] truncate" title={ot.detalle ?? ''}>{truncate(ot.detalle)}</TableCell>
-                    <TableCell className="whitespace-nowrap font-medium">{ot.torre ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.departamento ?? '—'}</TableCell>
+                {searched.map((ot) => (
+                  <TableRow key={ot.id} className="group">
+                    <TableCell className={cn(FZ_TD, FZ_COL.estado)}><StatusBadge status={ot.status} /></TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.tipo)}><CategoriaBadge value={ot.tipo} label={tipoCorto(ot.tipo)} /></TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.id, 'whitespace-nowrap font-medium')}>#{ot.id}</TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.idf, 'whitespace-nowrap text-muted-foreground')}>{ot.orden_revision_id != null ? `#${ot.orden_revision_id}` : '—'}</TableCell>
+                    {/* Detalle: columna ancha, 2 renglones con clamp — más texto legible sin agrandar la fila (ya son 2 líneas por las columnas apiladas). */}
+                    <TableCell className="w-[380px] min-w-[320px] max-w-[420px] align-middle"><span className="line-clamp-2 whitespace-normal leading-snug" title={ot.detalle ?? ''}>{capitalizeFirst(ot.detalle) || '—'}</span></TableCell>
+                    <TableCell className="whitespace-nowrap align-middle">
+                      <div className="leading-tight">
+                        <div className="font-medium">{ot.torre ?? '—'}</div>
+                        <div className="text-xs text-muted-foreground">Depto: {ot.departamento ?? '—'}</div>
+                      </div>
+                    </TableCell>
                     <TableCell><StatusBadge status={ot.prioridad} /></TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.tipo_prioridad ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap"><CategoriaBadge value={ot.tipo_prioridad} /></TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_inicio) || '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.tipo_trabajo ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{ot.tipo_tarea ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_asignada) || '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">{ot.dias_estimado ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(ot.fecha_cierre) || '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">{diasReales(ot) ?? '—'}</TableCell>
-                    {!compras && <TableCell><Badge variant="outline" className="whitespace-nowrap">{ot.tipo}</Badge></TableCell>}
+                    <TableCell className="align-middle">
+                      <div className="flex flex-col items-start gap-1">
+                        <CategoriaBadge value={ot.tipo_trabajo} />
+                        <CategoriaBadge value={ot.tipo_tarea} />
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap align-middle">
+                      <div className="leading-tight">
+                        <div>{formatDate(ot.fecha_asignada) || '—'}</div>
+                        <div className="text-xs text-muted-foreground tabular-nums">{ot.dias_estimado != null ? `${ot.dias_estimado} días est.` : '—'}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap align-middle">
+                      <div className="leading-tight">
+                        <div>{formatDate(ot.fecha_cierre) || '—'}</div>
+                        <div className="text-xs text-muted-foreground tabular-nums">{diasReales(ot) != null ? `${diasReales(ot)} días real` : '—'}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className={cn(FZ_TD, FZ_COL.acciones, 'whitespace-nowrap px-2')}><RowActions ot={ot} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </Card>
-
-          {pageCount > 1 && (
-            <div className="flex items-center justify-end gap-1">
-              <button disabled={safePage === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted disabled:opacity-40" aria-label="Página anterior">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-sm text-muted-foreground px-1">Página {safePage + 1}/{pageCount}</span>
-              <button disabled={safePage >= pageCount - 1} onClick={() => setPage((p) => p + 1)}
-                className="flex h-8 w-8 items-center justify-center rounded-md border transition-colors hover:bg-muted disabled:opacity-40" aria-label="Página siguiente">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </>
       )}
 
@@ -393,7 +413,7 @@ const OrdenesTrabajoView: React.FC = () => {
         description={
           confirmAction?.type === 'anular' ? `Se anulará la OT #${confirmAction.ot.id}. Esta acción no se puede deshacer.`
             : confirmAction?.type === 'replicar' ? `Se creará una nueva OT pendiente vinculada a la OT #${confirmAction.ot.id}.`
-            : `Se finalizará la OT #${confirmAction?.ot.id} y se notificará por email a los destinatarios configurados.`
+            : `Se finalizará la OT #${confirmAction?.ot.id}.${FEATURES.emailOtResuelta ? ' Se notificará por email a los destinatarios configurados.' : ''}`
         }
         confirmText={confirmAction?.type === 'anular' ? 'Anular' : confirmAction?.type === 'replicar' ? 'Replicar' : 'Finalizar'}
         cancelText="Cancelar"

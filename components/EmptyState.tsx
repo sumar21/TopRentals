@@ -1,9 +1,8 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 
-// Compuesto a partir del patrón canónico de empty state de DESIGN.md §9.3
-// (no hay un componente <EmptyState> literal en el doc, solo la clase base):
-// border-2 border-dashed + ícono en círculo.
+// Softer than DESIGN.md §9.3's literal dashed-border recipe: a calm filled surface
+// instead of a harsh dashed rectangle, same ícono-en-círculo idea.
 export interface EmptyStateProps {
   icon: LucideIcon;
   title: string;
@@ -12,12 +11,12 @@ export interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({ icon: Icon, title, message, className }) => (
-  <div className={`flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl bg-muted/5 ${className || ''}`}>
-    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-      <Icon className="w-8 h-8 text-muted-foreground/40" />
+  <div className={`flex flex-col items-center justify-center p-10 rounded-2xl bg-muted/20 ${className || ''}`}>
+    <div className="h-14 w-14 rounded-full bg-muted/60 flex items-center justify-center mb-3">
+      <Icon className="h-7 w-7 text-muted-foreground/50" />
     </div>
-    <p className="text-muted-foreground font-medium text-sm text-center">{title}</p>
-    {message && <p className="text-muted-foreground/70 text-xs text-center mt-1">{message}</p>}
+    <p className="text-sm font-medium text-muted-foreground text-center">{title}</p>
+    {message && <p className="text-xs text-muted-foreground/70 mt-1 text-center">{message}</p>}
   </div>
 );
 export default EmptyState;

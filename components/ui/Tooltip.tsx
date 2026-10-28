@@ -37,8 +37,12 @@ export const TooltipHost: React.FC = () => {
     return () => observer.disconnect();
   }, []);
 
-  // 2) Hover / focus → mostrar el pill.
+  // 2) Hover / focus → mostrar el pill. SOLO en dispositivos con hover real (mouse):
+  // en touch, tocar un botón le da foco + sintetiza `mouseover` sin `mouseout` → el pill
+  // quedaba pegado (feo, sin sentido en mobile). Los tooltips de gráficos son de recharts
+  // (mecanismo aparte) y no dependen de esto.
   useEffect(() => {
+    if (!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) return;
     const clearTimer = () => { if (timer.current) { window.clearTimeout(timer.current); timer.current = null; } };
     const hide = () => { clearTimer(); activeEl.current = null; setTip(null); };
     const resolve = (target: HTMLElement | null) => {
@@ -102,7 +106,7 @@ export const TooltipHost: React.FC = () => {
   if (!tip) return null;
   return createPortal(
     <div ref={tipRef} role="tooltip"
-      className="kaut-tooltip pointer-events-none fixed z-[100000] max-w-xs rounded-md bg-neutral-900 px-2 py-1 text-xs font-medium leading-snug text-white shadow-lg"
+      className="kaut-tooltip pointer-events-none fixed z-[100000] max-w-xs rounded-md bg-foreground px-2 py-1 text-xs font-medium leading-snug text-background shadow-lg"
       style={{ left: tip.x, top: tip.y, transform: tip.placement === 'top' ? 'translate(-50%, -100%)' : 'translateX(-50%)' }}>
       {tip.text}
     </div>, document.body);

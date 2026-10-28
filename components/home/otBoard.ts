@@ -14,13 +14,17 @@ const PRIORITY_COLUMN: Record<string, BoardColumn> = {
 
 /**
  * Which board column an OT belongs to, or null if it's not part of the triage board
- * (i.e. any status other than Pendiente/Asignada, or an Asignada with an unrecognized
- * tipo_prioridad). Mirrors the original PA galleries: Pendiente bucket ignores priority;
- * Asignada buckets split by `tipo_prioridad` (NOT `prioridad` — that's the card's pill).
+ * (any status other than Pendiente/Asignada, or an Asignada with no recognized priority).
+ * Mirrors the original PA Home galleries: the Pendiente bucket ignores priority; the
+ * Asignada buckets split by PRIORITY. PA's column filter is `TipoPrioridad_OT`, which is
+ * only the display name of the SP column our migration imports as `prioridad` (internal
+ * name RequiereParada_OT; values Alta/Media/Baja — verified against live SP data).
+ * `tipo_prioridad` is occupancy (Vacante/Ocupada/Bloqueada, from Prioridad_IN), NOT
+ * priority — bucketing by it left every Asignada column permanently empty.
  */
 export function bucketOf(ot: OrdenTrabajo): BoardColumn | null {
   if (ot.status === 'Pendiente') return 'pendiente';
-  if (ot.status === 'Asignada') return PRIORITY_COLUMN[String(ot.tipo_prioridad ?? '').trim().toLowerCase()] ?? null;
+  if (ot.status === 'Asignada') return PRIORITY_COLUMN[String(ot.prioridad ?? '').trim().toLowerCase()] ?? null;
   return null;
 }
 

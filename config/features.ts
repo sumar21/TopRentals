@@ -9,4 +9,12 @@ export const FEATURES = {
   asignarOTDesktop: false,
   /** Assigning a ventilación to a technician directly from the desktop screen. */
   asignarVentilacionDesktop: false,
+  /** "Adelantar ventilación" (incident flow, mobile técnico). El doc de análisis lo describe, pero
+   *  el cliente no lo encuentra accesible en la PA real y el YAML crudo no está en el repo para
+   *  confirmarlo → apagado por decisión de producto. Poner en true si se confirma que existe en PA. */
+  adelantarVentilacionMobile: false,
+  /** Email "OT resuelta" a los destinatarios del módulo OT al finalizar una orden (desktop y técnico).
+   *  Apagado por pedido de producto (2026-08): el código de envío queda intacto, solo NO se dispara.
+   *  Poner en true para reactivar. Compras y Aprobaciones NO se ven afectados. */
+  emailOtResuelta: false,
 } as const;

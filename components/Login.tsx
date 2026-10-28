@@ -9,8 +9,7 @@ import { api } from '../services/index.ts';
 import type { DemoUser } from '../services/api.ts';
 import { isTecnicoOnly } from '../utils/permissions';
 import { formatLockTime, getLockStatus, recordFailedAttempt, resetAttempts } from '../utils/rateLimit';
-
-const APP_VERSION = 'v0.1.0';
+import { APP_VERSION } from '../config/appVersion';
 
 const Login = () => {
   const { login } = useAuth();
@@ -69,26 +68,26 @@ const Login = () => {
         <div className="absolute inset-0 z-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
         <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/90 via-transparent to-black/30" />
         <div className="relative z-10 p-12 h-full flex flex-col justify-between">
-          <img src="/logo.png" alt="TopRentals" className="h-12 w-12 rounded-lg drop-shadow-lg" />
+          <img src="/logo.png" alt="Top Rentals" className="h-12 w-12 rounded-lg drop-shadow-lg" />
           <div>
-            <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 leading-tight drop-shadow-lg">TopRentals</h1>
+            <h1 className="text-4xl font-extrabold tracking-tight lg:text-6xl mb-6 leading-tight drop-shadow-lg">Top Rentals</h1>
             <p className="text-lg text-gray-200 max-w-md border-l-2 border-white/30 pl-4">Gestión de mantenimiento, stock y compras</p>
           </div>
-          <p className="text-xs text-gray-400 font-medium tracking-wide uppercase">© {new Date().getFullYear()} TopRentals</p>
+          <p className="text-xs text-gray-400 font-medium tracking-wide uppercase">© {new Date().getFullYear()} Top Rentals</p>
         </div>
       </div>
 
       {/* Panel de formulario */}
-      <div className="flex-1 flex flex-col relative bg-white">
+      <div className="flex-1 flex flex-col relative bg-background">
         <div className="flex-1 flex items-center justify-center p-6">
           <Card className="w-full max-w-sm border-0 shadow-none bg-transparent">
             <CardContent className="p-0">
-              <img src="/logo.png" alt="TopRentals" className="md:hidden h-14 w-14 rounded-xl mb-6" />
+              <img src="/logo.png" alt="Top Rentals" className="md:hidden h-14 w-14 rounded-xl mb-6" />
               <h2 className="text-3xl font-bold tracking-tight text-primary">Bienvenido</h2>
               <p className="text-sm text-muted-foreground mb-6">Ingresá a tu cuenta</p>
 
               {error && (
-                <div className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm mb-4" role="alert">
+                <div className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm mb-4" role="alert">
                   <AlertCircle className="h-4 w-4 shrink-0" /> {error}
                 </div>
               )}
@@ -98,8 +97,15 @@ const Login = () => {
                   <label htmlFor="login-user" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground ml-1">Usuario</label>
                   <Input
                     id="login-user"
+                    placeholder="Tu usuario"
                     autoFocus
                     autoComplete="username"
+                    // Android (Gboard) autocorrige/capitaliza el usuario tipeado y arma un alias de login
+                    // equivocado → 400. iOS ya suprime esto en campos de usuario; Android no, salvo pedirlo.
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="text"
                     value={usuario}
                     onChange={(e) => setUsuario(e.target.value)}
                     className="h-12 bg-secondary/30 border-border focus:border-primary focus:bg-background transition-all mt-1"
@@ -110,6 +116,7 @@ const Login = () => {
                   <div className="relative mt-1">
                     <Input
                       id="login-password"
+                      placeholder="Tu contraseña"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       value={password}

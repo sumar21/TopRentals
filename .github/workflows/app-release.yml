@@ -1,0 +1,79 @@
+# Records each PRODUCTION release in public.app_releases, which makes open tabs offer a reload.
+#
+# Vercel's GitHub app creates a GitHub Deployment (environment "Production" for main, "Preview" for other branches)
+# and marks it `success` when ready. Only Production runs this job. It reads APP_VERSION from that commit's
+# config/appVersion.ts and posts `{ version, sha }` to the production webhook, authenticated by this run's GitHub
+# OIDC token (no stored secret). The server records the release only when it runs that very version; until the new
+# deployment serves the production domain it answers 409 NOT_LIVE_YET, and the job asks again every 10 s for up to
+# 3 minutes. 200 ends the job; anything else fails it.
+name: App release
+
+on:
+  deployment_status:
+
+permissions:
+  id-token: write   # the OIDC token the webhook verifies
+  contents: read    # the checkout
+
+jobs:
+  record:
+    name: Record the production release
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    concurrency:
+      group: app-release-${{ github.event.deployment.sha }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out the deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          persist-credentials: false
+
+      - name: Post the release to the webhook
+        uses: actions/github-script@v7
+        env:
+          DEPLOYED_SHA: ${{ github.event.deployment.sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const WEBHOOK = 'https://top-rentals.vercel.app/api/app-release';
+            const AUDIENCE = 'toprentals-app-release';
+            const RETRY_MS = 10_000;
+            const GIVE_UP_MS = 3 * 60_000;
+
+            // The release's version: the APP_VERSION line of the deployed commit, in the app's format, or the job fails.
+            const source = fs.readFileSync('config/appVersion.ts', 'utf8');
+            const found = source.match(/^export const APP_VERSION = '(v\d{8}_\d+\.\d+\.\d+)';$/m);
+            if (!found) return core.setFailed('APP_VERSION not found in config/appVersion.ts');
+            const version = found[1];
+            const sha = process.env.DEPLOYED_SHA;
+            if (!/^[0-9a-f]{40}$/.test(sha)) return core.setFailed(`Not a commit SHA: ${sha}`);
+            core.info(`Recording ${version} (${sha})`);
+
+            const started = Date.now();
+            for (let attempt = 1; ; attempt++) {
+              // A fresh token on every attempt: they are short-lived. getIDToken masks it in the log.
+              const token = await core.getIDToken(AUDIENCE);
+              let status, body;
+              try {
+                const res = await fetch(WEBHOOK, {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ version, sha }),
+                  signal: AbortSignal.timeout(30_000),
+                });
+                status = res.status;
+                body = (await res.text()).slice(0, 300);
+              } catch (error) {
+                return core.setFailed(`Attempt ${attempt}: the request failed: ${error.message}`);
+              }
+              if (status === 200) return core.info(`Attempt ${attempt}: 200 ${body}`);
+              if (status !== 409) return core.setFailed(`Attempt ${attempt}: ${status} ${body}`);
+              if (Date.now() - started + RETRY_MS > GIVE_UP_MS) {
+                return core.setFailed(`Attempt ${attempt}: still 409 after 3 minutes, production does not serve ${version}`);
+              }
+              core.info(`Attempt ${attempt}: 409 ${body}; production does not serve ${version} yet, asking again in 10 s`);
+              await new Promise(resolve => setTimeout(resolve, RETRY_MS));
+            }

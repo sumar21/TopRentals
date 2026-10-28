@@ -1,11 +1,14 @@
 // mobile/Ordenes de Trabajo — technician's OT list for a building/zone.
 // docs/analysis/mobile_Ordenes_de_Trabajo.md react_mapping.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, MoreVertical, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle,
+  ArrowLeft, Building2, CheckCircle2, ClipboardList, Plus, Camera, Trash2, Loader2, AlertCircle, FileText,
 } from 'lucide-react';
 import { Button, Input, Badge, cn } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
+import { APP_VERSION } from '../../config/appVersion';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
@@ -15,15 +18,19 @@ import { LoadErrorState } from '../LoadErrorState';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index.ts';
-import type { Articulo, Edificio, OrdenTrabajo, RepuestoOT, Unidad } from '../../services/types.ts';
+import type { Articulo, Documento, Edificio, OrdenTrabajo, RepuestoOT, Unidad } from '../../services/types.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import { resolveRecipients, sendEmail } from '../../emails/send.ts';
 import { otResueltaEmail } from '../../emails/templates.ts';
+import { FEATURES } from '../../config/features';
 import { formatDate, todayISO } from '../../utils/dates';
-import { BottomSheet, edificioOptions, fileToCompressedDataUrl, torresEnZona, zonaKey } from './shared';
+import { capitalizeFirst } from '../../utils/strings';
+import { BottomSheet, fileToCompressedDataUrl, groupRepuestos, iconBtnPrimary, otAgendadaVisible, torresEnZona, zonaKey } from './shared';
+import { errorMessage } from '../../utils/errorMessage';
+import { useBuilding } from '../../contexts/BuildingContext';
+import BuildingChip from './BuildingChip';
 
-type ActiveSheet = 'detalle' | 'repuestos' | 'nuevaSolicitud' | 'agregarRepuesto' | 'cambiarEdificio' | null;
-interface NavState { zona?: string; edificioNombre?: string }
+type ActiveSheet = 'detalle' | 'repuestos' | 'nuevaSolicitud' | 'agregarRepuesto' | null;
 interface StagedPhoto { id: string; dataUrl: string }
 
 // EstadoOT has no 'Programada' literal (unlike EstadoVentilacion) — the original PA spec
@@ -31,7 +38,7 @@ interface StagedPhoto { id: string; dataUrl: string }
 const OT_STATUSES: OrdenTrabajo['status'][] = ['Pendiente', 'Asignada'];
 
 const DetailRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="flex items-center justify-between gap-3">
+  <div className="flex items-center justify-between gap-3 px-3 py-2">
     <dt className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">{label}</dt>
     <dd className="text-sm text-right">{value}</dd>
   </div>
@@ -41,9 +48,10 @@ const OrdenesTecnicoView: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
-  const navState = (location.state ?? {}) as NavState;
-
+  const { selected, openPicker, loading: buildingLoading } = useBuilding();
+  // ponytail: kept as its own fetch (not useBuilding().edificios) — that context list is
+  // Activo-only, while torresEnZona here must also match inactive siblings sharing a zona,
+  // same as before this integration.
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [articulos, setArticulos] = useState<Articulo[]>([]);
@@ -51,15 +59,15 @@ const OrdenesTecnicoView: React.FC = () => {
   const [ots, setOts] = useState<OrdenTrabajo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [zona, setZona] = useState<string | null>(navState.zona ?? null);
-  const [pickerValue, setPickerValue] = useState('');
+  const zona = selected ? zonaKey(selected) : null;
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const repuestosReqRef = useRef<number | null>(null); // descarta respuestas de un OT ya no seleccionado
+  const docsReqRef = useRef<number | null>(null);       // idem para los adjuntos del detalle
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [selectedOt, setSelectedOt] = useState<OrdenTrabajo | null>(null);
   const [repuestosSel, setRepuestosSel] = useState<RepuestoOT[]>([]);
+  const [docs, setDocs] = useState<{ doc: Documento; url: string }[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
   const [confirmFinalizar, setConfirmFinalizar] = useState<OrdenTrabajo | null>(null);
 
   // Nueva solicitud form
@@ -83,36 +91,40 @@ const OrdenesTecnicoView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadOts = useCallback(async (z: string) => {
-    setLoading(true);
-    setLoadError(false);
+  const loadOts = useCallback(async (z: string, silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       const towers = torresEnZona(edificios, z);
       const rows = await api.ots.list();
-      setOts(rows.filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status)));
+      // PA parity: SortByColumns(Filter(CollectOT,...),"ID",SortOrder.Descending)
+      setOts(
+        rows
+          .filter((o) => towers.includes(o.torre ?? '') && OT_STATUSES.includes(o.status))
+          // Oculta OTs agendadas a futuro hasta que llega su fecha_asignada (ver otAgendadaVisible).
+          .filter((o) => otAgendadaVisible(o, todayISO()))
+          .sort((a, b) => b.id - a.id),
+      );
     } catch {
-      showToast('No se pudieron cargar las órdenes de trabajo.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar las órdenes de trabajo.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [edificios, showToast]);
 
   useEffect(() => {
     if (!zona || edificios.length === 0) { setLoading(false); return; }
     loadOts(zona);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zona, edificios, loadOts]);
 
+  // Realtime: silent refetch of the current zone's OTs when they change back-office side.
   useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [menuOpen]);
+    if (!zona) return;
+    return api.realtime.subscribe(['ots'], () => { void loadOts(zona, true); });
+  }, [zona, loadOts]);
 
   const closeSheets = () => { setActiveSheet(null); setSelectedOt(null); };
 
-  const towerOptions = useMemo(() => edificioOptions(edificios.filter((e) => e.status === 'Activo'), zonaKey), [edificios]);
   const solicitudTorreOptions = useMemo(
     () => (zona ? torresEnZona(edificios, zona).sort().map((t) => ({ value: t, label: t })) : []),
     [edificios, zona],
@@ -134,7 +146,23 @@ const OrdenesTecnicoView: React.FC = () => {
     return stockDelEdificio.filter((s) => (articulosMap.get(s.articulo_id)?.nombre ?? '').toLowerCase().includes(q));
   }, [stockDelEdificio, repuestoSearch, articulosMap]);
 
-  const openDetalle = (ot: OrdenTrabajo) => { setSelectedOt(ot); setActiveSheet('detalle'); };
+  const openDetalle = async (ot: OrdenTrabajo) => {
+    setSelectedOt(ot);
+    setActiveSheet('detalle');
+    setDocs([]);
+    setDocsLoading(true);
+    docsReqRef.current = ot.id;
+    try {
+      const rows = await api.documentos.list({ orden_trabajo_id: ot.id });
+      // El bucket es privado: cada archivo necesita una URL firmada para poder verse/abrirse.
+      const withUrls = await Promise.all(rows.map(async (d) => ({ doc: d, url: await api.documentos.url(d.storage_path) })));
+      if (docsReqRef.current === ot.id) setDocs(withUrls);
+    } catch {
+      // Silencioso: el detalle sigue siendo útil aunque las fotos no carguen.
+    } finally {
+      if (docsReqRef.current === ot.id) setDocsLoading(false);
+    }
+  };
   const openRepuestos = async (ot: OrdenTrabajo) => {
     setSelectedOt(ot);
     setActiveSheet('repuestos');
@@ -170,24 +198,19 @@ const OrdenesTecnicoView: React.FC = () => {
   };
   const openNuevaSolicitud = () => {
     setFecha(todayISO());
-    setTorreSel('');
+    // Preseleccionar la torre del edificio en el que está trabajando el técnico: la solicitud
+    // se crea desde adentro de un edificio ya elegido, no tiene sentido re-elegirlo.
+    setTorreSel(selected?.nombre ?? '');
     setDeptoSel('');
     setDetalleText('');
     setStaged([]);
     setActiveSheet('nuevaSolicitud');
   };
 
-  const handleTowerPick = () => {
-    const ed = edificios.find((e) => String(e.id) === pickerValue);
-    if (!ed) return;
-    setZona(zonaKey(ed));
-    setPickerValue('');
-    setActiveSheet(null);
-  };
-
   const handleFinalizar = async (ot: OrdenTrabajo) => {
+    if (!user) return;
     try {
-      await api.ots.finalizar(ot.id);
+      await api.ots.finalizar(ot.id, user.id); // PA mobile close stamps Tecnico_IN = the closing technician
       const repuestos = await api.ots.repuestos.list(ot.id);
       const emailRows = await api.emailsNotificacion.list();
       const recipients = resolveRecipients('OT', emailRows.map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' })));
@@ -204,7 +227,7 @@ const OrdenesTecnicoView: React.FC = () => {
         repuestos: repuestos.map((r) => ({ repuesto: r.repuesto ?? '', cantidad: r.cantidad })),
         tecnico: user?.concat_name ?? user?.nombre ?? '',
       });
-      if (recipients.length) void sendEmail(recipients, email);
+      if (FEATURES.emailOtResuelta && recipients.length) void sendEmail(recipients, email);
       showToast('Orden de trabajo completada.', 'success');
       if (zona) loadOts(zona);
     } catch {
@@ -223,7 +246,7 @@ const OrdenesTecnicoView: React.FC = () => {
     setSavingSolicitud(true);
     try {
       const unidad = unidades.find((u) => u.torre === torreSel && u.depto === deptoSel);
-      await api.ots.crear({
+      const creada = await api.ots.crear({
         id_univoco: '', // overwritten by the adapter; the API requires the field on input regardless
         status: 'Asignada',
         tipo: 'SOLICITUD OT',
@@ -235,7 +258,7 @@ const OrdenesTecnicoView: React.FC = () => {
         torre: torreSel,
         departamento: deptoSel,
         concat_activo: `${torreSel} - ${deptoSel}`,
-        tecnico_id: user.id,
+        tecnico_id: null, // PA does not set Tecnico_IN on a mobile solicitud; it's stamped at close time
         asignador_id: null,
         user_carga_id: user.id,
         fecha_inicio: fecha,
@@ -251,12 +274,18 @@ const OrdenesTecnicoView: React.FC = () => {
         orden_revision_id: null,
         problema: null,
         desde: 'Mobile',
-        version_app: null,
+        version_app: APP_VERSION,
         hora: new Date().toTimeString().slice(0, 5),
       });
-      // ponytail: staged photos are compressed + previewed client-side, but the DataApi
-      // has no documentos.crear yet — nothing to attach them to. Upgrade path: add
-      // documentos.crear(orden_trabajo_id, storage_path) and upload `staged` here.
+      // Persist staged photos to Storage (best-effort — the solicitud is created regardless).
+      if (staged.length) {
+        await Promise.allSettled(
+          staged.map(async (p, i) => {
+            const blob = await (await fetch(p.dataUrl)).blob();
+            return api.documentos.crear({ file: blob, nombre: `foto-${i + 1}.jpg`, carpeta: 'Ordenes', orden_trabajo_id: creada.id, content_type: blob.type });
+          }),
+        );
+      }
       showToast('Solicitud creada correctamente.', 'success');
       setActiveSheet(null);
       if (zona) loadOts(zona);
@@ -281,43 +310,39 @@ const OrdenesTecnicoView: React.FC = () => {
       setStockAll(freshStock);
       setRepuestosSel(freshRepuestos);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo asignar el repuesto.', 'error');
+      showToast(errorMessage(e, 'No se pudo asignar el repuesto.'), 'error');
     } finally {
       setAssigningId(null);
     }
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button onClick={() => navigate('/tecnico')} aria-label="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={() => navigate('/tecnico')} aria-label="Volver" title="Volver" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors md:hidden">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold tracking-tight truncate">Órdenes de Trabajo</h1>
         </div>
-        {zona && (
-          <div className="relative shrink-0" ref={menuRef}>
-            <button onClick={() => setMenuOpen((o) => !o)} aria-label="Más opciones" className="p-2 -m-2 rounded-full text-muted-foreground hover:bg-secondary transition-colors">
-              <MoreVertical className="h-5 w-5" />
+        <div className="flex items-center gap-2 shrink-0">
+          <BuildingChip />
+          {/* ponytail: gated on `zona` — solicitudTorreOptions is zone-scoped, an empty picker with no building isn't useful. */}
+          {zona && (
+            <button onClick={openNuevaSolicitud} aria-label="Agregar solicitud" title="Agregar solicitud" className={iconBtnPrimary}>
+              <Plus className="h-5 w-5" />
             </button>
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 z-[90] w-52 rounded-md border bg-popover shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors" onClick={() => { setMenuOpen(false); setActiveSheet('cambiarEdificio'); }}>Cambiar edificio</button>
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors" onClick={() => { setMenuOpen(false); openNuevaSolicitud(); }}>Agregar solicitud</button>
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors" onClick={() => { setMenuOpen(false); if (zona) loadOts(zona); }}>Actualizar</button>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {!zona ? (
-        <div className="rounded-lg border bg-card p-4 space-y-3">
-          <p className="text-sm font-medium">Elegí un edificio para ver sus órdenes de trabajo</p>
-          <Select value={pickerValue} onChange={setPickerValue} options={towerOptions} placeholder="Seleccioná un edificio" />
-          <Button className="w-full" disabled={!pickerValue} onClick={handleTowerPick}>Ver órdenes</Button>
+      {buildingLoading ? (
+        <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
+      ) : !selected ? (
+        <div className="space-y-3">
+          <EmptyState icon={Building2} title="Elegí un edificio" message="Seleccioná un edificio para ver sus órdenes de trabajo." />
+          <Button className="w-full" onClick={openPicker}>Elegí un edificio</Button>
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-16"><Loader size="md" /></div>
@@ -326,21 +351,28 @@ const OrdenesTecnicoView: React.FC = () => {
       ) : ots.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Sin órdenes de trabajo" message="No hay órdenes pendientes, asignadas o programadas en este edificio." />
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {ots.map((ot) => (
-            <div key={ot.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
+            <div key={ot.id} className="flex h-full flex-col rounded-lg border bg-card p-3 shadow-sm space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold">{ot.torre} - {ot.departamento}</p>
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <p className="text-sm font-semibold truncate">{ot.torre} - {ot.departamento}</p>
+                  {/* Réplica en la línea del título (no en un renglón propio) para que la tarjeta no crezca. */}
+                  {ot.orden_revision_id != null && (
+                    <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap shrink-0" title={`Réplica de OT #${ot.orden_revision_id}`}>↩ #{ot.orden_revision_id}</span>
+                  )}
+                </div>
                 <StatusBadge status={ot.prioridad} />
               </div>
-              <p className="text-xs text-muted-foreground">{ot.tipo_trabajo ?? 'Sin tipo'} | {formatDate(ot.fecha_asignada) || 'Sin fecha'}</p>
-              <div className="flex items-center gap-2 pt-1">
+              <p className="text-xs text-muted-foreground">{capitalizeFirst(ot.tipo_trabajo) || 'Sin tipo'} | {formatDate(ot.fecha_asignada) || 'Sin fecha'}</p>
+              <div className="flex items-center gap-2 pt-1 mt-auto">
                 <Button size="sm" className="flex-1" onClick={() => openDetalle(ot)}>Ver Detalle</Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => openRepuestos(ot)}>Repuestos</Button>
                 <button
                   aria-label="Completar orden: repuestos y cierre"
+                  title="Completar orden"
                   onClick={() => openAgregarRepuesto(ot)}
-                  className="h-9 w-9 shrink-0 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center active:scale-95 transition-transform"
+                  className="h-9 w-9 shrink-0 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-400 flex items-center justify-center active:scale-95 transition-transform"
                 >
                   <CheckCircle2 className="h-5 w-5" />
                 </button>
@@ -350,41 +382,62 @@ const OrdenesTecnicoView: React.FC = () => {
         </div>
       )}
 
-      {/* Cambiar edificio */}
-      <BottomSheet
-        isOpen={activeSheet === 'cambiarEdificio'}
-        onClose={() => setActiveSheet(null)}
-        title="Cambiar edificio"
-        footer={
-          <>
-            <Button variant="outline" className="flex-1" onClick={() => setActiveSheet(null)}>Cancelar</Button>
-            <Button className="flex-1" disabled={!pickerValue} onClick={handleTowerPick}>Aceptar</Button>
-          </>
-        }
-      >
-        <Select value={pickerValue} onChange={setPickerValue} options={towerOptions} placeholder="Seleccioná un edificio" />
-      </BottomSheet>
-
       {/* Ver detalle */}
       <BottomSheet isOpen={activeSheet === 'detalle'} onClose={closeSheets} title="Detalle de la orden" subtitle={selectedOt?.concat_activo ?? undefined}>
         {selectedOt && (
-          <dl className="space-y-3">
-            <DetailRow label="Torre" value={selectedOt.torre ?? '—'} />
-            <DetailRow label="Departamento" value={selectedOt.departamento ?? '—'} />
-            <DetailRow label="Fecha asignada" value={formatDate(selectedOt.fecha_asignada) || '—'} />
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-xs text-muted-foreground uppercase tracking-wide">Prioridad</dt>
-              <dd><StatusBadge status={selectedOt.prioridad} /></dd>
+          <div className="space-y-4">
+            {/* Prioridad destacada arriba de todo (antes iba perdida en el medio de la lista). */}
+            <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prioridad</span>
+              <StatusBadge status={selectedOt.prioridad} />
             </div>
-            <DetailRow label="Requiere parada de equipo" value={selectedOt.tipo_prioridad ?? '—'} />
-            <DetailRow label="Tipo de trabajo" value={selectedOt.tipo_trabajo ?? '—'} />
-            <DetailRow label="Días estimado" value={selectedOt.dias_estimado != null ? String(selectedOt.dias_estimado) : '—'} />
-            <DetailRow label="Personas requeridas" value={selectedOt.personas_requeridas != null ? String(selectedOt.personas_requeridas) : '—'} />
+            {/* Datos de la orden en un recuadro con divisores. */}
+            <dl className="divide-y rounded-lg border">
+              {/* Si es una réplica (Cerrada F → Replicar en back-office), mostrar la OT padre. */}
+              {selectedOt.orden_revision_id != null && (
+                <DetailRow label="Réplica de OT" value={`#${selectedOt.orden_revision_id}`} />
+              )}
+              <DetailRow label="Torre" value={selectedOt.torre ?? '—'} />
+              <DetailRow label="Departamento" value={selectedOt.departamento ?? '—'} />
+              <DetailRow label="Fecha asignada" value={formatDate(selectedOt.fecha_asignada) || '—'} />
+              <DetailRow label="Requiere parada de equipo" value={capitalizeFirst(selectedOt.tipo_prioridad) || '—'} />
+              <DetailRow label="Tipo de trabajo" value={capitalizeFirst(selectedOt.tipo_trabajo) || '—'} />
+              <DetailRow label="Días estimado" value={selectedOt.dias_estimado != null ? String(selectedOt.dias_estimado) : '—'} />
+              <DetailRow label="Personas requeridas" value={selectedOt.personas_requeridas != null ? String(selectedOt.personas_requeridas) : '—'} />
+            </dl>
+            {/* Observación en su propio campo recuadrado. */}
             <div>
-              <dt className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Detalle</dt>
-              <dd className="text-sm whitespace-pre-wrap">{selectedOt.detalle || 'Sin detalle.'}</dd>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Observación</p>
+              <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+                <p className="text-sm whitespace-pre-wrap">{capitalizeFirst(selectedOt.detalle) || 'Sin observación.'}</p>
+              </div>
             </div>
-          </dl>
+            {/* Fotos/archivos adjuntos: imágenes como thumbnail (tocar → abre full en pestaña nueva),
+                el resto como link con su nombre. Antes se subían al crear pero no había forma de verlos. */}
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fotos y archivos</p>
+              {docsLoading ? (
+                <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : docs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin archivos adjuntos.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {docs.map(({ doc, url }) =>
+                    (doc.content_type ?? '').startsWith('image/') ? (
+                      <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="block active:scale-95 transition-transform">
+                        <img src={url} alt={doc.nombre} loading="lazy" className="h-20 w-20 rounded-md object-cover border" />
+                      </a>
+                    ) : (
+                      <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate max-w-[10rem]">{doc.nombre}</span>
+                      </a>
+                    ),
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </BottomSheet>
 
@@ -394,10 +447,10 @@ const OrdenesTecnicoView: React.FC = () => {
           <p className="text-sm text-muted-foreground text-center py-6">Sin repuestos asignados.</p>
         ) : (
           <div className="space-y-2">
-            {repuestosSel.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
-                <span className="text-sm">{r.repuesto}</span>
-                <Badge>{r.cantidad}</Badge>
+            {groupRepuestos(repuestosSel).map((g) => (
+              <div key={g.key} className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
+                <span className="text-sm">{g.nombre}</span>
+                <Badge>{g.cantidad}</Badge>
               </div>
             ))}
           </div>
@@ -420,9 +473,9 @@ const OrdenesTecnicoView: React.FC = () => {
         {repuestosSel.length > 0 && (
           <div className="rounded-md border bg-muted/20 p-2 space-y-1">
             <p className="text-xs font-medium text-muted-foreground">Repuestos ya asignados</p>
-            {repuestosSel.map((r) => (
-              <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="truncate">{r.repuesto}</span><Badge className="shrink-0">{r.cantidad}</Badge>
+            {groupRepuestos(repuestosSel).map((g) => (
+              <div key={g.key} className="flex items-center justify-between gap-2 text-sm">
+                <span className="truncate">{g.nombre}</span><Badge className="shrink-0">{g.cantidad}</Badge>
               </div>
             ))}
           </div>
@@ -443,16 +496,16 @@ const OrdenesTecnicoView: React.FC = () => {
                       <p className="text-sm font-medium truncate">{articulosMap.get(row.articulo_id)?.nombre ?? `Artículo ${row.articulo_id}`}</p>
                       <p className="text-xs text-muted-foreground">Disponible: {row.cantidad}</p>
                     </div>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
+                    <NumberInput
                       min={1}
+                      placeholder="Ej: 1"
                       className={cn('h-9 w-16 text-center px-1', invalid && 'border-red-500 focus-visible:ring-red-500')}
                       value={qty}
                       onChange={(e) => setQtyMap((m) => ({ ...m, [row.id]: e.target.value }))}
                     />
                     <button
                       aria-label="Asignar repuesto"
+                      title="Asignar repuesto"
                       disabled={!qty || invalid || assigningId !== null}
                       onClick={() => handleAsignarRepuesto(row)}
                       className="h-9 w-9 shrink-0 rounded-md bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50 transition-colors"
@@ -488,11 +541,16 @@ const OrdenesTecnicoView: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha</label>
-            <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-10" />
+            <DatePicker value={fecha} onChange={setFecha} className="h-10" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre</label>
-            <Select value={torreSel} onChange={(v) => { setTorreSel(v); setDeptoSel(''); }} options={solicitudTorreOptions} placeholder="Seleccioná una torre" />
+            {/* Con una sola torre en la zona, elegir no aporta: se muestra fija. */}
+            {solicitudTorreOptions.length <= 1 ? (
+              <div className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">{torreSel || '—'}</div>
+            ) : (
+              <Select value={torreSel} onChange={(v) => { setTorreSel(v); setDeptoSel(''); }} options={solicitudTorreOptions} placeholder="Seleccioná una torre" />
+            )}
           </div>
         </div>
         <div>
@@ -524,6 +582,7 @@ const OrdenesTecnicoView: React.FC = () => {
                   <img src={p.dataUrl} className="h-16 w-16 rounded-md object-cover border" alt="Foto adjunta" />
                   <button
                     aria-label="Quitar foto"
+                    title="Quitar foto"
                     onClick={() => setStaged((prev) => prev.filter((x) => x.id !== p.id))}
                     className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
                   >

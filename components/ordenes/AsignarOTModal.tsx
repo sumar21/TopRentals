@@ -5,15 +5,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Loader2, Plus, Save, Trash2, X } from 'lucide-react';
-import { Button, Combobox, Input, useModalAnimation } from '../ui/UIComponents';
+import { Button, Combobox, useModalAnimation } from '../ui/UIComponents';
 import { Select } from '../ui/Select';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
 import type { Articulo, Edificio, OrdenTrabajo, Usuario } from '../../services/types';
+import { articuloLabel } from '../../utils/articulos';
 import type { StockRowWithEdificios } from '../../services/api';
 import { todayISO } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface StagedRepuesto { articulo_id: number; nombre: string; cantidad: number; }
 
@@ -58,7 +61,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
   }, [isOpen]);
 
   const tecnicoOptions = useMemo(() => tecnicos.map((t) => ({ label: t.concat_name, value: String(t.id) })), [tecnicos]);
-  const articuloOptions = useMemo(() => articulos.map((a) => ({ label: a.nombre, value: String(a.id) })), [articulos]);
+  const articuloOptions = useMemo(() => articulos.map((a) => ({ label: articuloLabel(a), value: String(a.id) })), [articulos]);
   const disponible = useMemo(() => {
     if (!articuloId || edificioId == null) return 0;
     const row = stock.find((s) => s.articulo_id === Number(articuloId) && s.edificio_ids.includes(edificioId));
@@ -96,7 +99,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
       onSaved(saved);
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo asignar la orden de trabajo.';
+      const msg = errorMessage(e, 'No se pudo asignar la orden de trabajo.');
       setError(msg);
       showToast(msg, 'error');
     } finally {
@@ -107,21 +110,21 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
   if (!visible) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Asignar Orden de Trabajo</h2>
             {ot && <p className="text-xs text-muted-foreground">OT <span className="font-medium text-foreground">#{ot.id}</span></p>}
           </div>
-          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" aria-label="Cerrar">
+          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" title="Cerrar" aria-label="Cerrar">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+            <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}
@@ -138,7 +141,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
                 <Combobox options={articuloOptions} value={articuloId} onChange={setArticuloId} placeholder="Artículo…" searchPlaceholder="Buscar artículo…" disabled={loadingData} />
               </div>
               <div className="w-24">
-                <Input type="number" min={1} inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+                <NumberInput min={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 1" />
               </div>
               <Button variant="outline" onClick={handleAgregarRepuesto} disabled={!articuloId} className="gap-1.5 shrink-0"><Plus className="h-4 w-4" /> Agregar</Button>
             </div>
@@ -149,7 +152,7 @@ const AsignarOTModal: React.FC<AsignarOTModalProps> = ({ isOpen, onClose, ot, ed
                 {staged.map((r, i) => (
                   <li key={`${r.articulo_id}-${i}`} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-sm">
                     <span className="truncate">{r.nombre} <span className="text-muted-foreground">x{r.cantidad}</span></span>
-                    <button type="button" onClick={() => removeStaged(i)} aria-label={`Quitar ${r.nombre}`} className="text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => removeStaged(i)} title={`Quitar ${r.nombre}`} aria-label={`Quitar ${r.nombre}`} className="text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-4 w-4" /></button>
                   </li>
                 ))}
               </ul>

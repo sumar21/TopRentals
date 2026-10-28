@@ -12,6 +12,7 @@ import { api } from '../../services/index';
 import type { Bitacora, OrdenTrabajo } from '../../services/types';
 import { formatDate } from '../../utils/dates';
 import { fileToCompressedDataUrl } from './otHelpers';
+import { errorMessage } from '../../utils/errorMessage';
 
 export interface BitacorasModalProps {
   isOpen: boolean;
@@ -27,12 +28,10 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ponytail: DataApi.ots.bitacoras.list() returns only Bitacora rows — there is no
-  // endpoint that joins back the FotoBitacora row created alongside an entry, so a
-  // saved photo can't be re-fetched after a reload. Photos are shown only for entries
-  // added in this session (kept in `sessionFotos` below). Upgrade path: extend
-  // ots.bitacoras.list() to embed foto_path once the real backend lands (services/*
-  // is out of scope for this module).
+  // Fotos guardadas: se re-leen con api.ots.bitacoras.fotos() al abrir (keyed por bitacora_id).
+  // `sessionFotos` cubre la ventana entre "agregué una" y el próximo refetch. El foto_path puede
+  // ser un dataURL base64 (lo que sube la app) → se renderiza directo con <img>.
+  const [fotos, setFotos] = useState<Record<number, string>>({});
   const [sessionFotos, setSessionFotos] = useState<Record<number, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
 
@@ -49,8 +48,17 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
     setDescripcion('');
     setFotoUrl('');
     setSessionFotos({});
+    setFotos({});
     setLoading(true);
-    api.ots.bitacoras.list(ot.id).then(setBitacoras).catch(() => setError('No se pudieron cargar las bitácoras.')).finally(() => setLoading(false));
+    Promise.all([api.ots.bitacoras.list(ot.id), api.ots.bitacoras.fotos(ot.id)])
+      .then(([bs, fs]) => {
+        setBitacoras(bs);
+        const map: Record<number, string> = {};
+        for (const f of fs) if (f.bitacora_id != null) map[f.bitacora_id] = f.foto_path;
+        setFotos(map);
+      })
+      .catch(() => setError('No se pudieron cargar las bitácoras.'))
+      .finally(() => setLoading(false));
   }, [isOpen, ot]);
 
   const handleFile = async (file: File | null | undefined) => {
@@ -73,7 +81,7 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
       setShowForm(false);
       showToast('Bitácora agregada.', 'success');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo agregar la bitácora.', 'error');
+      showToast(errorMessage(e, 'No se pudo agregar la bitácora.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -82,21 +90,21 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
   if (!visible) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Bitácoras</h2>
             {ot && <p className="text-xs text-muted-foreground">OT <span className="font-medium text-foreground">#{ot.id}</span></p>}
           </div>
-          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" aria-label="Cerrar">
+          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" title="Cerrar" aria-label="Cerrar">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+            <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}
@@ -112,9 +120,9 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
             <ul className="space-y-2">
               {bitacoras.map((b) => (
                 <li key={b.id} className="rounded-lg border bg-card p-3 flex gap-3">
-                  {sessionFotos[b.id] && (
-                    <button type="button" onClick={() => setLightbox(sessionFotos[b.id])} className="shrink-0">
-                      <img src={sessionFotos[b.id]} alt="" className="h-12 w-12 rounded-md object-cover border" />
+                  {(fotos[b.id] ?? sessionFotos[b.id]) && (
+                    <button type="button" onClick={() => setLightbox(fotos[b.id] ?? sessionFotos[b.id])} className="shrink-0">
+                      <img src={fotos[b.id] ?? sessionFotos[b.id]} alt="" loading="lazy" className="h-12 w-12 rounded-md object-cover border" />
                     </button>
                   )}
                   <div className="min-w-0 flex-1">
@@ -131,6 +139,7 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Descripción *</label>
                 <textarea rows={3} maxLength={500} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} autoFocus
+                  placeholder="Descripción de la bitácora…"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
               </div>
               <div>
@@ -138,7 +147,7 @@ const BitacorasModal: React.FC<BitacorasModalProps> = ({ isOpen, onClose, ot }) 
                 {fotoUrl ? (
                   <div className="flex items-center gap-3 rounded-lg border border-input bg-muted/20 p-2.5">
                     <img src={fotoUrl} alt="" className="h-12 w-12 rounded-md object-cover border shrink-0" />
-                    <button type="button" onClick={() => setFotoUrl('')} aria-label="Quitar foto"
+                    <button type="button" onClick={() => setFotoUrl('')} title="Quitar foto" aria-label="Quitar foto"
                       className="h-8 w-8 rounded-md border border-input flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto">
                       <X className="h-4 w-4" />
                     </button>

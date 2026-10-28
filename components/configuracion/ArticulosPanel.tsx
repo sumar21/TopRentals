@@ -9,6 +9,7 @@ import { api } from '../../services/index.ts';
 import type { Articulo } from '../../services/types.ts';
 import { Card, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, Input, cn, useModalAnimation } from '../ui/UIComponents';
 import { MoneyInput } from '../ui/MoneyInput';
+import { NumberInput } from '../ui/NumberInput';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -22,13 +23,14 @@ interface FormState { codigo: string; nombre: string; precio: string; corte: str
 const emptyForm: FormState = { codigo: '', nombre: '', precio: '', corte: '', detalle: '' };
 
 // PA genera el código automáticamente (txt_Nro_ART: DisplayMode.View, Value = Max(ID)+1);
-// nunca es editable. Acá replicamos el auto-incremento respetando el formato del catálogo (AR-NNN).
+// nunca es editable. El catálogo real usa código NUMÉRICO a secas (data migrada: "5", "6", "7"…),
+// no "AR-NNN" — ese prefijo era un invento de la app. Replicamos el número puro = Max+1.
 function nextCodigo(articulos: Articulo[]): string {
   const max = articulos.reduce((m, a) => {
     const n = Number(String(a.codigo ?? '').replace(/\D/g, ''));
     return Number.isFinite(n) && n > m ? n : m;
   }, 0);
-  return `AR-${String(max + 1).padStart(3, '0')}`;
+  return String(max + 1);
 }
 
 const ArticuloFormModal: React.FC<{
@@ -92,14 +94,14 @@ const ArticuloFormModal: React.FC<{
   );
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">{articulo ? 'Editar artículo' : 'Nuevo artículo'}</h2>
             <p className="text-xs text-muted-foreground">Catálogo de precios</p>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors"><X className="h-5 w-5 text-muted-foreground" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -112,13 +114,13 @@ const ArticuloFormModal: React.FC<{
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Artículo<span className="text-destructive ml-0.5">*</span></label>
               <Input value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                aria-invalid={!!errors.nombre} className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+                aria-invalid={!!errors.nombre} placeholder="Nombre del artículo" className={cn(errors.nombre && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('nombre')}
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Stock mínimo<span className="text-destructive ml-0.5">*</span></label>
-              <Input type="number" inputMode="numeric" min={0} value={form.corte} onChange={(e) => setForm((f) => ({ ...f, corte: e.target.value }))}
-                aria-invalid={!!errors.corte} className={cn(errors.corte && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
+              <NumberInput min={0} value={form.corte} onChange={(e) => setForm((f) => ({ ...f, corte: e.target.value }))}
+                placeholder="Ej: 10" aria-invalid={!!errors.corte} className={cn(errors.corte && 'border-destructive focus:border-destructive focus:ring-destructive/30')} />
               {err('corte')}
             </div>
             <div>
@@ -130,6 +132,7 @@ const ArticuloFormModal: React.FC<{
             <div className="sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Detalle</label>
               <textarea rows={3} maxLength={500} value={form.detalle} onChange={(e) => setForm((f) => ({ ...f, detalle: e.target.value }))}
+                placeholder="Detalle del artículo (opcional)"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
             </div>
           </div>
@@ -156,24 +159,26 @@ const ArticulosPanel: React.FC = () => {
   const [formTarget, setFormTarget] = useState<Articulo | 'new' | null>(null);
   const [toggleTarget, setToggleTarget] = useState<Articulo | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    setLoadError(false);
+  const load = async (silent = false) => {
+    if (!silent) { setLoading(true); setLoadError(false); }
     try {
       setArticulos(await api.articulos.list());
     } catch {
-      showToast('No se pudieron cargar los artículos.', 'error');
-      setLoadError(true);
+      if (!silent) { showToast('No se pudieron cargar los artículos.', 'error'); setLoadError(true); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
   useEffect(() => { load(); }, []);
+  // Realtime: catalog edits (this app or the shared SharePoint one) refetch silently.
+  useEffect(() => api.realtime.subscribe(['articulos'], () => { void load(true); }), []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return articulos;
-    return articulos.filter((a) => `${a.codigo ?? ''} ${a.nombre}`.toLowerCase().includes(q));
+    // PA parity: SortByColumns(CollectArticulosABM,"ID",SortOrder.Ascending)
+    const sorted = [...articulos].sort((a, b) => a.id - b.id);
+    if (!q) return sorted;
+    return sorted.filter((a) => `${a.codigo ?? ''} ${a.nombre}`.toLowerCase().includes(q));
   }, [articulos, search]);
 
   const handleToggle = async () => {
@@ -198,7 +203,7 @@ const ArticulosPanel: React.FC = () => {
           <Ban className="h-4 w-4" />
         </Button>
       ) : (
-        <Button variant="ghost" size="icon" aria-label="Activar" title="Activar" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setToggleTarget(a)}>
+        <Button variant="ghost" size="icon" aria-label="Activar" title="Activar" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" onClick={() => setToggleTarget(a)}>
           <CheckCircle2 className="h-4 w-4" />
         </Button>
       )}
@@ -206,7 +211,7 @@ const ArticulosPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:flex-1 md:min-h-0">
       {/* En pantallas grandes (≥1024, lg) el toolbar sube a la misma fila que los tabs (que viven
           en ConfiguracionView), para no dejar un header alto de dos filas. En mobile y tablet queda
           debajo (no entran juntos: a 768px el sidebar + los tabs no dejan lugar para search + botón
@@ -246,8 +251,8 @@ const ArticulosPanel: React.FC = () => {
               </div>
             ))}
           </div>
-          <Card className="hidden md:block border shadow-sm">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Código</TableHead>

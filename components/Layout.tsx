@@ -1,12 +1,14 @@
 // Back-office app shell — DESIGN.md §4.5: collapsible aside on desktop, fixed
 // header + left drawer on mobile, <TooltipHost/> mounted once here.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, LogOut, Menu, X } from 'lucide-react';
+import { ChevronLeft, LogOut, Menu, Moon, Smartphone, Sun, X } from 'lucide-react';
 import { cn, Avatar, AvatarFallback } from './ui/UIComponents';
 import { TooltipHost } from './ui/Tooltip';
 import ConfirmModal from './ConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { api } from '../services/index';
 import { canAccessModule, moduleRoute } from '../utils/permissions';
 import { moduleIcon, moduleLabel } from '../config/moduleIcons';
 
@@ -15,8 +17,9 @@ interface NavEntry {
   route: string;
 }
 
-const NavItem = ({ entry, collapsed, onClick }: { entry: NavEntry; collapsed: boolean; onClick?: () => void }) => {
+const NavItem = ({ entry, collapsed, onClick, badge }: { entry: NavEntry; collapsed: boolean; onClick?: () => void; badge?: number }) => {
   const Icon = moduleIcon(entry.modulo);
+  const showBadge = typeof badge === 'number' && badge > 0;
   return (
     <NavLink
       to={entry.route}
@@ -30,14 +33,24 @@ const NavItem = ({ entry, collapsed, onClick }: { entry: NavEntry; collapsed: bo
         )
       }
     >
-      <Icon className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />
+      <span className={cn('relative shrink-0', !collapsed && 'mr-3')}>
+        <Icon className="h-4 w-4" />
+        {/* Colapsado: sin lugar para el número, un punto rojo sobre el ícono. */}
+        {showBadge && collapsed && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-card" />}
+      </span>
       {!collapsed && <span className="truncate">{moduleLabel(entry.modulo)}</span>}
+      {showBadge && !collapsed && (
+        <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </NavLink>
   );
 };
 
 const Layout = () => {
   const { user, permisos, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -46,14 +59,37 @@ const Layout = () => {
 
   const entries = useMemo<NavEntry[]>(() => {
     if (!user) return [];
-    return permisos
+    const base = permisos
       .filter((row) => canAccessModule(user.perfil, row.modulo, permisos))
       .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
       .map((row) => ({ modulo: row.modulo, route: moduleRoute(row.modulo, 'Desktop') }));
+    if (user.perfil !== 'Admin') return base;
+    // Dashboard is Admin-only and not backed by a perfiles_permisos row — insert it right
+    // above Configuración (ABM), not at the top, so Home stays the first item.
+    const dash = { modulo: 'Dashboard', route: '/dashboard' };
+    const cfgIdx = base.findIndex((e) => e.modulo === 'ABM');
+    return cfgIdx === -1 ? [...base, dash] : [...base.slice(0, cfgIdx), dash, ...base.slice(cfgIdx)];
   }, [user, permisos]);
 
-  const activeModule = entries.find((e) => location.pathname.startsWith(e.route))?.modulo ?? 'TopRentals';
+  const activeModule = entries.find((e) => location.pathname.startsWith(e.route))?.modulo ?? 'Top Rentals';
   const initials = user ? `${user.nombre?.[0] ?? ''}${user.apellido?.[0] ?? ''}`.toUpperCase() || 'TR' : 'TR';
+
+  // Badge de "Mis aprobaciones": cantidad pendiente PARA ESTE PERFIL (mismo criterio que la vista de
+  // Aprobaciones). Solo se consulta si el usuario tiene el módulo; live-update por realtime.
+  const canAprob = useMemo(() => entries.some((e) => e.modulo === 'Aprobaciones'), [entries]);
+  const [aprobPendientes, setAprobPendientes] = useState(0);
+  useEffect(() => {
+    if (!user || !canAprob) { setAprobPendientes(0); return; }
+    const { perfil } = user;
+    const contar = (rows: { status: string }[]) => {
+      if (perfil === 'Gerencia') return rows.filter((r) => r.status === 'Aprobada Supervision').length;
+      if (perfil === 'Admin') return rows.filter((r) => r.status === 'Aprobada Supervision' || r.status === 'Pendiente').length;
+      return rows.filter((r) => r.status === 'Pendiente').length;
+    };
+    const load = () => { void api.aprobaciones.list().then((rows) => setAprobPendientes(contar(rows))).catch(() => {}); };
+    load();
+    return api.realtime.subscribe(['aprobaciones'], load);
+  }, [user, canAprob]);
 
   const doLogout = () => {
     logout();
@@ -63,7 +99,13 @@ const Layout = () => {
   const nav = (onItemClick?: () => void, isCollapsed = false) => (
     <nav className="flex-1 space-y-1 overflow-y-auto p-3">
       {entries.map((entry) => (
-        <NavItem key={entry.modulo} entry={entry} collapsed={isCollapsed} onClick={onItemClick} />
+        <NavItem
+          key={entry.modulo}
+          entry={entry}
+          collapsed={isCollapsed}
+          onClick={onItemClick}
+          badge={entry.modulo === 'Aprobaciones' ? aprobPendientes : undefined}
+        />
       ))}
     </nav>
   );
@@ -72,24 +114,56 @@ const Layout = () => {
     <div className="flex h-screen bg-background text-foreground">
       {/* Aside desktop */}
       <aside className={cn('hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out z-20', collapsed ? 'w-16' : 'w-64')}>
-        <div className="flex h-16 items-center gap-2 border-b px-4">
-          <img src="/logo.png" alt="TopRentals" className="h-8 w-8 rounded-md shrink-0" />
-          {!collapsed && <span className="text-sm font-bold tracking-tight truncate">TopRentals</span>}
+        {/* Colapsado (w-16): logo + toggle no entran en una fila → se apilan centrados en lugar de desbordar. */}
+        <div className={cn('flex h-16 border-b', collapsed ? 'flex-col items-center justify-center gap-1 px-3' : 'items-center gap-2 px-4')}>
+          {/* Colapsado: logo un poco más chico para que no quede pegado a los bordes del riel angosto (w-16). */}
+          <img src="/logo.png" alt="Top Rentals" className={cn('rounded-md shrink-0', collapsed ? 'h-7 w-7' : 'h-8 w-8')} />
+          {!collapsed && <span className="text-sm font-bold tracking-tight truncate">Top Rentals</span>}
           <button
             onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
             aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-            className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+            className={cn('rounded-md text-muted-foreground hover:bg-muted', collapsed ? 'p-1' : 'ml-auto p-1.5')}
           >
             <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
           </button>
         </div>
         {nav(undefined, collapsed)}
-        <div className="border-t p-3">
+        <div className="space-y-1 border-t p-3">
+          <button
+            onClick={toggleTheme}
+            title={collapsed ? (theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro') : undefined}
+            aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            className={cn(
+              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+              collapsed && 'justify-center',
+            )}
+          >
+            {/* Ícono + label = estado ACTUAL (lo que ves), no la acción — el tooltip/aria dice qué hace al click. */}
+            {theme === 'dark'
+              ? <Moon className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />
+              : <Sun className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />}
+            {!collapsed && (theme === 'dark' ? 'Modo oscuro' : 'Modo claro')}
+          </button>
+          {user?.perfil === 'Admin' && (
+            <button
+              onClick={() => navigate('/tecnico')}
+              title="Ir a la app de técnicos"
+              aria-label="Ir a la app de técnicos"
+              className={cn(
+                'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                collapsed && 'justify-center',
+              )}
+            >
+              <Smartphone className={cn('h-4 w-4 shrink-0', !collapsed && 'mr-3')} />
+              {!collapsed && 'App técnicos'}
+            </button>
+          )}
           <button
             onClick={() => setConfirmLogout(true)}
             title={collapsed ? 'Cerrar sesión' : undefined}
             className={cn(
-              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-destructive hover:bg-red-50',
+              'group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all w-full text-destructive hover:bg-destructive/10',
               collapsed && 'justify-center',
             )}
           >
@@ -101,7 +175,7 @@ const Layout = () => {
 
       {/* Header mobile fijo */}
       <header className="fixed inset-x-0 top-0 z-20 flex h-16 items-center gap-3 border-b bg-card px-4 md:hidden">
-        <button onClick={() => setDrawerOpen(true)} aria-label="Abrir menú" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
+        <button onClick={() => setDrawerOpen(true)} title="Abrir menú" aria-label="Abrir menú" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <Menu className="h-5 w-5" />
         </button>
         <span className="text-sm font-bold tracking-tight">{moduleLabel(activeModule)}</span>
@@ -117,20 +191,38 @@ const Layout = () => {
         <div className="fixed inset-0 z-50 bg-black/60 md:hidden" onClick={() => setDrawerOpen(false)}>
           <div className="drawer-enter-left flex h-full w-72 max-w-[85vw] flex-col bg-card" onClick={(e) => e.stopPropagation()}>
             <div className="flex h-16 items-center gap-2 border-b px-4">
-              <img src="/logo.png" alt="TopRentals" className="h-8 w-8 rounded-md" />
-              <span className="text-sm font-bold tracking-tight">TopRentals</span>
-              <button onClick={() => setDrawerOpen(false)} aria-label="Cerrar menú" className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+              <img src="/logo.png" alt="Top Rentals" className="h-8 w-8 rounded-md" />
+              <span className="text-sm font-bold tracking-tight">Top Rentals</span>
+              <button onClick={() => setDrawerOpen(false)} title="Cerrar menú" aria-label="Cerrar menú" className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-muted">
                 <X className="h-4 w-4" />
               </button>
             </div>
             {nav(() => setDrawerOpen(false))}
-            <div className="border-t p-3">
+            <div className="space-y-1 border-t p-3">
+              <button
+                onClick={toggleTheme}
+                aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+              >
+                {theme === 'dark' ? <Moon className="mr-3 h-4 w-4" /> : <Sun className="mr-3 h-4 w-4" />}
+                {theme === 'dark' ? 'Modo oscuro' : 'Modo claro'}
+              </button>
+              {user?.perfil === 'Admin' && (
+                <button
+                  onClick={() => { setDrawerOpen(false); navigate('/tecnico'); }}
+                  title="Ir a la app de técnicos"
+                  aria-label="Ir a la app de técnicos"
+                  className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Smartphone className="mr-3 h-4 w-4" /> App técnicos
+                </button>
+              )}
               <button
                 onClick={() => {
                   setDrawerOpen(false);
                   setConfirmLogout(true);
                 }}
-                className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-red-50"
+                className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive transition-all hover:bg-destructive/10"
               >
                 <LogOut className="mr-3 h-4 w-4" /> Cerrar sesión
               </button>

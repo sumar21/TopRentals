@@ -3,15 +3,20 @@
 // via the `readOnly` prop, to avoid a second near-identical modal component.
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Loader2, Paperclip, Save, Upload, X } from 'lucide-react';
-import { Button, Input, useModalAnimation } from '../ui/UIComponents';
+import { AlertCircle, FileText, Loader2, Paperclip, Save, Upload, X } from 'lucide-react';
+import { Button, Combobox, useModalAnimation } from '../ui/UIComponents';
+import { DatePicker } from '../ui/DatePicker';
 import { Select } from '../ui/Select';
+import { NumberInput } from '../ui/NumberInput';
 import { backdropClose } from '../ui/backdropClose';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
 import { api } from '../../services/index';
-import type { Edificio, OrdenTrabajo, Unidad } from '../../services/types';
-import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TRABAJO_TAREA_OPTIONS } from './otHelpers';
+import { APP_VERSION } from '../../config/appVersion';
+import { todayISO } from '../../utils/dates';
+import type { Documento, Edificio, OrdenTrabajo, Unidad } from '../../services/types';
+import { OCUPACION_OPTIONS, PRIORIDAD_OPTIONS, TIPO_TAREA_OPTIONS, TIPO_TRABAJO_OPTIONS } from './otHelpers';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface StagedPhoto { id: string; file: File; url: string; }
 
@@ -41,6 +46,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
   const [personasRequeridas, setPersonasRequeridas] = useState('');
   const [detalle, setDetalle] = useState('');
   const [fotos, setFotos] = useState<StagedPhoto[]>([]);
+  const [savedDocs, setSavedDocs] = useState<{ doc: Documento; url: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -60,7 +66,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
       setPersonasRequeridas(ot.personas_requeridas != null ? String(ot.personas_requeridas) : '');
       setDetalle(ot.detalle ?? '');
     } else {
-      setFechaInicio(new Date().toISOString().slice(0, 10));
+      setFechaInicio(todayISO()); // día LOCAL (no toISOString/UTC, que a la tarde en AR ya es mañana → OT nacería oculta)
       setEdificioId('');
       setUnidadId('');
       setPrioridad('Media');
@@ -74,16 +80,26 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
     setFotos([]);
   }, [isOpen, ot, edificios, unidades]);
 
-  // Staged photos are client-side only for now — never uploaded/persisted.
-  // ponytail: real Storage backend for OT attachments (SharePoint 'Documentos' vs
-  // Supabase Storage) isn't decided yet; services/api.ts has no write endpoint for
-  // Documento rows. Upgrade path: add `ots.adjuntos.subir()` once the backend lands,
-  // then swap this staged-only list for a real upload here.
+  // Staged photos are uploaded to Storage on create (handleSubmit → api.documentos.crear,
+  // carpeta 'Ordenes', attached to the new OT). This effect just revokes the preview object URLs.
   useEffect(() => () => fotos.forEach((f) => URL.revokeObjectURL(f.url)), [fotos]);
+
+  // Documentos YA subidos de esta OT: se leen y se firman (bucket privado) para poder verlos.
+  useEffect(() => {
+    if (!isOpen || !ot) { setSavedDocs([]); return; }
+    let cancelled = false;
+    api.documentos.list({ orden_trabajo_id: ot.id })
+      .then((rows) => Promise.all(rows.map(async (d) => ({ doc: d, url: await api.documentos.url(d.storage_path) }))))
+      .then((withUrls) => { if (!cancelled) setSavedDocs(withUrls); })
+      .catch(() => { if (!cancelled) setSavedDocs([]); });
+    return () => { cancelled = true; };
+  }, [isOpen, ot]);
 
   const edificioOptions = useMemo(() => edificios.filter((e) => e.status === 'Activo').map((e) => ({ label: e.nombre, value: String(e.id) })), [edificios]);
   const unidadOptions = useMemo(
-    () => unidades.filter((u) => String(u.edificio_id ?? '') === edificioId && u.status === 'Alta').map((u) => ({ label: `${u.torre ?? ''} - ${u.depto ?? u.id_client ?? u.id}`, value: String(u.id) })),
+    () => unidades.filter((u) => String(u.edificio_id ?? '') === edificioId && u.status === 'Alta')
+      .map((u) => ({ label: `${u.torre ?? ''} - ${u.depto ?? u.id_client ?? u.id}`, value: String(u.id) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true })), // depto de menor a mayor (numeric: 0419 < 1106)
     [unidades, edificioId],
   );
 
@@ -118,11 +134,16 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
         departamento: unidad?.depto ?? null,
         concat_activo: unidad ? `${unidad.torre ?? ''} - ${unidad.depto ?? ''}` : null,
         tecnico_id: ot?.tecnico_id ?? null,
-        asignador_id: ot?.asignador_id ?? null,
+        // PA create stamps Asignador_OT + FechaAsignada_IN (status is 'Asignada' from the start); edit keeps them.
+        asignador_id: ot ? ot.asignador_id : user.id,
         user_carga_id: ot?.user_carga_id ?? user.id,
         fecha_inicio: fechaInicio,
         fecha_cierre: ot?.fecha_cierre ?? null,
-        fecha_asignada: ot?.fecha_asignada ?? null,
+        // fecha_asignada SIEMPRE espejo de "Fecha de la OT" (fechaInicio), en alta y en edición: es el
+        // único campo de fecha del form y lo que ve/filtra el técnico. Futura → la OT queda oculta hasta
+        // ese día (otAgendadaVisible); hoy/pasada → visible. Recalcular en edición evita el desync que
+        // dejaba una OT oculta para siempre tras corregirle la fecha (fecha_inicio cambiaba, la vieja no).
+        fecha_asignada: fechaInicio,
         dias_estimado: Number(diasEstimado),
         personas_requeridas: Number(personasRequeridas),
         detalle,
@@ -133,16 +154,24 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
         orden_revision_id: ot?.orden_revision_id ?? null,
         problema: ot?.problema ?? null,
         desde: 'Desktop' as const,
-        version_app: ot?.version_app ?? null,
+        version_app: ot?.version_app ?? APP_VERSION,
         hora: ot?.hora ?? null,
         id_univoco: ot?.id_univoco ?? '',
       };
       const saved = ot ? await api.ots.actualizar(ot.id, payload) : await api.ots.crear(payload);
       showToast(ot ? 'Orden de trabajo actualizada.' : 'Orden de trabajo creada.', 'success');
+      // Persist staged photos to Storage (only on create). Best-effort: a failed upload never undoes the OT.
+      if (!ot && fotos.length) {
+        const results = await Promise.allSettled(
+          fotos.map((f) => api.documentos.crear({ file: f.file, nombre: f.file.name, carpeta: 'Ordenes', orden_trabajo_id: saved.id })),
+        );
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        if (failed) showToast(`${failed} foto(s) no se pudieron subir.`, 'error');
+      }
       onSaved(saved);
       onClose();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'No se pudo guardar la orden de trabajo.';
+      const msg = errorMessage(e, 'No se pudo guardar la orden de trabajo.');
       setError(msg);
       showToast(msg, 'error');
     } finally {
@@ -154,29 +183,29 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
   const title = readOnly ? 'Detalle de la Orden de Trabajo' : ot ? 'Editar Solicitud' : 'Nueva Solicitud';
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">{title}</h2>
             {ot && <p className="text-xs text-muted-foreground">OT <span className="font-medium text-foreground">#{ot.id}</span></p>}
           </div>
-          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" aria-label="Cerrar">
+          <button onClick={saving ? undefined : onClose} className="p-2 hover:bg-secondary rounded-full transition-colors" title="Cerrar" aria-label="Cerrar">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {error && (
-            <div role="alert" className="p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2 text-sm">
+            <div role="alert" className="p-3 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg flex items-center gap-2 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" /> {error}
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha Incidente *</label>
-              <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} disabled={readOnly} />
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de la OT *</label>
+              <DatePicker value={fechaInicio} onChange={setFechaInicio} disabled={readOnly} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Torre *</label>
@@ -184,7 +213,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Departamento *</label>
-              <Select value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Seleccionar…' : 'Elegí una torre primero'} disabled={readOnly || !edificioId} />
+              <Combobox value={unidadId} onChange={setUnidadId} options={unidadOptions} placeholder={edificioId ? 'Seleccionar…' : 'Elegí una torre primero'} searchPlaceholder="Buscar depto…" disabled={readOnly || !edificioId} />
             </div>
           </div>
 
@@ -202,30 +231,50 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de trabajo *</label>
-              <Select value={tipoTrabajo} onChange={setTipoTrabajo} options={TIPO_TRABAJO_TAREA_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
+              <Select value={tipoTrabajo} onChange={setTipoTrabajo} options={TIPO_TRABAJO_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de tarea *</label>
-              <Select value={tipoTarea} onChange={setTipoTarea} options={TIPO_TRABAJO_TAREA_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
+              <Select value={tipoTarea} onChange={setTipoTarea} options={TIPO_TAREA_OPTIONS} placeholder="Seleccionar…" disabled={readOnly} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Días estimados *</label>
-              <Input type="number" min={0} inputMode="numeric" value={diasEstimado} onChange={(e) => setDiasEstimado(e.target.value)} disabled={readOnly} />
+              <NumberInput min={0} value={diasEstimado} onChange={(e) => setDiasEstimado(e.target.value)} disabled={readOnly} placeholder="Ej: 3" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Personas necesarias *</label>
-              <Input type="number" min={0} inputMode="numeric" value={personasRequeridas} onChange={(e) => setPersonasRequeridas(e.target.value)} disabled={readOnly} />
+              <NumberInput min={0} value={personasRequeridas} onChange={(e) => setPersonasRequeridas(e.target.value)} disabled={readOnly} placeholder="Ej: 2" />
             </div>
           </div>
 
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Detalle *</label>
             <textarea rows={3} maxLength={1000} value={detalle} onChange={(e) => setDetalle(e.target.value)} disabled={readOnly}
+              placeholder="Describí el problema o la tarea…"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none disabled:opacity-50" />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> Adjuntar archivos</label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> {readOnly ? 'Archivos adjuntos' : 'Adjuntar archivos'}</label>
+            {/* Adjuntos ya subidos (galería read-only, siempre visible). Bucket privado → signed URL. */}
+            {savedDocs.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {savedDocs.map(({ doc, url }) =>
+                  (doc.content_type ?? '').startsWith('image/') ? (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="block active:scale-95 transition-transform">
+                      <img src={url} alt={doc.nombre} loading="lazy" className="h-16 w-16 rounded-md object-cover border" />
+                    </a>
+                  ) : (
+                    <a key={doc.id} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/40 transition-colors">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate max-w-[10rem]">{doc.nombre}</span>
+                    </a>
+                  ),
+                )}
+              </div>
+            ) : readOnly ? (
+              <p className="text-sm text-muted-foreground">Sin archivos adjuntos.</p>
+            ) : null}
             {!readOnly && (
               <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
                 className="flex flex-col items-center justify-center gap-1.5 h-24 rounded-lg border-2 border-dashed border-input bg-muted/10 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors text-center">
@@ -240,7 +289,7 @@ const NuevaEditarOTModal: React.FC<NuevaEditarOTModalProps> = ({ isOpen, onClose
                   <div key={f.id} className="relative">
                     <img src={f.url} alt={f.file.name} className="h-16 w-16 rounded-md object-cover border" />
                     {!readOnly && (
-                      <button type="button" onClick={() => removeFoto(f.id)} aria-label={`Quitar ${f.file.name}`}
+                      <button type="button" onClick={() => removeFoto(f.id)} title={`Quitar ${f.file.name}`} aria-label={`Quitar ${f.file.name}`}
                         className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                         <X className="h-3 w-3" />
                       </button>

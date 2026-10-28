@@ -1,9 +1,11 @@
-// Email dispatch — STUB for phase 1 (backend undecided).
-// Target design (DESIGN.md §13): a server-side function (Supabase Edge Function or
-// API route) sends via Microsoft Graph POST /users/{MAIL_SENDER}/sendMail with the
-// rendered HTML + CID logo attachment. Recipients resolve from the
-// emails_notificacion table by modulo ('OT' | 'Compra' | 'Aprobaciones'),
-// NOTIFICATIONS_BCC env replaces the old hardcoded dev list.
+// Email dispatch (DESIGN.md §13). Sends go through services/ (see CLAUDE.md
+// "Arquitectura" — UI/callers never talk to a backend directly): the supabase adapter
+// forwards to the sharepoint-write Edge Function, which calls Microsoft Graph
+// POST /users/{MAIL_SENDER}/sendMail; the mock adapter no-ops. Recipients resolve from
+// the emails_notificacion table by modulo ('OT' | 'Compra' | 'Aprobaciones');
+// NOTIFICATIONS_BCC env (read on the Edge Function side) replaces the old hardcoded dev list.
+
+import { api } from '../services/index.ts';
 
 export interface EmailMessage {
   subject: string;
@@ -20,9 +22,20 @@ export function resolveRecipients(modulo: 'OT' | 'Compra' | 'Aprobaciones', rows
   return row ? row.emails.split(';').map((e) => e.trim()).filter(Boolean) : [];
 }
 
-/* ponytail: stub until the backend (SharePoint vs Supabase) is decided — upgrade
-   path is a Graph sendMail call from an Edge Function; nothing in the UI should
-   await delivery. */
+// Optional testing hook: route EVERY notification to a single inbox instead of the ABM recipient
+// list. `null` = producción (usa los destinatarios reales). Poné un mail acá solo para pruebas.
+// NOTE: the Edge Function also BCCs the NOTIFICATIONS_BCC secret on every send.
+const TEST_EMAIL_OVERRIDE: string | null = null;
+
 export async function sendEmail(to: string[], message: EmailMessage): Promise<void> {
-  console.warn('[emails] send stub — not wired to a backend yet', { to, subject: message.subject });
+  const recipients = TEST_EMAIL_OVERRIDE ? [TEST_EMAIL_OVERRIDE] : to;
+  // Notifications are fire-and-forget: a delivery failure (Edge Function / Graph Mail.Send down or
+  // not granted) must NEVER break the business operation that triggered it — e.g. confirming a
+  // reception has already committed its stock intake, so throwing here would report a false failure
+  // AND hide that the reception succeeded. Swallow and log; never propagate to the caller.
+  try {
+    await api.emailsNotificacion.enviar(recipients, message.subject, message.html);
+  } catch (err) {
+    console.warn('[email] notification send failed; the triggering operation already succeeded.', err);
+  }
 }

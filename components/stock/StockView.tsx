@@ -2,7 +2,7 @@
 // Page skeleton per DESIGN.md §4.4 (header + toolbar + loader + mobile cards / desktop table).
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowRightLeft, Package, Pencil, Plus, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, Package, Pencil, Plus, Search, Wrench } from 'lucide-react';
 import { Button, Card, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, cn } from '../ui/UIComponents';
 import { Loader } from '../ui/Loader';
 import { useToast } from '../ui/Toast';
@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx';
 import { api } from '../../services/index.ts';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { Articulo, Edificio, Usuario } from '../../services/types.ts';
+import { articuloLabel } from '../../utils/articulos';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
 import { AgregarStockModal } from './AgregarStockModal';
 import { SalidaStockModal } from './SalidaStockModal';
@@ -68,6 +69,8 @@ const StockView: React.FC = () => {
     setLoading(true);
     load().finally(() => setLoading(false));
   }, []);
+  // Live updates: silent refetch whenever stock changes in the backend.
+  useEffect(() => api.realtime.subscribe(['stock'], () => { void load(); }), []);
 
   const refresh = async () => {
     setLoading(true);
@@ -83,6 +86,8 @@ const StockView: React.FC = () => {
   const tecnicos = useMemo(() => usuarios.filter((u) => u.perfil === 'Tecnico' && u.status === 'ALTA'), [usuarios]);
 
   const edificioNames = (ids: number[]) => ids.map((id) => edificiosById.get(id)?.nombre).filter(Boolean).join(', ') || '—';
+  // PA shows the article as ConcatArt_ST = `${codigo} - ${nombre}` (Concat_AR), not the bare name.
+  const artLabel = (a?: Articulo) => (a ? articuloLabel(a) : '—');
   const isLowStock = (r: StockRowWithEdificios) => r.condicion_corte != null && r.cantidad < r.condicion_corte;
 
   // Screen_Stock: Items = Filter(CollectStock, Cantidad_ST>0) — zero-quantity rows are dropped.
@@ -96,7 +101,12 @@ const StockView: React.FC = () => {
         const haystack = `${articulo?.codigo ?? ''} ${articulo?.nombre ?? ''} ${edificioNames(r.edificio_ids)}`.toLowerCase();
         return haystack.includes(q);
       })
-      .sort((a, b) => (articulosById.get(a.articulo_id)?.nombre ?? '').localeCompare(articulosById.get(b.articulo_id)?.nombre ?? ''));
+      // PA parity: SortByColumns(Filter(CollectStock,Cantidad_ST>0),"ID",asc,"ConcatArt_ST",asc)
+      .sort(
+        (a, b) =>
+          a.id - b.id ||
+          (articulosById.get(a.articulo_id)?.nombre ?? '').localeCompare(articulosById.get(b.articulo_id)?.nombre ?? ''),
+      );
   }, [rows, search, articulosById, edificiosById]);
 
   const totalItems = visibleRows.length;
@@ -105,7 +115,7 @@ const StockView: React.FC = () => {
   const handleMutationError = (message: string) => showToast(message, 'error');
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Stock</h1>
@@ -116,8 +126,13 @@ const StockView: React.FC = () => {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input placeholder="Buscar artículo o edificio…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={refresh} disabled={loading} aria-label="Actualizar">
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          <Button
+            variant="secondary"
+            className="h-9 px-3 text-sm gap-1.5 shrink-0"
+            onClick={() => navigate('/consumo-ot')}
+            aria-label="Consumo por OT"
+          >
+            <Wrench className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Consumo OT</span>
           </Button>
           <Button
             variant="secondary"
@@ -155,11 +170,11 @@ const StockView: React.FC = () => {
               const articulo = articulosById.get(r.articulo_id);
               const low = isLowStock(r);
               return (
-                <div key={r.id} className={cn('rounded-lg border bg-card p-3 shadow-sm space-y-2', low && 'bg-red-50 border-red-200')}>
+                <div key={r.id} className={cn('rounded-lg border bg-card p-3 shadow-sm space-y-2', low && 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50')}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-medium text-sm">{articulo?.nombre ?? '—'}</div>
-                      <div className="text-[11px] text-muted-foreground">{articulo?.codigo ?? '—'} · {edificioNames(r.edificio_ids)}</div>
+                      <div className="font-medium text-sm">{artLabel(articulo)}</div>
+                      <div className="text-[11px] text-muted-foreground">{edificioNames(r.edificio_ids)}</div>
                     </div>
                     {low && <BajoStockBadge />}
                   </div>
@@ -170,10 +185,10 @@ const StockView: React.FC = () => {
                   </div>
                   {!readOnly && (
                     <div className="flex justify-end gap-1 pt-2 border-t">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} aria-label="Editar stock">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} title="Editar stock" aria-label="Editar stock">
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} aria-label="Registrar salida">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} title="Registrar salida" aria-label="Registrar salida">
                         <ArrowRightLeft className="h-4 w-4" />
                       </Button>
                     </div>
@@ -184,8 +199,8 @@ const StockView: React.FC = () => {
           </div>
 
           {/* DESKTOP */}
-          <Card className="hidden md:block border shadow-sm overflow-hidden">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>N°</TableHead>
@@ -203,11 +218,11 @@ const StockView: React.FC = () => {
                   const articulo = articulosById.get(r.articulo_id);
                   const low = isLowStock(r);
                   return (
-                    <TableRow key={r.id} className={cn(low && 'bg-red-50 hover:bg-red-50/80')}>
-                      <TableCell className="text-muted-foreground">{articulo?.codigo ?? '—'}</TableCell>
+                    <TableRow key={r.id} className={cn(low && 'bg-red-50 hover:bg-red-50/80 dark:bg-red-950/30 dark:hover:bg-red-950/40')}>
+                      <TableCell className="text-muted-foreground tabular-nums">{r.id}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{articulo?.nombre ?? '—'}</span>
+                          <span className="font-medium">{artLabel(articulo)}</span>
                           {low && <BajoStockBadge />}
                         </div>
                       </TableCell>
@@ -219,10 +234,10 @@ const StockView: React.FC = () => {
                       {!readOnly && (
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} aria-label="Editar stock">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setEditRow(r)} title="Editar stock" aria-label="Editar stock">
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} aria-label="Registrar salida">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => setSalidaRow(r)} title="Registrar salida" aria-label="Registrar salida">
                               <ArrowRightLeft className="h-4 w-4" />
                             </Button>
                           </div>
@@ -235,13 +250,15 @@ const StockView: React.FC = () => {
             </Table>
           </Card>
 
-          {/* Totales — DESIGN.md §7.3 "barra de N columnas" */}
-          <div className="grid grid-cols-2 gap-px border rounded-lg overflow-hidden bg-border">
-            <div className="bg-muted/30 px-4 py-2.5">
+          {/* Totales — DESIGN.md §7.3 "barra de N columnas". En desktop queda debajo de la tabla
+              (que scrollea internamente) alineada a la derecha. En mobile la página entera scrollea,
+              así que la fijamos full-width al fondo del viewport (sticky) para verla sin llegar al final. */}
+          <div className="sticky bottom-0 z-10 shrink-0 flex gap-px overflow-hidden border-t bg-border shadow-[0_-1px_3px_rgba(0,0,0,0.04)] md:static md:ml-auto md:w-fit md:justify-end md:rounded-lg md:border md:shadow-none">
+            <div className="flex-1 bg-card px-4 py-2.5 md:flex-none md:min-w-[110px] md:bg-muted/30">
               <div className="text-[10px] uppercase text-muted-foreground">Ítems</div>
               <div className="text-sm font-bold tabular-nums">{totalItems}</div>
             </div>
-            <div className="bg-muted/30 px-4 py-2.5">
+            <div className="flex-1 bg-card px-4 py-2.5 md:flex-none md:min-w-[150px] md:bg-muted/30">
               <div className="text-[10px] uppercase text-muted-foreground">Costo total</div>
               <div className="text-sm font-bold tabular-nums text-brand whitespace-nowrap">{money(totalCosto)}</div>
             </div>

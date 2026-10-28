@@ -14,8 +14,9 @@ import { useToast } from '../ui/Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { maskFromNumber } from '../../utils/formatMoneyInput';
 import { formatDate } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 import { api } from '../../services/index.ts';
-import type { Aprobacion, Compra, EstadoAprobacion, Perfil } from '../../services/types.ts';
+import type { Aprobacion, EstadoAprobacion, Perfil } from '../../services/types.ts';
 import { compraAprobadaEmail, type CompraLineaEmail } from '../../emails/templates.ts';
 import { resolveRecipients, sendEmail, type RecipientRow } from '../../emails/send.ts';
 import CompraFormModal, { type CompraFormValues } from '../compras/CompraFormModal';
@@ -54,7 +55,6 @@ const AprobacionesView: React.FC = () => {
   const { showToast } = useToast();
 
   const [aprobaciones, setAprobaciones] = useState<Aprobacion[]>([]);
-  const [comprasById, setComprasById] = useState<Map<number, Compra>>(new Map());
   const [usuariosById, setUsuariosById] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -68,21 +68,24 @@ const AprobacionesView: React.FC = () => {
   const [rechazarTarget, setRechazarTarget] = useState<Aprobacion | null>(null);
   const [aprobarTarget, setAprobarTarget] = useState<Aprobacion | null>(null);
 
-  const load = () => {
-    setLoading(true);
+  const load = (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(false);
-    return Promise.all([api.aprobaciones.list(), api.compras.list(), api.usuarios.list()])
-      .then(([aps, compras, usuarios]) => {
+    return Promise.all([api.aprobaciones.list(), api.usuarios.list()])
+      .then(([aps, usuarios]) => {
         setAprobaciones(user ? scopeAprobaciones(user.perfil, aps) : []);
-        setComprasById(new Map(compras.map((c) => [c.id, c])));
-        setUsuariosById(new Map(usuarios.map((u) => [u.id, u.concat_name])));
+        // PA's "Usuario" column renders UserGen_AP = the login username, not the full name.
+        setUsuariosById(new Map(usuarios.map((u) => [u.id, u.usuario_app])));
       })
       .catch(() => { showToast('No se pudieron cargar las aprobaciones.', 'error'); setLoadError(true); })
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [user?.id]);
+  // Live updates: silent refetch whenever an aprobación changes in the backend.
+  useEffect(() => api.realtime.subscribe(['aprobaciones'], () => { void load(true); }), []);
 
-  const idCompraLabel = (a: Aprobacion) => comprasById.get(a.compra_id)?.id_compra ?? `#${a.compra_id}`;
+  // PA parity: lbl_idCompra_AP renders IDCompra_A — the raw Compras id stamped on the aprobacion (= compra_id).
+  const idCompraLabel = (a: Aprobacion) => `#${a.compra_id}`;
 
   const mesOptions = useMemo(() => {
     const meses = [...new Set(aprobaciones.map((a) => a.fecha.slice(0, 7)))].sort().reverse();
@@ -96,7 +99,7 @@ const AprobacionesView: React.FC = () => {
       .filter((a) => mesFilter.length === 0 || mesFilter.includes(a.fecha.slice(0, 7)))
       .filter((a) => !query || a.status.toLowerCase().includes(query) || idCompraLabel(a).toLowerCase().includes(query))
       .sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
-  }, [aprobaciones, estadoFilter, mesFilter, q, comprasById]);
+  }, [aprobaciones, estadoFilter, mesFilter, q]);
 
   const activeFilterCount = estadoFilter.length + mesFilter.length;
 
@@ -110,13 +113,13 @@ const AprobacionesView: React.FC = () => {
           .map((d) => ({ edificio: d.edificio ?? '', articulo: d.articulo ?? '', cantidad: d.cantidad, costo_unitario: d.costo_unitario ?? 0, costo_total: d.costo_total ?? 0 }));
         const emailRows = await api.emailsNotificacion.list();
         const recipients: RecipientRow[] = emailRows.filter((r) => r.status === 'Activo').map((r) => ({ modulo: r.modulo, emails: r.emails ?? '' }));
-        const email = compraAprobadaEmail(compra.id_compra, lineas, user.concat_name);
+        const email = compraAprobadaEmail(compra.id, lineas, user.concat_name);
         await sendEmail(resolveRecipients('Aprobaciones', recipients), email);
       }
       showToast('Compra aprobada.', 'success');
       await load();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo aprobar la compra.', 'error');
+      showToast(errorMessage(e, 'No se pudo aprobar la compra.'), 'error');
     }
   };
 
@@ -142,7 +145,7 @@ const AprobacionesView: React.FC = () => {
           <Eye className="h-4 w-4" />
         </button>
         {canApprove(user.perfil, a.status) && (
-          <button title="Aprobar" aria-label="Aprobar compra" onClick={() => setAprobarTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center">
+          <button title="Aprobar" aria-label="Aprobar compra" onClick={() => setAprobarTarget(a)} className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center">
             <Check className="h-4 w-4" />
           </button>
         )}
@@ -161,7 +164,7 @@ const AprobacionesView: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="shrink-0 hidden md:block">
           <h1 className="text-2xl font-bold tracking-tight">Mis aprobaciones</h1>
@@ -219,8 +222,8 @@ const AprobacionesView: React.FC = () => {
               </div>
             ))}
           </div>
-          <Card className="hidden md:block border shadow-sm">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Estado</TableHead>

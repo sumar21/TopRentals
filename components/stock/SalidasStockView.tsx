@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Loader2, Pencil, PackageSearch, Save, Search, X } from 'lucide-react';
 import { Button, Card, Input, MultiCombobox, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useModalAnimation } from '../ui/UIComponents';
+import { NumberInput } from '../ui/NumberInput';
 import { FilterPopover } from '../ui/FilterPopover';
 import { backdropClose } from '../ui/backdropClose';
 import { Loader } from '../ui/Loader';
@@ -18,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { StockRowWithEdificios } from '../../services/api.ts';
 import type { SalidaStock, Usuario } from '../../services/types.ts';
 import { formatDate } from '../../utils/dates';
+import { errorMessage } from '../../utils/errorMessage';
 
 const TIPO_OPTIONS = [
   { label: 'Consumible', value: 'CONSUMIBLE' },
@@ -53,6 +55,8 @@ const SalidasStockView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
+  // Open unfiltered (per request). PA seeded current + previous month by default; the "Mes"
+  // filter is still available to narrow the list.
   const [meses, setMeses] = useState<string[]>([]);
   const [tipos, setTipos] = useState<string[]>([]);
   const [tecnicoIds, setTecnicoIds] = useState<string[]>([]);
@@ -71,6 +75,8 @@ const SalidasStockView: React.FC = () => {
   };
 
   useEffect(() => { load(); }, []);
+  // Live updates: silent refetch whenever a stock exit changes in the backend.
+  useEffect(() => api.realtime.subscribe(['salidas'], () => { void reload(); }), []);
 
   const confirmarDevolucion = async () => {
     if (!devolucionTarget || !user) return;
@@ -79,7 +85,7 @@ const SalidasStockView: React.FC = () => {
       await reload();
       showToast('Devolución confirmada: el stock fue reingresado.', 'success');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo confirmar la devolución.', 'error');
+      showToast(errorMessage(e, 'No se pudo confirmar la devolución.'), 'error');
     }
   };
 
@@ -112,10 +118,10 @@ const SalidasStockView: React.FC = () => {
   }, [salidas, meses, tipos, tecnicoIds, search, tecnicosById]);
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full md:h-full md:min-h-0">
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3 shrink-0">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate('/stock')} aria-label="Volver a Stock">
+          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate('/stock')} title="Volver a Stock" aria-label="Volver a Stock">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="hidden md:block">
@@ -158,7 +164,7 @@ const SalidasStockView: React.FC = () => {
             {visible.map((s) => {
               const tecnico = s.tecnico_id != null ? tecnicosById.get(s.tecnico_id)?.concat_name : null;
               const puedeDevolver = s.tipo === 'DEVOLUCION' && !s.fecha_reingreso;
-              const puedeEditar = !s.fecha_reingreso;
+              const puedeEditar = !s.fecha_reingreso && s.stock_id != null; // record-only (consumo de OT) no es editable
               return (
                 <div key={s.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
                   <div className="flex items-start justify-between gap-2">
@@ -181,8 +187,8 @@ const SalidasStockView: React.FC = () => {
           </div>
 
           {/* DESKTOP */}
-          <Card className="hidden md:block border shadow-sm overflow-hidden">
-            <Table>
+          <Card className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 border shadow-sm overflow-hidden">
+            <Table wrapperClassName="h-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Tipo</TableHead>
@@ -198,7 +204,7 @@ const SalidasStockView: React.FC = () => {
                 {visible.map((s) => {
                   const tecnico = s.tecnico_id != null ? tecnicosById.get(s.tecnico_id)?.concat_name : null;
                   const puedeDevolver = s.tipo === 'DEVOLUCION' && !s.fecha_reingreso;
-                  const puedeEditar = !s.fecha_reingreso;
+                  const puedeEditar = !s.fecha_reingreso; // con stock_id reajusta stock; sin él, corrige sólo el registro (histórico)
                   return (
                     <TableRow key={s.id}>
                       <TableCell><StatusBadge status={s.tipo} /></TableCell>
@@ -263,6 +269,9 @@ const RowActions: React.FC<{ puedeEditar: boolean; puedeDevolver: boolean; onEdi
         <CheckCircle2 className="h-4 w-4" />
       </Button>
     )}
+    {/* Registros históricos migrados (sin stock_id) o devoluciones ya reingresadas: no hay acción segura.
+        Un "—" tenue deja claro que es intencional (no un botón que falta). */}
+    {!puedeEditar && !puedeDevolver && <span className="text-sm text-muted-foreground/60">—</span>}
   </>
 );
 
@@ -298,15 +307,15 @@ const EditarSalidaModal: React.FC<{
       await onSaved();
       showToast('Cantidad actualizada. El stock fue reajustado.', 'success');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'No se pudo actualizar la salida.', 'error');
+      showToast(errorMessage(e, 'No se pudo actualizar la salida.'), 'error');
     } finally {
       setSaving(false);
     }
   };
 
   return createPortal(
-    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
-      <div className={`${modalClass} bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 h-[100dvh] ${overlayClass}`} {...backdropClose(() => { if (!saving) onClose(); })}>
+      <div className={`${modalClass} bg-background w-full max-w-md rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col max-h-[90dvh]`}>
         <div className="px-6 py-4 border-b flex justify-between items-center bg-secondary/20">
           <div>
             <h2 className="text-xl font-bold tracking-tight">Editar salida</h2>
@@ -314,7 +323,7 @@ const EditarSalidaModal: React.FC<{
               {salida?.concat_articulo} · <span className="font-medium text-foreground">{salida?.tipo}</span>
             </p>
           </div>
-          <button onClick={saving ? undefined : onClose} aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
+          <button onClick={saving ? undefined : onClose} title="Cerrar" aria-label="Cerrar" className="p-2 hover:bg-secondary rounded-full transition-colors">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
@@ -322,7 +331,10 @@ const EditarSalidaModal: React.FC<{
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
             Cantidad{maxCantidad != null && <> · Disponible <span className="font-semibold text-foreground">{maxCantidad}</span></>}
           </label>
-          <Input autoFocus inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value.replace(/[^\d]/g, ''))} />
+          <NumberInput autoFocus value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej: 5" />
+          {salida?.stock_id == null && (
+            <p className="mt-2 text-[11px] text-muted-foreground">Registro histórico: corrige el dato de la salida, no reajusta el stock.</p>
+          )}
           {cantidad !== '' && parsed <= 0 && (
             <p className="mt-1 text-xs text-red-600" role="alert">Ingresá una cantidad mayor a cero.</p>
           )}

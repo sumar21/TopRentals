@@ -1,0 +1,869 @@
+// Supabase DataApi adapter — Fase 1: auth.login + every READ (tramo 1) and every
+// MUTATION (tramo 2) implemented against the real backend.
+//
+// UI never imports supabase-js directly (CLAUDE.md "Arquitectura") — only this file
+// (via services/index.ts) talks to getSupabase(). Row shapes come back from PostgREST
+// as `any`; services/supabase/rows.ts does the numeric/boolean coercion into domain types.
+//
+// Mutation strategy (see supabase/rpc.sql for the transactional half):
+//   - Multi-table / transactional ops call one plpgsql RPC (getSupabase().rpc(...)) that
+//     mirrors the matching services/mock/adapter.ts method 1:1, then this file re-selects
+//     the affected row(s) and maps them through rows.ts to return the domain object.
+//   - Single-table ops write directly via .from(table).insert()/.update()...select().
+//   - services/types.ts field names match column names exactly EXCEPT where a domain
+//     status enum is folded into a boolean flag on that table (see schema notes in
+//     rows.ts) — those methods translate the enum<->boolean at the edge, inline below.
+import type { CompraConDetalle, DataApi, RealtimeTopic, StockRowWithEdificios } from '../api.ts';
+import type { Articulo, Compra } from '../types.ts';
+import {
+  aprobacionFromDb,
+  articuloFromDb,
+  bitacoraFromDb,
+  compraFromDb,
+  detalleCompraFromDb,
+  documentoFromDb,
+  edificioFromDb,
+  emailNotificacionFromDb,
+  frecuenciaFromDb,
+  movimientoStockFromDb,
+  ordenTrabajoFromDb,
+  ordenTrabajoResumenFromDb,
+  perfilPermisoFromDb,
+  repuestoOTFromDb,
+  salidaStockFromDb,
+  stockFromDb,
+  unidadFromDb,
+  usuarioFromDb,
+  ventilacionFromDb,
+} from './rows.ts';
+import { getSupabase } from './client.ts';
+import { todayISO } from '../../utils/dates.ts';
+import { APP_VERSION } from '../../config/appVersion';
+
+// Domain topic -> Postgres table for Realtime subscriptions. The tables must also be in
+// the `supabase_realtime` publication (supabase/migrations/0003_realtime_publication.sql).
+const REALTIME_TABLES: Record<RealtimeTopic, string> = {
+  ots: 'ordenes_trabajo',
+  stock: 'stock',
+  movimientos: 'movimientos_stock',
+  salidas: 'salidas_stock',
+  compras: 'compras',
+  aprobaciones: 'aprobaciones',
+  ventilaciones: 'ventilaciones',
+  articulos: 'articulos',
+  usuarios: 'usuarios',
+  edificios: 'edificios',
+  unidades: 'unidades',
+  appReleases: 'app_releases',
+};
+// Monotonic so parallel subscriptions (several mounted views) never share a channel name.
+let realtimeChannelSeq = 0;
+
+// auth.users has no real mailbox for most usuarios, so login goes through a synthetic
+// email alias built from usuario_app. MUST match scripts/migrate/provision-auth.ts's
+// aliasFor EXACTLY — that script is what created these auth.users rows.
+const ALIAS_DOMAIN = 'users.toprentals.internal';
+const aliasFor = (usuarioApp: string) =>
+  `${usuarioApp.normalize('NFKD').toLowerCase().replace(/[^a-z0-9._-]/g, '')}@${ALIAS_DOMAIN}`;
+
+// PostgREST caps a single response at db-max-rows (1000 on Supabase), so a bare
+// .select('*') silently returns only the first 1000 rows ordered by id — which, for
+// ordenes_trabajo (4140 rows), drops every recent/open OT and leaves the board empty.
+// Paginate in 1000-row batches to return the full set, matching the mock adapter.
+// ponytail: this fetches every row client-side (the app filters in memory). Fine at
+// current volumes; if a table grows large, push the filter server-side instead.
+const PAGE_ROWS = 1000;
+// Page 0 brings the exact count, then the remaining pages go out in PARALLEL (were 7 back-to-back
+// round-trips for ordenes_trabajo). If the last page is still full (rows inserted after the
+// count), keep going sequentially until a short page so nothing is dropped.
+async function selectAll<T>(table: string, mapper: (row: any) => T, columns = '*'): Promise<T[]> {
+  const sb = getSupabase();
+  const page = async (from: number, withCount = false) => {
+    const { data, error, count } = await sb
+      .from(table)
+      .select(columns, withCount ? { count: 'exact' } : undefined)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_ROWS - 1);
+    if (error) throw error;
+    return { batch: (data ?? []) as any[], count };
+  };
+  const first = await page(0, true);
+  const rows: any[] = [...first.batch];
+  let last = first.batch;
+  let next = PAGE_ROWS;
+  if (last.length === PAGE_ROWS) {
+    const froms: number[] = [];
+    for (let f = PAGE_ROWS; f < (first.count ?? 0); f += PAGE_ROWS) froms.push(f);
+    const pages = await Promise.all(froms.map((f) => page(f)));
+    for (const p of pages) rows.push(...p.batch);
+    if (pages.length) last = pages[pages.length - 1].batch;
+    next += froms.length * PAGE_ROWS;
+    while (last.length === PAGE_ROWS) {
+      last = (await page(next)).batch;
+      rows.push(...last);
+      next += PAGE_ROWS;
+    }
+  }
+  return rows.map(mapper);
+}
+
+async function selectOne<T>(table: string, id: number, mapper: (row: any) => T): Promise<T | null> {
+  const { data, error } = await getSupabase().from(table).select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? mapper(data) : null;
+}
+
+/** Like selectOne, but for right-after-an-RPC re-selects where the row is known to exist. */
+async function selectOneRequired<T>(table: string, id: number, mapper: (row: any) => T): Promise<T> {
+  const { data, error } = await getSupabase().from(table).select('*').eq('id', id).single();
+  if (error) throw error;
+  return mapper(data);
+}
+
+/** Server-side SharePoint write-back (Fase 3, supabase/functions/sharepoint-write) — the MS
+ *  Graph client secret can't reach the browser, so every SharePoint write goes through here. */
+// TEMP (testing only): skip real writes to the shared 99.* ABM SharePoint lists (articulos,
+// unidades), so test runs don't modify data the OTHER (non-migrated) Power App reads. Postgres is
+// still written (the app works fully) — only the SharePoint mirror is skipped. Email ('send-mail')
+// is NOT skipped. Set to false to write SharePoint for real again.
+const SKIP_SHAREPOINT_WRITES = false;
+
+async function invokeSharePointWrite<T = unknown>(action: string, payload: Record<string, unknown>): Promise<T> {
+  // 'send-mail' y 'user-provision' NO son escrituras a SharePoint (mail vía Graph / auth vía
+  // service-role) → nunca se skipean, deben ejecutarse de verdad aunque SKIP_SHAREPOINT_WRITES.
+  if (SKIP_SHAREPOINT_WRITES && action !== 'send-mail' && action !== 'user-provision') {
+    console.warn(`[testing] SharePoint write '${action}' skipped (SKIP_SHAREPOINT_WRITES); Postgres is still written.`);
+    // Return the shape each caller expects: articulo-upsert needs an id for the local mirror insert
+    // (synthesize a test id that won't collide with real, small SharePoint ids); others just need ok.
+    return (action === 'articulo-upsert' ? { id: Date.now() } : { ok: true }) as T;
+  }
+  const { data, error } = await getSupabase().functions.invoke('sharepoint-write', { body: { action, payload } });
+  if (error) throw error;
+  return data as T;
+}
+
+// usuarios tiene UNIQUE(usuario_app): traduce esa violación (Postgres 23505) a un mensaje claro para la
+// UI. El PostgrestError NO es instanceof Error, así que devolvemos un Error real con el texto amigable;
+// cualquier otra causa se re-lanza tal cual para que errorMessage() muestre su mensaje original.
+function usuarioUniqueError(error: { code?: string; message?: string; details?: string }): unknown {
+  const blob = `${error.message ?? ''} ${error.details ?? ''}`;
+  if (error.code === '23505' && /usuario_app/.test(blob)) {
+    return new Error('Ya existe un usuario con ese nombre de usuario.');
+  }
+  return error;
+}
+
+/** Best-effort SharePoint mirror of a unit's ventilation flags (`requiere_ventilacion`/frecuencia on
+ *  `99.ABM_TipoUnidades`). Postgres is what THIS app reads, and the RPC already committed the row +
+ *  unit flag atomically — so a mirror outage (Edge Function not deployed / MS secrets unset) must
+ *  NEVER fail the user operation. The mirror keeps the shared ABM list in step for the OTHER
+ *  (non-migrated) Power App, which reads that flag; on failure that copy is stale until the write is
+ *  retried or the Edge Function is deployed (logged so the outage is visible — no auto-reconcile,
+ *  since the catalog sync runs SharePoint→Postgres and would overwrite the local value). */
+async function mirrorUnidadVentilacion(payload: {
+  unidad_id: number;
+  requiere_ventilacion: boolean;
+  frecuencia_dias?: number;
+}): Promise<void> {
+  try {
+    await invokeSharePointWrite('unidad-ventilacion', payload);
+  } catch (err) {
+    console.warn('[ventilaciones] SharePoint mirror to 99.ABM_TipoUnidades failed; Postgres is authoritative, the shared ABM copy is stale until retried/deployed.', err);
+  }
+}
+
+async function selectStockWithEdificios(id: number): Promise<StockRowWithEdificios> {
+  const sb = getSupabase();
+  const [{ data: stockRow, error: err1 }, { data: linkRows, error: err2 }] = await Promise.all([
+    sb.from('stock').select('*').eq('id', id).single(),
+    sb.from('stock_edificios').select('edificio_id').eq('stock_id', id),
+  ]);
+  if (err1) throw err1;
+  if (err2) throw err2;
+  const row = stockFromDb(stockRow);
+  return { ...row, edificio_ids: (linkRows ?? []).map((r: any) => Number(r.edificio_id)) };
+}
+
+async function selectCompraConDetalle(id: number): Promise<CompraConDetalle> {
+  const sb = getSupabase();
+  const { data: compraRow, error: err1 } = await sb.from('compras').select('*').eq('id', id).single();
+  if (err1) throw err1;
+  const { data: detalleRows, error: err2 } = await sb.from('detalle_compras').select('*').eq('compra_id', id);
+  if (err2) throw err2;
+  return { ...compraFromDb(compraRow), detalle: (detalleRows ?? []).map(detalleCompraFromDb) };
+}
+
+/** Mirrors mock ots.crear/replicar's `(OT)-TR-<id><yyyymmdd><hhmmss>` format — needs the
+ *  real row id, which only exists after insert, hence the insert-then-rename pattern below. */
+function otIdUnivoco(id: number): string {
+  const now = new Date();
+  const day = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const time = now.toISOString().slice(11, 19).replace(/:/g, '');
+  return `(OT)-TR-${String(id).padStart(3, '0')}${day}${time}`;
+}
+
+export function createSupabaseAdapter(): DataApi {
+  const api: DataApi = {
+    auth: {
+      async login(usuario, password) {
+        const sb = getSupabase();
+        const { data: authData, error: authError } = await sb.auth.signInWithPassword({
+          email: aliasFor(usuario),
+          password,
+        });
+        if (authError || !authData?.user) throw new Error('Usuario o contraseña incorrectos.');
+
+        const { data: byAuthId, error: err1 } = await sb
+          .from('usuarios')
+          .select('*')
+          .eq('auth_user_id', authData.user.id)
+          .maybeSingle();
+        if (err1) throw err1;
+
+        let row = byAuthId;
+        if (!row) {
+          const { data: byUsuarioApp, error: err2 } = await sb
+            .from('usuarios')
+            .select('*')
+            .eq('usuario_app', usuario)
+            .maybeSingle();
+          if (err2) throw err2;
+          row = byUsuarioApp;
+        }
+        if (!row) throw new Error('No se encontró el perfil de usuario asociado a esta cuenta.');
+        return usuarioFromDb(row);
+      },
+      // demoUsers omitted on purpose — mock-only quick-access panel, hides on real backends.
+    },
+
+    usuarios: {
+      list: () => selectAll('usuarios', usuarioFromDb),
+      get: (id) => selectOne('usuarios', id, usuarioFromDb),
+      async crear(input, password) {
+        // usuarios is SELECT-only for authenticated → write via the DEFINER RPC (this closes the
+        // raw-UPDATE path to perfil/activo; per-perfil authz still lives client-side). See supabase/rpc.sql.
+        const { status, ...rest } = input;
+        const payload = { ...rest, activo: status === 'ALTA' };
+        const { data, error } = await getSupabase().rpc('usuario_crear', { p_payload: payload });
+        if (error) throw usuarioUniqueError(error);
+        const id = Number(data);
+        // Provisiona la cuenta auth.users vía RPC DEFINER (escribe el hash bcrypt directo, esquivando el
+        // mínimo de 6 de GoTrue — las passwords son ddmm de 4). Reemplaza a la Edge Function user-provision,
+        // que dejó de andar cuando GoTrue empezó a enforzar el mínimo en la admin API. Ver 0014.
+        const { error: provErr } = await getSupabase().rpc('provision_auth_user', {
+          p_usuario_id: id, p_email: aliasFor(input.usuario_app), p_password: password, p_usuario_app: input.usuario_app,
+        });
+        if (provErr) throw provErr;
+        return selectOneRequired('usuarios', id, usuarioFromDb);
+      },
+      async actualizar(id, patch, password) {
+        const { status, ...rest } = patch;
+        const p_patch: Record<string, unknown> = { ...rest };
+        if (status !== undefined) p_patch.activo = status === 'ALTA';
+        const { error } = await getSupabase().rpc('usuario_actualizar', { p_id: id, p_patch });
+        if (error) throw usuarioUniqueError(error);
+        const u = await selectOneRequired('usuarios', id, usuarioFromDb);
+        // Solo re-provisiona/actualiza la contraseña si el caller la pasó (el toggle ALTA/BAJA no).
+        // provision_auth_user resuelve solo si crea la cuenta (auth_user_id null) o solo pisa el hash.
+        if (password) {
+          const { error: provErr } = await getSupabase().rpc('provision_auth_user', {
+            p_usuario_id: id, p_email: aliasFor(u.usuario_app), p_password: password, p_usuario_app: u.usuario_app,
+          });
+          if (provErr) throw provErr;
+        }
+        return u;
+      },
+      async eliminar(id) {
+        // Soft-delete like the mock: Status_Usr -> 'BAJA' (activo=false), nothing else touched.
+        const { error } = await getSupabase().rpc('usuario_eliminar', { p_id: id });
+        if (error) throw error;
+      },
+    },
+
+    edificios: {
+      list: () => selectAll('edificios', edificioFromDb),
+    },
+
+    articulos: {
+      list: () => selectAll('articulos', articuloFromDb),
+      async crear(input) {
+        // SharePoint first: the app-created article must carry its real SharePoint id, so the
+        // mirror insert below is explicit (id: spId) instead of relying on the local sequence —
+        // this closes the id-collision limitation between app-created and migrated articulos.
+        const { status, corte, ...rest } = input;
+        // Resiliente: si la escritura a SharePoint falla (p.ej. falta Sites.ReadWrite.All), NO
+        // rompemos el alta — Postgres es autoritativo. Se usa un id sintético grande (no colisiona
+        // con los ids chicos de SharePoint) y el mirror en 99.ABM_Articulos queda pendiente de retry.
+        let spId: number;
+        try {
+          ({ id: spId } = await invokeSharePointWrite<{ id: number }>('articulo-upsert', {
+            codigo: rest.codigo,
+            nombre: rest.nombre,
+            precio_unitario: rest.precio_unitario,
+            corte,
+            status,
+            detalle: rest.detalle,
+          }));
+        } catch (err) {
+          console.warn('[articulos] Escritura a SharePoint falló; Postgres autoritativo, mirror ABM pendiente de reintento.', err);
+          spId = Date.now();
+        }
+        // articulos is a SELECT-only catalog → mirror insert via DEFINER RPC (explicit id = SP id).
+        const { error } = await getSupabase().rpc('articulo_insert_mirror', {
+          p_id: spId,
+          p_codigo: rest.codigo ?? null,
+          p_nombre: rest.nombre,
+          p_precio: rest.precio_unitario ?? null,
+          p_corte: corte == null ? null : String(corte), // schema column is text, not numeric
+          p_activo: status === 'Activo',
+          p_detalle: rest.detalle ?? null,
+        });
+        if (error) throw error;
+        return selectOneRequired<Articulo>('articulos', spId, articuloFromDb);
+      },
+      async actualizar(id, patch) {
+        // SharePoint first: 99.ABM_Articulos always gets the FULL current record (patch merged
+        // onto the row as it stands today), since the write-back contract writes every SP column
+        // on every call — a partial patch alone would blank out the fields it doesn't touch.
+        // If this throws, the mirror below is never touched.
+        const { data: currentRow, error: errCurrent } = await getSupabase().from('articulos').select('*').eq('id', id).single();
+        if (errCurrent) throw errCurrent;
+        const merged = { ...articuloFromDb(currentRow), ...patch };
+        // Resiliente: una escritura fallida a SharePoint no debe romper la edición — Postgres es
+        // autoritativo y el mirror en 99.ABM_Articulos queda desactualizado hasta el próximo retry.
+        try {
+          await invokeSharePointWrite('articulo-upsert', {
+            sp_id: id,
+            codigo: merged.codigo,
+            nombre: merged.nombre,
+            precio_unitario: merged.precio_unitario,
+            corte: merged.corte,
+            status: merged.status,
+            detalle: merged.detalle,
+          });
+        } catch (err) {
+          console.warn('[articulos] Escritura a SharePoint falló; Postgres autoritativo, mirror ABM desactualizado hasta reintentar.', err);
+        }
+        // Multi-table: cascades precio_unitario/condicion_corte to every active stock
+        // row of this article (see supabase/rpc.sql articulos_actualizar for why).
+        const { data, error } = await getSupabase().rpc('articulos_actualizar', { p_id: id, p_patch: patch });
+        if (error) throw error;
+        return selectOneRequired<Articulo>('articulos', Number(data), articuloFromDb);
+      },
+    },
+
+    unidades: {
+      list: () => selectAll('unidades', unidadFromDb),
+    },
+
+    frecuencias: {
+      list: () => selectAll('frecuencias', frecuenciaFromDb),
+    },
+
+    emailsNotificacion: {
+      list: () => selectAll('emails_notificacion', emailNotificacionFromDb),
+      async enviar(to, subject, html) {
+        await invokeSharePointWrite('send-mail', { to, subject, html });
+      },
+    },
+
+    perfilesPermisos: {
+      list: () => selectAll('perfiles_permisos', perfilPermisoFromDb),
+    },
+
+    stock: {
+      async list() {
+        const sb = getSupabase();
+        const [{ data: stockRows, error: stockErr }, { data: linkRows, error: linkErr }] = await Promise.all([
+          // PA reads stock as Filter('08.Stock', Status_ST = "Activo") — deactivated rows never appear.
+          sb.from('stock').select('*').eq('activo', true),
+          sb.from('stock_edificios').select('*'),
+        ]);
+        if (stockErr) throw stockErr;
+        if (linkErr) throw linkErr;
+        return (stockRows ?? []).map((r: any): StockRowWithEdificios => {
+          const row = stockFromDb(r);
+          const edificio_ids = (linkRows ?? [])
+            .filter((se: any) => Number(se.stock_id) === row.id)
+            .map((se: any) => Number(se.edificio_id));
+          return { ...row, edificio_ids };
+        });
+      },
+
+      async agregar({ articulo_id, edificio_id, cantidad, precio_unitario, usuario_id }) {
+        const { data, error } = await getSupabase().rpc('stock_agregar', {
+          p_articulo_id: articulo_id,
+          p_edificio_id: edificio_id,
+          p_cantidad: cantidad,
+          p_precio_unitario: precio_unitario,
+          p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectStockWithEdificios(Number(data));
+      },
+
+      async salida(input) {
+        const { data, error } = await getSupabase().rpc('stock_salida', {
+          p_stock_id: input.stock_id,
+          p_edificio_id: input.edificio_id,
+          p_tipo: input.tipo,
+          p_cantidad: input.cantidad,
+          p_tecnico_id: input.tecnico_id,
+          p_uso: input.uso,
+          p_centro_de_costo: input.centro_de_costo,
+          p_usuario_id: input.usuario_id,
+          p_edificio_destino_id: input.edificio_destino_id ?? null,
+          p_fecha_salida: input.fecha_salida ?? null,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectOneRequired('salidas_stock', Number(data), salidaStockFromDb);
+      },
+
+      async editar({ stock_id, cantidad, precio_unitario, condicion_corte, usuario_id }) {
+        const { data, error } = await getSupabase().rpc('stock_editar', {
+          p_stock_id: stock_id,
+          p_cantidad: cantidad,
+          p_precio_unitario: precio_unitario,
+          p_condicion_corte: condicion_corte,
+          p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectStockWithEdificios(Number(data));
+      },
+
+      async editarSalida({ salida_id, cantidad, usuario_id }) {
+        const { data, error } = await getSupabase().rpc('stock_editar_salida', {
+          p_salida_id: salida_id,
+          p_cantidad: cantidad,
+          p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectOneRequired('salidas_stock', Number(data), salidaStockFromDb);
+      },
+
+      async confirmarDevolucion({ salida_id, usuario_id }) {
+        const { data, error } = await getSupabase().rpc('stock_confirmar_devolucion', {
+          p_salida_id: salida_id,
+          p_usuario_id: usuario_id,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectOneRequired('salidas_stock', Number(data), salidaStockFromDb);
+      },
+
+      movimientos: () => selectAll('movimientos_stock', movimientoStockFromDb),
+      salidas: () => selectAll('salidas_stock', salidaStockFromDb),
+    },
+
+    compras: {
+      list: () => selectAll('compras', compraFromDb),
+      async get(id) {
+        const sb = getSupabase();
+        const { data: compraRow, error: err1 } = await sb.from('compras').select('*').eq('id', id).maybeSingle();
+        if (err1) throw err1;
+        if (!compraRow) return null;
+        const { data: detalleRows, error: err2 } = await sb.from('detalle_compras').select('*').eq('compra_id', id);
+        if (err2) throw err2;
+        const result: CompraConDetalle = { ...compraFromDb(compraRow), detalle: (detalleRows ?? []).map(detalleCompraFromDb) };
+        return result;
+      },
+      async crear(input, lineas) {
+        const { data, error } = await getSupabase().rpc('compras_crear', {
+          p_compra: { ...input, version_app: APP_VERSION },
+          p_lineas: lineas,
+        });
+        if (error) throw error;
+        return selectCompraConDetalle(Number(data));
+      },
+      async actualizar(id, patch, lineas) {
+        const { data, error } = await getSupabase().rpc('compras_actualizar', {
+          p_id: id,
+          p_patch: patch,
+          p_lineas: lineas ?? null,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectCompraConDetalle(Number(data));
+      },
+      async enviarAprobacion(id, usuario_gen_id) {
+        const { data, error } = await getSupabase().rpc('compras_enviar_aprobacion', { p_id: id, p_user_gen_id: usuario_gen_id });
+        if (error) throw error;
+        return selectOneRequired('aprobaciones', Number(data), aprobacionFromDb);
+      },
+      async recibir(id, lineas, obs_recibir) {
+        const { data, error } = await getSupabase().rpc('compras_recibir', {
+          p_id: id,
+          p_lineas: lineas,
+          p_obs_recibir: obs_recibir,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectCompraConDetalle(Number(data));
+      },
+      async anular(id) {
+        const { data, error } = await getSupabase().rpc('compras_anular', { p_id: id });
+        if (error) throw error;
+        return selectOneRequired<Compra>('compras', Number(data), compraFromDb);
+      },
+    },
+
+    aprobaciones: {
+      list: () => selectAll('aprobaciones', aprobacionFromDb),
+      async aprobar(id, user_aprob_id) {
+        const { data, error } = await getSupabase().rpc('aprobaciones_aprobar', { p_id: id, p_user_aprob_id: user_aprob_id });
+        if (error) throw error;
+        return selectOneRequired('aprobaciones', Number(data), aprobacionFromDb);
+      },
+      async rechazar(id, motivo, user_aprob_id) {
+        const { data, error } = await getSupabase().rpc('aprobaciones_rechazar', {
+          p_id: id,
+          p_motivo: motivo,
+          p_user_aprob_id: user_aprob_id,
+        });
+        if (error) throw error;
+        return selectOneRequired('aprobaciones', Number(data), aprobacionFromDb);
+      },
+      async editar(id, lineas, header) {
+        const { data, error } = await getSupabase().rpc('aprobaciones_editar', {
+          p_id: id,
+          p_lineas: lineas,
+          p_header: header ?? null,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectOneRequired('aprobaciones', Number(data), aprobacionFromDb);
+      },
+    },
+
+    ots: {
+      list: () => selectAll('ordenes_trabajo', ordenTrabajoFromDb),
+      listResumen: () => selectAll('ordenes_trabajo', ordenTrabajoResumenFromDb, 'id,torre,status,tipo_trabajo,fecha_inicio,fecha_cierre,tecnico_id'),
+      get: (id) => selectOne('ordenes_trabajo', id, ordenTrabajoFromDb),
+      async crear(input) {
+        const sb = getSupabase();
+        const { id_univoco: _ignored, ...rest } = input;
+        // id_univoco embeds the row's own id — insert a unique placeholder first,
+        // then rename it once the real id exists (mirrors mock ots.crear()).
+        const { data: inserted, error: err1 } = await sb
+          .from('ordenes_trabajo')
+          .insert({ ...rest, id_univoco: crypto.randomUUID(), version_app: APP_VERSION })
+          .select()
+          .single();
+        if (err1) throw err1;
+        const id = Number(inserted.id);
+        const { data, error: err2 } = await sb
+          .from('ordenes_trabajo')
+          .update({ id_univoco: otIdUnivoco(id) })
+          .eq('id', id)
+          .select()
+          .single();
+        if (err2) throw err2;
+        return ordenTrabajoFromDb(data);
+      },
+      async actualizar(id, patch) {
+        const { data, error } = await getSupabase().from('ordenes_trabajo').update(patch).eq('id', id).select().single();
+        if (error) throw error;
+        return ordenTrabajoFromDb(data);
+      },
+      async anular(id) {
+        const { data, error } = await getSupabase()
+          .from('ordenes_trabajo')
+          .update({ status: 'Anulada' })
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        return ordenTrabajoFromDb(data);
+      },
+      async cerrar(id, tipo, opts) {
+        // ONE atomic RPC (#5): ot_cerrar now takes the user-entered date + observations, so closing an OT
+        // (which also spills its repuestos into salidas_stock — multi-table + idempotent) and stamping the
+        // real close date/obs happen in a single transaction. No follow-up client update to fail halfway.
+        const { error } = await getSupabase().rpc('ot_cerrar', {
+          p_id: id, p_tipo: tipo,
+          p_fecha_cierre: opts?.fecha_cierre ?? null,
+          p_obs_cierre: opts?.obs_cierre ?? null,
+          p_version_app: APP_VERSION,
+        });
+        if (error) throw error;
+        return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
+      },
+      async finalizar(id, tecnico_id) {
+        const { error } = await getSupabase().rpc('ot_finalizar', { p_id: id, p_tecnico_id: tecnico_id ?? null, p_version_app: APP_VERSION });
+        if (error) throw error;
+        return selectOneRequired('ordenes_trabajo', id, ordenTrabajoFromDb);
+      },
+      async replicar(id) {
+        const sb = getSupabase();
+        const { data: original, error: err1 } = await sb.from('ordenes_trabajo').select('*').eq('id', id).single();
+        if (err1) throw err1;
+        const { id: _oldId, id_univoco: _oldUnivoco, created_at: _oldCreatedAt, ...rest } = original;
+        const { data: inserted, error: err2 } = await sb
+          .from('ordenes_trabajo')
+          .insert({
+            ...rest,
+            id_univoco: crypto.randomUUID(),
+            version_app: APP_VERSION,
+            status: 'Pendiente',
+            orden_revision_id: Number(original.id),
+            // PA replicar re-stamps FechaInicio_OT=Today() and leaves asignador + closure notes blank.
+            fecha_inicio: new Date().toISOString().slice(0, 10),
+            fecha_cierre: null,
+            fecha_asignada: null,
+            tecnico_id: null,
+            asignador_id: null,
+            obs_resuelto: null,
+            obs_asignacion: null,
+            obs_cierre: null,
+          })
+          .select()
+          .single();
+        if (err2) throw err2;
+        const newId = Number(inserted.id);
+        const { data, error: err3 } = await sb
+          .from('ordenes_trabajo')
+          .update({ id_univoco: otIdUnivoco(newId) })
+          .eq('id', newId)
+          .select()
+          .single();
+        if (err3) throw err3;
+        return ordenTrabajoFromDb(data);
+      },
+
+      bitacoras: {
+        async list(orden_trabajo_id) {
+          const { data, error } = await getSupabase().from('bitacoras').select('*').eq('orden_trabajo_id', orden_trabajo_id);
+          if (error) throw error;
+          return (data ?? []).map(bitacoraFromDb);
+        },
+        async crear({ orden_trabajo_id, descripcion, usuario_id, foto_path }) {
+          const { data, error } = await getSupabase().rpc('ot_bitacora_crear', {
+            p_orden_trabajo_id: orden_trabajo_id,
+            p_descripcion: descripcion,
+            p_usuario_id: usuario_id,
+            p_foto_path: foto_path ?? null,
+            p_version_app: APP_VERSION,
+          });
+          if (error) throw error;
+          return selectOneRequired('bitacoras', Number(data), bitacoraFromDb);
+        },
+        async fotos(orden_trabajo_id) {
+          const { data, error } = await getSupabase().from('fotos_bitacora').select('*').eq('orden_trabajo_id', orden_trabajo_id);
+          if (error) throw error;
+          return (data ?? []).map((r) => ({
+            id: Number(r.id),
+            orden_trabajo_id: r.orden_trabajo_id == null ? null : Number(r.orden_trabajo_id),
+            bitacora_id: r.bitacora_id == null ? null : Number(r.bitacora_id),
+            foto_path: r.foto_path,
+            created_at: r.created_at,
+          }));
+        },
+      },
+
+      repuestos: {
+        async list(orden_trabajo_id) {
+          const { data, error } = await getSupabase()
+            .from('repuestos_ot')
+            .select('*')
+            .eq('orden_trabajo_id', orden_trabajo_id)
+            .eq('activo', true);
+          if (error) throw error;
+          return (data ?? []).map(repuestoOTFromDb);
+        },
+        async listAll() {
+          const { data, error } = await getSupabase().from('repuestos_ot').select('*').eq('activo', true);
+          if (error) throw error;
+          return (data ?? []).map(repuestoOTFromDb);
+        },
+        async asignarRepuesto({ orden_trabajo_id, articulo_id, edificio_id, cantidad, usuario_id }) {
+          const { data, error } = await getSupabase().rpc('ot_asignar_repuesto', {
+            p_orden_trabajo_id: orden_trabajo_id,
+            p_articulo_id: articulo_id,
+            p_edificio_id: edificio_id,
+            p_cantidad: cantidad,
+            p_usuario_id: usuario_id,
+            p_version_app: APP_VERSION,
+          });
+          if (error) throw error;
+          return selectOneRequired('repuestos_ot', Number(data), repuestoOTFromDb);
+        },
+        async quitar(id) {
+          // Single-table (repuestos_ot only) — no transaction needed, unlike asignarRepuesto.
+          const { error } = await getSupabase().from('repuestos_ot').update({ activo: false }).eq('id', id);
+          if (error) throw error;
+        },
+      },
+    },
+
+    ventilaciones: {
+      list: () => selectAll('ventilaciones', ventilacionFromDb),
+      async crear(input) {
+        const sb = getSupabase();
+        // Atomic: the schedule row + the unit's requiere_ventilacion flag are written in one
+        // DEFINER RPC (one transaction), so a failure can't leave the unit unflagged and invite
+        // a duplicate-cycle retry. The SharePoint mirror runs after the commit — if it throws
+        // the DB is already consistent (and the unit is already flagged, so no duplicate).
+        const { data: newId, error } = await sb.rpc('ventilacion_crear', { p_payload: input });
+        if (error) throw error;
+        const { data, error: err1 } = await sb.from('ventilaciones').select('*').eq('id', Number(newId)).single();
+        if (err1) throw err1;
+        const row = ventilacionFromDb(data);
+        if (row.unidad_id != null) {
+          // Best-effort mirror: DB is the source of truth for the unit flag; a mirror outage must
+          // not fail the create (row + flag are already committed atomically by ventilacion_crear).
+          await mirrorUnidadVentilacion({ unidad_id: row.unidad_id, requiere_ventilacion: true });
+        }
+        return row;
+      },
+      async programar(id, fecha_programada) {
+        const { data, error } = await getSupabase()
+          .from('ventilaciones')
+          .update({ fecha_programada, estado: 'Programada', orden: 2 })
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        return ventilacionFromDb(data);
+      },
+      async asignar({ id, tecnico_id, proxima_limpieza, frecuencia_dias }) {
+        const sb = getSupabase();
+        const patch: Record<string, unknown> = {
+          estado: 'Asignada',
+          asignado_id: tecnico_id,
+          proxima_limpieza,
+          fecha_asignado: new Date().toISOString(),
+          orden: 3,
+        };
+        if (frecuencia_dias != null) patch.frecuencia_dias = frecuencia_dias;
+        const { data, error } = await sb.from('ventilaciones').update(patch).eq('id', id).select().single();
+        if (error) throw error;
+        const row = ventilacionFromDb(data);
+        if (frecuencia_dias != null && row.unidad_id != null) {
+          // unidades is a SELECT-only catalog → update the frequency via DEFINER RPC.
+          const { error: err2 } = await sb.rpc('unidad_set_frecuencia', { p_unidad_id: row.unidad_id, p_dias: frecuencia_dias });
+          if (err2) throw err2;
+        }
+        if (row.unidad_id != null) {
+          // Best-effort mirror: DB is the source of truth; a mirror outage must not fail asignar.
+          await mirrorUnidadVentilacion({
+            unidad_id: row.unidad_id,
+            requiere_ventilacion: true,
+            ...(frecuencia_dias != null ? { frecuencia_dias } : {}),
+          });
+        }
+        return row;
+      },
+      async finalizar({ id, obs_resuelto, usuario_id, foto_path }) {
+        void usuario_id; // mock parity: no per-user audit column on ventilaciones (kept for API symmetry)
+        const sb = getSupabase();
+        const { data: newId, error } = await sb.rpc('finalizar_ventilacion', {
+          p_id: id,
+          p_obs: obs_resuelto,
+          p_foto_path: foto_path ?? null,
+          p_version: APP_VERSION,
+        });
+        if (error) throw error;
+        const [{ data: cerradaRow, error: err1 }, { data: siguienteRow, error: err2 }] = await Promise.all([
+          sb.from('ventilaciones').select('*').eq('id', id).single(),
+          sb.from('ventilaciones').select('*').eq('id', Number(newId)).single(),
+        ]);
+        if (err1) throw err1;
+        if (err2) throw err2;
+        return { cerrada: ventilacionFromDb(cerradaRow), siguiente: ventilacionFromDb(siguienteRow) };
+      },
+      async adelantar({ id, obs_adelanto }) {
+        const { data, error } = await getSupabase()
+          .from('ventilaciones')
+          .update({ proxima_limpieza: todayISO(), obs_adelanto, es_incidente: true })
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        return ventilacionFromDb(data);
+      },
+      async eliminar(id) {
+        // Atomic: mark 'Eliminada' + clear the unit flag in one DEFINER RPC (one transaction),
+        // so a failure can't leave the unit permanently locked. Returns the unit id (or null:
+        // not found / no unit) for the post-commit SharePoint mirror.
+        const { data: unidadId, error } = await getSupabase().rpc('ventilacion_eliminar', { p_id: id });
+        if (error) throw error;
+        if (unidadId != null) {
+          // Best-effort mirror: DB is the source of truth; a mirror outage must not fail eliminar.
+          await mirrorUnidadVentilacion({ unidad_id: Number(unidadId), requiere_ventilacion: false });
+        }
+      },
+    },
+
+    documentos: {
+      async list(filter) {
+        let q = getSupabase().from('documentos').select('*');
+        if (filter.orden_trabajo_id !== undefined) q = q.eq('orden_trabajo_id', filter.orden_trabajo_id);
+        if (filter.compra_id !== undefined) q = q.eq('compra_id', filter.compra_id);
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data ?? []).map(documentoFromDb);
+      },
+      async crear(input) {
+        const sb = getSupabase();
+        const owner = input.orden_trabajo_id ?? input.compra_id ?? 0;
+        const contentType = input.content_type ?? input.file.type ?? undefined;
+        const path = `${input.carpeta.toLowerCase()}/${owner}/${Date.now()}-${input.nombre}`;
+        // Upload the bytes to the private `documentos` bucket, then record the metadata row via a DEFINER
+        // RPC — documentos is SELECT-only under RLS like every other table, so writes go through the RPC surface.
+        const { error: upErr } = await sb.storage.from('documentos').upload(path, input.file, { contentType, upsert: false });
+        if (upErr) throw upErr;
+        const { data, error } = await sb.rpc('documento_crear', {
+          p_nombre: input.nombre,
+          p_storage_path: path,
+          p_carpeta: input.carpeta,
+          p_orden_trabajo_id: input.orden_trabajo_id ?? null,
+          p_compra_id: input.compra_id ?? null,
+          p_content_type: contentType ?? null,
+        });
+        if (error) throw error;
+        return selectOneRequired('documentos', Number(data), documentoFromDb);
+      },
+      async url(storage_path) {
+        // Private bucket → a public URL 404s; sign it (1h) so <img src>/download works.
+        const { data, error } = await getSupabase().storage.from('documentos').createSignedUrl(storage_path, 3600);
+        if (error) throw error;
+        return data.signedUrl;
+      },
+    },
+
+    appReleases: {
+      async latest() {
+        const { data, error } = await getSupabase()
+          .from('app_releases')
+          .select('version')
+          .order('released_at', { ascending: false })
+          .limit(1);
+        if (error) throw error;
+        return (data?.[0]?.version as string | undefined) ?? null;
+      },
+    },
+
+    realtime: {
+      subscribe(topics, onChange) {
+        const sb = getSupabase();
+        const tables = [...new Set(topics.map((t) => REALTIME_TABLES[t]).filter(Boolean))];
+        if (tables.length === 0) return () => {};
+        // A single write often emits several row events; coalesce them into one refetch.
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const fire = () => { if (timer) clearTimeout(timer); timer = setTimeout(onChange, 250); };
+        const channel = sb.channel(`rt-${realtimeChannelSeq++}`);
+        for (const table of tables) {
+          channel.on('postgres_changes', { event: '*', schema: 'public', table }, fire);
+        }
+        channel.subscribe();
+        return () => { if (timer) clearTimeout(timer); void sb.removeChannel(channel); };
+      },
+    },
+  };
+
+  return api;
+}
