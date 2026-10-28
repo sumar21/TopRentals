@@ -1064,6 +1064,13 @@ export function createMockAdapter(): DataApi {
       },
     },
 
+    // No releases table in the mock: there is never a newer version to offer.
+    appReleases: {
+      async latest() {
+        return null;
+      },
+    },
+
     // No live backend to push from — subscriptions are a no-op (manual reload only).
     realtime: {
       subscribe() {

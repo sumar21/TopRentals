@@ -12,6 +12,7 @@ import {
 import { buildDashboardStats, buildMonthlyTrend, deltaChip, foldTopN, trendExtremes } from '../../utils/dashboardStats.ts';
 import { estadoLimpieza } from '../../utils/ventilacion.ts';
 import { errorMessage } from '../../utils/errorMessage.ts';
+import { isNewerAppVersion } from '../../utils/appVersion.ts';
 
 let passed = 0;
 
@@ -467,6 +468,20 @@ async function main() {
     assert.equal(errorMessage({ message: '   ' }, 'gen'), 'gen'); // blank message -> fallback
     assert.equal(errorMessage('just a string', 'gen'), 'gen'); // non-object -> fallback
     assert.equal(errorMessage(null, 'gen'), 'gen');
+  });
+
+  await check('isNewerAppVersion: date first, then major/minor/patch; equal, older and garbage are not newer', () => {
+    assert.equal(isNewerAppVersion('v20261101_1.0.0', 'v20261021_1.1.22'), true); // newer date wins over a lower semver
+    assert.equal(isNewerAppVersion('v20261021_1.1.23', 'v20261021_1.1.22'), true); // same date, higher patch
+    assert.equal(isNewerAppVersion('v20261021_1.2.0', 'v20261021_1.1.22'), true); // minor beats patch numerically
+    assert.equal(isNewerAppVersion('v20261021_2.0.0', 'v20261021_1.9.9'), true);
+    assert.equal(isNewerAppVersion('v20261021_1.1.10', 'v20261021_1.1.9'), true); // numeric, not lexicographic
+    assert.equal(isNewerAppVersion('v20261021_1.1.22', 'v20261021_1.1.22'), false); // equal
+    assert.equal(isNewerAppVersion('v20261020_9.9.9', 'v20261021_1.1.22'), false); // older date, higher semver
+    assert.equal(isNewerAppVersion('v20261021_1.1.21', 'v20261021_1.1.22'), false); // older
+    assert.equal(isNewerAppVersion('garbage', 'v20261021_1.1.22'), false);
+    assert.equal(isNewerAppVersion('v20261101_1.0.0', 'garbage'), false);
+    assert.equal(isNewerAppVersion(null, undefined), false);
   });
 
   console.log(`\n${passed} check(s) passed.`);

@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { BuildingProvider } from './contexts/BuildingContext';
+import { AppVersionProvider } from './contexts/AppVersionContext';
+import NewVersionModal from './components/NewVersionModal';
 import { ToastProvider } from './components/ui/Toast';
 import { Loader } from './components/ui/Loader';
 import { canAccessModule, canAccessTecnico, isTecnicoOnly } from './utils/permissions';
@@ -89,6 +91,9 @@ const App = () => (
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+        {/* One mount covers back-office and /tecnico: it needs only the session, not a layout. */}
+        <AppVersionProvider>
+        <NewVersionModal />
         <Routes>
           <Route path="/login" element={<Login />} />
 
@@ -126,6 +131,7 @@ const App = () => (
           <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<RootRedirect />} />
         </Routes>
+        </AppVersionProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

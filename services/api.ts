@@ -57,7 +57,8 @@ export type RealtimeTopic =
   | 'articulos'
   | 'usuarios'
   | 'edificios'
-  | 'unidades';
+  | 'unidades'
+  | 'appReleases';
 
 /** Quick-access entry for the login demo panel — only meaningful on the mock backend. */
 export interface DemoUser {
@@ -231,6 +232,12 @@ export interface DataApi {
     /** Short-lived signed URL to view/download a file from the private bucket by its storage_path.
      *  A `list()` only returns metadata (the bucket is private) — the UI needs this to render/open a file. */
     url(storage_path: string): Promise<string>;
+  };
+
+  /** Production releases recorded by the deploy webhook (public.app_releases). */
+  appReleases: {
+    /** APP_VERSION of the latest recorded release (by released_at), or null when there is none. */
+    latest(): Promise<string | null>;
   };
 
   /** Live change notifications (Supabase Realtime). On backends without realtime

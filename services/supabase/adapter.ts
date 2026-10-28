@@ -54,6 +54,7 @@ const REALTIME_TABLES: Record<RealtimeTopic, string> = {
   usuarios: 'usuarios',
   edificios: 'edificios',
   unidades: 'unidades',
+  appReleases: 'app_releases',
 };
 // Monotonic so parallel subscriptions (several mounted views) never share a channel name.
 let realtimeChannelSeq = 0;
@@ -831,6 +832,18 @@ export function createSupabaseAdapter(): DataApi {
         const { data, error } = await getSupabase().storage.from('documentos').createSignedUrl(storage_path, 3600);
         if (error) throw error;
         return data.signedUrl;
+      },
+    },
+
+    appReleases: {
+      async latest() {
+        const { data, error } = await getSupabase()
+          .from('app_releases')
+          .select('version')
+          .order('released_at', { ascending: false })
+          .limit(1);
+        if (error) throw error;
+        return (data?.[0]?.version as string | undefined) ?? null;
       },
     },
 
