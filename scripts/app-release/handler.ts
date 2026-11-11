@@ -89,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // A redeploy of a recorded (version, commit) is not an error: the duplicate is ignored.
     const { error } = await supabase
       .from('app_releases')
-      .upsert({ version, commit_sha: sha }, { onConflict: 'version,commit_sha', ignoreDuplicates: true });
+      .upsert({ app: 'toprentals', version, commit_sha: sha }, { onConflict: 'app,version,commit_sha', ignoreDuplicates: true });
     if (error) throw new Error(error.message);
     console.log(`[app-release] recorded ${version} (${sha})`);
     res.status(200).json({ ok: true, version });

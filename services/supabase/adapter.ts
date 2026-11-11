@@ -840,6 +840,7 @@ export function createSupabaseAdapter(): DataApi {
         const { data, error } = await getSupabase()
           .from('app_releases')
           .select('version')
+          .eq('app', 'toprentals') // the Tecnoapp registers its releases in the same table (0016)
           .order('released_at', { ascending: false })
           .limit(1);
         if (error) throw error;
