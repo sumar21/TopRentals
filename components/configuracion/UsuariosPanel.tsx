@@ -126,7 +126,10 @@ const UsuarioFormModal: React.FC<{
     setSaving(true);
     try {
       const edificio = edificios.find((e) => String(e.id) === form.edificioId) ?? null;
-      const aplicacion = form.perfil === 'Tecnico' ? 'Mantenimiento' : 'Desktop';
+      // usuarios es compartida con la Tecnoapp, que exige el token 'Hotel': se conserva si el usuario
+      // lo tenía (pisarlo con 'Desktop'/'Mantenimiento' le sacaba el acceso a la otra app).
+      const propia = form.perfil === 'Tecnico' ? 'Mantenimiento' : 'Desktop';
+      const aplicacion = usuario?.aplicacion?.split('/').includes('Hotel') ? `Hotel/${propia}` : propia;
       const payload = {
         auth_user_id: usuario?.auth_user_id ?? null,
         nombre: form.nombre.trim(),

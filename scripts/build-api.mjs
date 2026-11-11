@@ -9,7 +9,6 @@
 import { build } from 'esbuild';
 
 const functions = [
-  { entry: 'scripts/sync/vercel-handler.ts', out: 'api/catalog-sync.js' },
   { entry: 'scripts/app-release/handler.ts', out: 'api/app-release.js' },
 ];
 
