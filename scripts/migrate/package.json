@@ -11,6 +11,8 @@
     "fix:usuarios": "node --experimental-strip-types src/fix-usuarios-sp.ts --apply",
     "migrate:tecnoapp":"node --experimental-strip-types src/tecnoapp.ts",
     "migrate:tecnoapp:dry": "node --experimental-strip-types src/tecnoapp.ts --dry-run",
+    "migrate:tecnoapp:update": "node --experimental-strip-types src/tecnoapp.ts --update",
+    "migrate:tecnoapp:update:dry": "node --experimental-strip-types src/tecnoapp.ts --update --dry-run",
     "check":"node --experimental-strip-types src/checks.ts",
     "provision-auth": "node --experimental-strip-types src/provision-auth.ts",
     "provision-auth:dry-run": "node --experimental-strip-types src/provision-auth.ts --dry-run",

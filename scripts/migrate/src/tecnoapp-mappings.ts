@@ -376,6 +376,19 @@ export function mapTecnoappRow(
   return row;
 }
 
+/**
+ * Has the SharePoint item been modified since it was migrated? `stored` is what Supabase keeps (extra->>'Modified', or
+ * fields->>'Modified' in the archive), `spModified` the item's current `Modified`. An item with no `Modified` is left alone.
+ */
+export function modifiedChanged(stored: unknown, spModified: unknown): boolean {
+  const sp = emptyToNull(spModified);
+  if (!sp) return false;
+  return emptyToNull(stored) !== sp;
+}
+
+/** Rows with an id at or above this were created by the app on Supabase: the SharePoint sync never touches them. */
+export const APP_ID_FLOOR = 1_000_000;
+
 export function rejectionsToCsv(rejections: Rejection[]): string {
   const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   const lines = rejections.map((r) => [r.list, r.spId, r.column, r.raw].map(esc).join(','));

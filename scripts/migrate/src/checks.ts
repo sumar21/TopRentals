@@ -19,7 +19,7 @@ import { mapRow, type Mapping } from './mappings.ts';
 import { ResolutionContext } from './resolve.ts';
 import { readFileSync } from 'node:fs';
 import { parseCumple, parseStatus, resolveEdificio, rowStatus } from './fix-usuarios-sp.ts';
-import { TECNOAPP_TABLES, extraFields, mapTecnoappRow, parseDmyHm, parseIsoTimestamp, type Rejection } from './tecnoapp-mappings.ts';
+import { TECNOAPP_TABLES, extraFields, mapTecnoappRow, modifiedChanged, parseDmyHm, parseIsoTimestamp, type Rejection } from './tecnoapp-mappings.ts';
 
 let passed = 0;
 
@@ -200,6 +200,14 @@ async function main() {
       { Title: '[sumar]', Modified: '2026-01-01T00:00:00Z', AuthorLookupId: '7', Extra_X: 0 },
     );
     assert.equal(extraFields(spec, { id: '1', Usr_UM: 'a', Edit: '' }), null);
+  });
+
+  await check('modifiedChanged: differs only when SharePoint has a Modified that is not the stored one', () => {
+    assert.equal(modifiedChanged('2026-05-07T12:00:00Z', '2026-05-07T12:00:00Z'), false);
+    assert.equal(modifiedChanged('2026-05-07T12:00:00Z', '2026-05-08T09:30:00Z'), true);
+    assert.equal(modifiedChanged(null, '2026-05-08T09:30:00Z'), true); // nothing stored yet
+    assert.equal(modifiedChanged('2026-05-07T12:00:00Z', undefined), false); // SharePoint without Modified: leave alone
+    assert.equal(modifiedChanged('2026-05-07T12:00:00Z', ''), false);
   });
 
   await check('0016_tecnoapp.sql creates exactly the mapped columns of every typed table', () => {

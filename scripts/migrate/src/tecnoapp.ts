@@ -1,18 +1,22 @@
 // Tecnoapp SharePoint -> Supabase (tables: supabase/migrations/0016_tecnoapp.sql). Plain async main, no framework.
 //
-// HARD RULE: this script NEVER deletes or updates anything in Supabase (production, main, is live on the same database).
-// It only INSERTS rows that are not there yet:
+// HARD RULE: this script NEVER deletes anything in Supabase (production, main, is live on the same database).
+// Default run: it only INSERTS rows that are not there yet:
 //   * typed tables:        INSERT ... ON CONFLICT (id) DO NOTHING            (id = SharePoint item id)
 //   * sharepoint_archivo:  INSERT ... ON CONFLICT (lista, sp_id) DO NOTHING
 //   * users (--users):     INSERT only the usuario_app values that do not exist yet; existing users are never touched.
-// So it is re-runnable: each run adds only the SharePoint items that Supabase does not have yet. No TRUNCATE, no DELETE,
-// no identity reset. It talks to Supabase through the service-role REST client only (no SQL connection at all).
+// With --update it also APPLIES SharePoint modifications to rows already migrated: for items whose id is already in
+// Supabase (and < 1000000: rows the app created are never touched) it compares SharePoint `Modified` with the stored
+// extra->>'Modified' (archive: fields->>'Modified') and, when they differ, rewrites that row's typed columns + extra (archive:
+// fields) from the SharePoint item, by id. Rows that no longer exist in SharePoint are only counted, never deleted.
+// Re-runnable. No TRUNCATE, no DELETE, no identity reset. It talks to Supabase through the service-role REST client only (no SQL connection at all).
 // Every SharePoint field no typed column takes goes to the table's `extra` jsonb (column added by 0017), so nothing is lost.
 // The identities of the 15 tables are moved to >= 1000000 by supabase/migrations/0017_tecnoapp_id_range.sql, so rows the
 // Tecnoapp creates on Supabase never collide with the SharePoint item ids that keep arriving until the cutover.
 //
 //   npm run migrate:tecnoapp:dry          reads SharePoint and (read-only) Supabase; writes NOTHING.
 //   npm run migrate:tecnoapp              inserts the missing rows of the 14 typed tables + sharepoint_archivo.
+//   npm run migrate:tecnoapp -- --update  inserts the missing rows AND applies SharePoint modifications (add --dry-run to preview).
 //   npm run migrate:tecnoapp -- --users   separate step: additive users sync (+ provision_auth_user for active users).
 
 import { config } from 'dotenv';
@@ -24,9 +28,11 @@ import { createGraphClient, type SpItem } from './graph.ts';
 import { emptyToNull } from './coerce.ts';
 import * as M from './mappings.ts';
 import {
+  APP_ID_FLOOR,
   ARCHIVE_TABLE,
   TECNOAPP_TABLES,
   mapTecnoappRow,
+  modifiedChanged,
   rejectionsToCsv,
   type Rejection,
   type TableSpec,
@@ -105,19 +111,81 @@ async function insertMissing(sb: Supabase, table: string, rows: Row[], onConflic
   }
 }
 
-// ---------------------------------------------------------------------------
-// Plan: SharePoint items -> rows, minus what Supabase already has
-// ---------------------------------------------------------------------------
-interface TypedPlan { spec: TableSpec; spItems: number; existing: number; rows: Row[]; rejections: Rejection[]; missingTable: boolean }
-interface ArchivePlan { list: string; spItems: number; existing: number; rows: Row[] }
+/** UPDATE by key of rows that already exist (upsert WITHOUT ignoreDuplicates: every row below exists, so it only updates). */
+async function updateExisting(sb: Supabase, table: string, rows: Row[], onConflict: string, batchSize: number): Promise<void> {
+  for (const batch of chunks(rows, batchSize)) {
+    const { error } = await sb.from(table).upsert(batch, { onConflict });
+    if (error) throw new Error(`update ${table}: ${error.message}`);
+  }
+}
 
-async function planTyped(sb: Supabase, spec: TableSpec, items: SpItem[]): Promise<TypedPlan> {
-  const existingRows = await selectAll(sb, spec.table, 'id');
-  const have = new Set((existingRows ?? []).map((r) => Number(r.id)));
+// ---------------------------------------------------------------------------
+// Plan: SharePoint items -> rows to insert (not in Supabase) and, with --update, rows to update (modified in SharePoint)
+// ---------------------------------------------------------------------------
+interface TypedPlan {
+  spec: TableSpec;
+  spItems: number;
+  existing: number;
+  rows: Row[]; // to insert
+  changed: Row[]; // to update (--update only)
+  spDeleted: number; // ids < APP_ID_FLOOR in Supabase that SharePoint no longer has (report only; --update only)
+  rejections: Rejection[];
+  missingTable: boolean;
+}
+interface ArchivePlan { list: string; spItems: number; existing: number; rows: Row[]; changed: Row[]; spDeleted: number }
+
+async function planTyped(sb: Supabase, spec: TableSpec, items: SpItem[], update: boolean): Promise<TypedPlan> {
+  // `modified:extra->>Modified` = the SharePoint Modified stored with the row (only the id and that text travel).
+  const existingRows = await selectAll(sb, spec.table, update ? 'id, modified:extra->>Modified' : 'id');
+  const have = new Map((existingRows ?? []).map((r) => [Number(r.id), (r.modified as string | null) ?? null]));
   const rejections: Rejection[] = [];
-  // Only the missing items are mapped: rows already in Supabase are never rewritten, so their values do not matter here.
-  const rows = items.filter((i) => !have.has(Number(i.id))).map((i) => mapTecnoappRow(spec, i, rejections));
-  return { spec, spItems: items.length, existing: have.size, rows, rejections, missingTable: existingRows === null };
+  const map = (i: SpItem): Row => mapTecnoappRow(spec, i, rejections);
+  const rows = items.filter((i) => !have.has(Number(i.id))).map(map);
+  let changed: Row[] = [];
+  let spDeleted = 0;
+  if (update) {
+    changed = items
+      .filter((i) => Number(i.id) < APP_ID_FLOOR && have.has(Number(i.id)) && modifiedChanged(have.get(Number(i.id)), i.fields.Modified))
+      .map(map);
+    const inSp = new Set(items.map((i) => Number(i.id)));
+    spDeleted = [...have.keys()].filter((id) => id < APP_ID_FLOOR && !inSp.has(id)).length;
+  }
+  return { spec, spItems: items.length, existing: have.size, rows, changed, spDeleted, rejections, missingTable: existingRows === null };
+}
+
+/** Old -> new of the columns that differ between a stored row and the mapped row (report only). */
+function diffRow(old: Row, next: Row): string[] {
+  const same = (a: unknown, b: unknown): boolean => {
+    if (a == null || b == null) return a == b;
+    if (typeof a === 'string' && typeof b === 'string' && a.includes('T') && b.includes('T')) return Date.parse(a) === Date.parse(b);
+    return JSON.stringify(a) === JSON.stringify(b);
+  };
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(next)) {
+    if (k === 'created_at' || k === 'extra') continue;
+    if (!same(old[k], v)) out.push(`${k}: ${JSON.stringify(old[k] ?? null)} -> ${JSON.stringify(v ?? null)}`);
+  }
+  const oe = (old.extra ?? {}) as Row;
+  const ne = (next.extra ?? {}) as Row;
+  for (const k of new Set([...Object.keys(oe), ...Object.keys(ne)])) {
+    if (!same(oe[k], ne[k])) out.push(`extra.${k}: ${JSON.stringify(oe[k] ?? null).slice(0, 60)} -> ${JSON.stringify(ne[k] ?? null).slice(0, 60)}`);
+  }
+  return out;
+}
+
+/** 3 sample diffs per table with changes: reads the stored rows by id (READ ONLY). */
+async function printSamples(sb: Supabase, typed: TypedPlan[]): Promise<void> {
+  for (const t of typed) {
+    if (!t.changed.length) continue;
+    const sample = t.changed.slice(0, 3);
+    const { data, error } = await sb.from(t.spec.table).select('*').in('id', sample.map((r) => r.id as number));
+    if (error) throw new Error(`select ${t.spec.table}: ${error.message}`);
+    console.log(`\n${t.spec.table}: sample diffs (id: column old -> new)`);
+    for (const row of sample) {
+      const old = (data as unknown as Row[]).find((r) => Number(r.id) === row.id) ?? {};
+      console.log(`  ${row.id}: ${diffRow(old, row).join(' | ') || '(only Modified/extra metadata)'}`);
+    }
+  }
 }
 
 interface NewUser {
@@ -213,6 +281,7 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes('--dry-run');
   const usersOnly = argv.includes('--users');
+  const update = argv.includes('--update');
 
   const ms = requireEnv(['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'SP_SITE_URL']);
   const env = requireEnv(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
@@ -228,7 +297,7 @@ async function main(): Promise<void> {
     return graph.fetchAllItems(siteId, id);
   };
 
-  console.log(`${dryRun ? 'DRY RUN (reads only, writes nothing)' : usersOnly ? 'LIVE users sync (insert only)' : 'LIVE load (insert only, ON CONFLICT DO NOTHING)'} against ${ms.SP_SITE_URL}\n`);
+  console.log(`${dryRun ? 'DRY RUN (reads only, writes nothing)' : usersOnly ? 'LIVE users sync (insert only)' : update ? 'LIVE load + update (insert missing, update modified, never delete)' : 'LIVE load (insert only, ON CONFLICT DO NOTHING)'} against ${ms.SP_SITE_URL}\n`);
 
   // ---- users step (separate): reads public.usuarios, writes only on --users ---------------------------------
   if (usersOnly || dryRun) {
@@ -243,8 +312,8 @@ async function main(): Promise<void> {
 
   // ---- typed tables: SharePoint items minus what Supabase already has ------------------------------------------
   const typed = await pool(TECNOAPP_TABLES, 4, async (spec) => {
-    const plan = await planTyped(sb, spec, await fetchList(spec.list));
-    console.log(`  read ${spec.list}: ${plan.spItems} items, ${plan.rows.length} to insert`);
+    const plan = await planTyped(sb, spec, await fetchList(spec.list), update);
+    console.log(`  read ${spec.list}: ${plan.spItems} items, ${plan.rows.length} to insert${update ? `, ${plan.changed.length} to update` : ''}`);
     return plan;
   });
 
@@ -252,14 +321,21 @@ async function main(): Promise<void> {
   // TopRentals migrates itself via SP_LISTS, nothing in the 14 typed tables) ------------------------------------
   const taken = new Set<string>([...Object.values(M.SP_LISTS), ...TECNOAPP_TABLES.map((s) => s.list)]);
   const archiveLists = allLists.filter((l) => !l.hidden && l.template === 'genericList' && !taken.has(l.displayName));
-  const archivedRows = await selectAll(sb, ARCHIVE_TABLE, 'id, lista, sp_id');
-  const archived = new Set((archivedRows ?? []).map((r) => `${r.lista}\u0000${r.sp_id}`));
+  const archivedRows = await selectAll(sb, ARCHIVE_TABLE, update ? 'id, lista, sp_id, modified:fields->>Modified' : 'id, lista, sp_id');
+  const archived = new Map((archivedRows ?? []).map((r) => [`${r.lista}\u0000${r.sp_id}`, (r.modified as string | null) ?? null]));
   const archive: ArchivePlan[] = await pool(archiveLists, 4, async (l) => {
     const items = await fetchList(l.displayName);
-    const rows = items
-      .filter((i) => !archived.has(`${l.displayName}\u0000${Number(i.id)}`))
-      .map((i) => ({ lista: l.displayName, sp_id: Number(i.id), fields: i.fields }));
-    return { list: l.displayName, spItems: items.length, existing: items.length - rows.length, rows };
+    const key = (i: SpItem): string => `${l.displayName}\u0000${Number(i.id)}`;
+    const toRow = (i: SpItem): Row => ({ lista: l.displayName, sp_id: Number(i.id), fields: i.fields });
+    const rows = items.filter((i) => !archived.has(key(i))).map(toRow);
+    const changed = update
+      ? items.filter((i) => Number(i.id) < APP_ID_FLOOR && archived.has(key(i)) && modifiedChanged(archived.get(key(i)), i.fields.Modified)).map(toRow)
+      : [];
+    const inSp = new Set(items.map(key));
+    const spDeleted = update
+      ? [...archived.keys()].filter((k) => k.startsWith(`${l.displayName}\u0000`) && !inSp.has(k) && Number(k.split('\u0000')[1]) < APP_ID_FLOOR).length
+      : 0;
+    return { list: l.displayName, spItems: items.length, existing: items.length - rows.length, rows, changed, spDeleted };
   });
 
   // ---- report ----------------------------------------------------------------------------------------------------
@@ -275,6 +351,7 @@ async function main(): Promise<void> {
       sp_items: t.spItems,
       already_in_supabase: t.existing,
       would_insert: t.rows.length,
+      ...(update ? { changed_in_sp: t.changed.length, deleted_in_sp: t.spDeleted } : {}),
       rejected_values: t.rejections.length,
       ...(t.missingTable ? { note: 'TABLE MISSING (apply 0016)' } : {}),
     })),
@@ -286,7 +363,7 @@ async function main(): Promise<void> {
     console.table([...byColumn].map(([column, count]) => ({ column, count })));
   }
   console.log(`\n=== Archive (${ARCHIVE_TABLE}) ===`);
-  console.table(archive.map((a) => ({ list: a.list, sp_items: a.spItems, already_in_supabase: a.existing, would_insert: a.rows.length })));
+  console.table(archive.map((a) => ({ list: a.list, sp_items: a.spItems, already_in_supabase: a.existing, would_insert: a.rows.length, ...(update ? { changed_in_sp: a.changed.length, deleted_in_sp: a.spDeleted } : {}) })));
   // What lands in `extra` (every SharePoint field no typed column takes): distinct keys per table, to eyeball.
   console.log('\n=== Keys that land in `extra` (key: rows that have it) ===');
   for (const t of typed) {
@@ -296,6 +373,12 @@ async function main(): Promise<void> {
   }
   console.log(`\nRejections: ${rejections.length} -> ${path.join(OUT_DIR, 'tecnoapp-rejections.csv')}`);
 
+  if (update) {
+    await printSamples(sb, typed);
+    const deleted = typed.reduce((n, t) => n + t.spDeleted, 0) + archive.reduce((n, x) => n + x.spDeleted, 0);
+    console.log(`\nDeleted in SharePoint (id < ${APP_ID_FLOOR} still in Supabase; reported only, NEVER deleted): ${deleted}`);
+  }
+
   if (dryRun) {
     console.log('\nDRY RUN: nothing was written.');
     return;
@@ -304,12 +387,20 @@ async function main(): Promise<void> {
   for (const t of typed) {
     await insertMissing(sb, t.spec.table, t.rows, 'id', 500);
     console.log(`  inserted ${t.rows.length} into ${t.spec.table}`);
+    if (update) {
+      await updateExisting(sb, t.spec.table, t.changed, 'id', 500);
+      console.log(`  updated ${t.changed.length} in ${t.spec.table}`);
+    }
   }
-  for (const a of archive) {
-    await insertMissing(sb, ARCHIVE_TABLE, a.rows, 'lista,sp_id', 100);
-    console.log(`  archived ${a.rows.length} from ${a.list}`);
+  for (const x of archive) {
+    await insertMissing(sb, ARCHIVE_TABLE, x.rows, 'lista,sp_id', 100);
+    console.log(`  archived ${x.rows.length} from ${x.list}`);
+    if (update) {
+      await updateExisting(sb, ARCHIVE_TABLE, x.changed, 'lista,sp_id', 100);
+      console.log(`  archive updated ${x.changed.length} from ${x.list}`);
+    }
   }
-  console.log('\nDone (insert only; existing rows untouched).');
+  console.log(update ? '\nDone (inserted missing, updated modified; nothing deleted).' : '\nDone (insert only; existing rows untouched).');
 }
 
 main().catch((err) => {
