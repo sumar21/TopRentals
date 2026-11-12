@@ -17,6 +17,9 @@ import {
 } from './coerce.ts';
 import { mapRow, type Mapping } from './mappings.ts';
 import { ResolutionContext } from './resolve.ts';
+import { readFileSync } from 'node:fs';
+import { parseCumple, parseStatus, resolveEdificio, rowStatus } from './fix-usuarios-sp.ts';
+import { TECNOAPP_TABLES, extraFields, mapTecnoappRow, parseDmyHm, parseIsoTimestamp, type Rejection } from './tecnoapp-mappings.ts';
 
 let passed = 0;
 
@@ -157,6 +160,73 @@ async function main() {
     assert.equal(ctx.resolveDirectId(ctx.unidadIds, '10'), 10);
     assert.equal(ctx.resolveDirectId(ctx.unidadIds, 'not-a-number'), null);
     assert.equal(ctx.resolveDirectId(ctx.unidadIds, ''), null);
+  });
+
+  // ---- tecnoapp-mappings.ts --------------------------------------------------
+  await check('parseDmyHm / parseIsoTimestamp: valid -> ISO, junk -> null', () => {
+    assert.equal(parseDmyHm('05/03/2026 9:07'), '2026-03-05T09:07:00-03:00');
+    assert.equal(parseDmyHm('05/03/2026 24:00'), null);
+    assert.equal(parseDmyHm('31/02/2026 10:00'), null);
+    assert.equal(parseDmyHm('05/03/2026'), null);
+    assert.equal(parseIsoTimestamp('2026-03-05T03:00:00Z'), '2026-03-05T03:00:00.000Z');
+    assert.equal(parseIsoTimestamp('05/03/2026'), null);
+  });
+
+  await check('mapTecnoappRow: keeps the SharePoint id, NULLs unparseable values and reports them (empty is not a rejection)', () => {
+    const spec = TECNOAPP_TABLES.find((t) => t.table === 'ordenes_limpieza')!;
+    const rejections: Rejection[] = [];
+    const row = mapTecnoappRow(
+      spec,
+      { id: '42', fields: { Fecha_O: '07/05/2026', Prendas_O: '4', Unidades_O: 'x', Hora_O: '', Edificio_O: ' Downtown ', Created: '2026-05-07T12:00:00Z' } },
+      rejections,
+    );
+    assert.equal(row.id, 42);
+    assert.equal(row.fecha, '2026-05-07');
+    assert.equal(row.prendas, 4);
+    assert.equal(row.unidades, null);
+    assert.equal(row.hora, null);
+    assert.equal(row.edificio, 'Downtown');
+    assert.equal(row.created_at, '2026-05-07T12:00:00.000Z');
+    assert.deepEqual(rejections, [{ list: '11.Ordenes', spId: '42', column: 'Unidades_O', raw: 'x' }]);
+  });
+
+  await check('extraFields: unmapped fields kept untouched, system noise / mapped / empty dropped, null when nothing is left', () => {
+    const spec = TECNOAPP_TABLES.find((t) => t.table === 'uso_metricas')!;
+    assert.deepEqual(
+      extraFields(spec, {
+        '@odata.etag': 'x', id: '1', Created: 'c', ContentType: 'Item', Attachments: false, _UIVersionString: '1.0', LinkTitle: 'l',
+        Usr_UM: 'mapped', Title: '[sumar]', Modified: '2026-01-01T00:00:00Z', AuthorLookupId: '7', Extra_X: 0, Empty: '',
+      }),
+      { Title: '[sumar]', Modified: '2026-01-01T00:00:00Z', AuthorLookupId: '7', Extra_X: 0 },
+    );
+    assert.equal(extraFields(spec, { id: '1', Usr_UM: 'a', Edit: '' }), null);
+  });
+
+  await check('0016_tecnoapp.sql creates exactly the mapped columns of every typed table', () => {
+    const sql = readFileSync(new URL('../../../supabase/migrations/0016_tecnoapp.sql', import.meta.url), 'utf8');
+    for (const spec of TECNOAPP_TABLES) {
+      const block = new RegExp(`create table if not exists public\\.${spec.table} \\(\\n([\\s\\S]*?)\\n\\);`).exec(sql);
+      assert.ok(block, `${spec.table}: create table not found in 0016`);
+      const cols = block[1].split('\n').map((l) => l.trim().split(/\s+/)[0]);
+      assert.deepEqual(cols, ['id', ...spec.cols.map((c) => c.pg), 'created_at'], spec.table);
+    }
+  });
+
+  await check('fix-usuarios-sp: cumple normalisation, status encoding, edificio aliases', () => {
+    assert.deepEqual(parseCumple('5/3'), { cumple: '05/03', fechaNac: null });
+    assert.deepEqual(parseCumple('29/02'), { cumple: '29/02', fechaNac: null });
+    assert.deepEqual(parseCumple('07/11/1990'), { cumple: '07/11', fechaNac: '1990-11-07' });
+    assert.equal(parseCumple('31/04'), null);
+    assert.equal(parseCumple('1990-11-07'), null);
+    assert.equal(rowStatus(true, null), 'ALTA');
+    assert.equal(rowStatus(true, false), 'PENDIENTE');
+    assert.equal(rowStatus(false, false), 'INACTIVO');
+    assert.equal(rowStatus(false, null), 'BAJA');
+    assert.equal(parseStatus(' baja '), 'BAJA');
+    const byName = new Map([['palermo hollywood', 4], ['hub', 1]]);
+    assert.equal(resolveEdificio('Gorriti', byName), 4);
+    assert.equal(resolveEdificio(' Hub ', byName), 1);
+    assert.equal(resolveEdificio('Nope', byName), null);
   });
 
   console.log(`\n${passed} check(s) passed.`);

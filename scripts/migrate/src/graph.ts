@@ -14,6 +14,14 @@ export interface SpItem {
   fields: Record<string, unknown>;
 }
 
+export interface ListInfo {
+  id: string;
+  displayName: string;
+  /** 'genericList' for normal lists, 'documentLibrary' for libraries, other values for system lists. */
+  template: string;
+  hidden: boolean;
+}
+
 export interface DriveInfo {
   id: string;
   name: string;
@@ -33,15 +41,21 @@ export interface DriveItemNode {
 }
 
 async function graphFetchJson<T>(url: string, token: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
+  // Graph throttles (429) and hiccups (503/504) on big lists: wait what Retry-After says (or back off) and retry.
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, {
+      ...init,
+      headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+    });
+    if (res.ok) return res.json() as Promise<T>;
+    if ([429, 503, 504].includes(res.status) && attempt < 8) {
+      const waitSec = Number(res.headers.get('Retry-After')) || 2 ** attempt;
+      await new Promise((resolve) => setTimeout(resolve, waitSec * 1000));
+      continue;
+    }
     const body = await res.text().catch(() => '');
     throw new Error(`Graph request failed (${res.status} ${res.statusText}) for ${url}: ${body.slice(0, 500)}`);
   }
-  return res.json() as Promise<T>;
 }
 
 export function createGraphClient(env: GraphAuthEnv) {
@@ -91,10 +105,30 @@ export function createGraphClient(env: GraphAuthEnv) {
     return match.id;
   }
 
-  async function fetchAllItems(siteId: string, listId: string): Promise<SpItem[]> {
+  /** Every list of the site (hidden/system ones and document libraries included — the caller filters). */
+  async function listLists(siteId: string): Promise<ListInfo[]> {
+    const token = await getAccessToken();
+    const out: ListInfo[] = [];
+    let url: string | null = `${GRAPH_ROOT}/sites/${siteId}/lists?$select=id,displayName,list&$top=200`;
+    while (url) {
+      const page = await graphFetchJson<{
+        value: Array<{ id: string; displayName: string; list?: { template?: string; hidden?: boolean } }>;
+        '@odata.nextLink'?: string;
+      }>(url, token);
+      for (const l of page.value) {
+        out.push({ id: l.id, displayName: l.displayName, template: l.list?.template ?? '', hidden: Boolean(l.list?.hidden) });
+      }
+      url = page['@odata.nextLink'] ?? null;
+    }
+    return out;
+  }
+
+  /** `selectFields` (internal names) trims the payload to those columns; omitted = every column. */
+  async function fetchAllItems(siteId: string, listId: string, selectFields?: string[]): Promise<SpItem[]> {
     const token = await getAccessToken();
     const items: SpItem[] = [];
-    let url: string | null = `${GRAPH_ROOT}/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`;
+    const expand = selectFields ? `fields($select=${selectFields.join(',')})` : 'fields';
+    let url: string | null = `${GRAPH_ROOT}/sites/${siteId}/lists/${listId}/items?$expand=${expand}&$top=999`;
     while (url) {
       const page = await graphFetchJson<{
         value: Array<{ id: string; fields: Record<string, unknown> }>;
@@ -172,6 +206,7 @@ export function createGraphClient(env: GraphAuthEnv) {
     getAccessToken,
     resolveSiteId,
     resolveListId,
+    listLists,
     fetchAllItems,
     listDrives,
     listDriveItemsRecursive,

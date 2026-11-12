@@ -7,7 +7,11 @@
   "scripts": {
     "migrate": "node --experimental-strip-types src/index.ts",
     "dry-run": "node --experimental-strip-types src/index.ts --dry-run",
-    "check": "node --experimental-strip-types src/checks.ts",
+    "fix:usuarios:dry": "node --experimental-strip-types src/fix-usuarios-sp.ts",
+    "fix:usuarios": "node --experimental-strip-types src/fix-usuarios-sp.ts --apply",
+    "migrate:tecnoapp":"node --experimental-strip-types src/tecnoapp.ts",
+    "migrate:tecnoapp:dry": "node --experimental-strip-types src/tecnoapp.ts --dry-run",
+    "check":"node --experimental-strip-types src/checks.ts",
     "provision-auth": "node --experimental-strip-types src/provision-auth.ts",
     "provision-auth:dry-run": "node --experimental-strip-types src/provision-auth.ts --dry-run",
     "backfill-passwords": "node --experimental-strip-types src/backfill-passwords-sp.ts",
